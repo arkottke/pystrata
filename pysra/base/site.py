@@ -21,7 +21,6 @@ import numpy as np
 
 from scipy.interpolate import interp1d
 
-
 class NonlinearProperty(object):
     """Docstring for NonlinearProperty """
 
@@ -124,7 +123,7 @@ class SoilType(object):
         self.mod_reduc = mod_reduc
         self.damping = damping
 
-
+# TODO for nonlinear site response this class wouldn't be used. Better way to do this? Maybe have the calculator create it?
 class IterativeValue(object):
     def __init__(self, value):
         self._value = value
