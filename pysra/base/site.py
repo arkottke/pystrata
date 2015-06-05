@@ -17,6 +17,8 @@
 #
 # Copyright (C) Albert Kottke, 2013
 
+from typing import Iterable
+
 import numpy as np
 
 from scipy.interpolate import interp1d
@@ -123,6 +125,10 @@ class SoilType(object):
         self.mod_reduc = mod_reduc
         self.damping = damping
 
+    @property
+    def density(self):
+        return self.unit_wt / self.gravity
+
 # TODO for nonlinear site response this class wouldn't be used. Better way to do this? Maybe have the calculator create it?
 class IterativeValue(object):
     def __init__(self, value):
@@ -154,59 +160,179 @@ class IterativeValue(object):
 class Layer(object):
     """Docstring for Layer """
 
-    def __init__(self, soil_type, thickness, velocity):
+    def __init__(self, soil_type: SoilType, thickness: float, shear_vel: float):
         """@todo: to be defined1 """
+        self._profile = None
 
-        self.soil_type = soil_type
-        self.thickness = thickness
-        self.velocity = velocity
+        self._soil_type = soil_type
+        self._thickness = thickness
+        self._initial_shear_vel = shear_vel
 
         self._shear_mod = IterativeValue(None)
         self._damping = IterativeValue(None)
         self._strain = IterativeValue(None)
 
+        self._depth = 0
+
+    @property
+    def depth(self):
+        return self._depth
+
+    @property
+    def depth_mid(self):
+        return self._depth + self._thickness / 2
+
+    @property
+    def depth_base(self):
+        return self._depth + self._thickness
+
+    @classmethod
+    def duplicate(cls, other):
+        return cls(other.soil_type, other.thickness, other.shear_vel)
+
+    @property
+    def density(self):
+        return self.soil_type.density
+
     @property
     def damping(self):
         return self._damping
 
-    def max_shear_mod(self):
-        return (self.soil_type.unit_wt * self.velocity ** 2
-                / self.soil_type.gravity)
+    @property
+    def initial_shear_mod(self):
+        return self.density * self.initial_shear_vel ** 2
+
+    @property
+    def initial_shear_vel(self):
+        return self._initial_shear_vel
+
+    @property
+    def comp_shear_mod(self):
+        '''Complex shear modulus from Kramer (1996).'''
+        return self.shear_mod * (1 - self.damping.value ** 2 +
+                                 2j * self.damping.value)
+
+    @property
+    def comp_shear_vel(self):
+        return np.sqrt(self.comp_shear_mod / self.density)
 
     @property
     def shear_mod(self):
-        return self._shear_mod
+        return self._shear_mod.value
+
+    @property
+    def shear_vel(self):
+        return np.sqrt(self.shear_mod / self.density)
 
     @property
     def strain(self):
         return self._strain
 
+    @property
+    def soil_type(self):
+        return self._soil_type
+
+    @property
+    def thickness(self):
+        return self._thickness
+
+    @thickness.setter
+    def thickness(self, thickness):
+        self._thickness = thickness
+        self._profile.update_depths(self, self._profile.index(self) + 1)
+
     @strain.setter
     def strain(self, strain):
         self._strain.value = strain
 
-        # Update the shear modulus
-        max_shear_mod = self.max_shear_mod()
+        # Update the shear modulus and damping
         try:
-            self._shear_mod.value = (max_shear_mod *
-                                     self.soil_type.mod_reduc(strain))
+            mod_reduc = self.soil_type.mod_reduc(strain)
         except TypeError:
-            self._shear_mod.value = max_shear_mod
+            mod_reduc = 1.
+        self._shear_mod.value = self.initial_shear_mod * mod_reduc
 
-        # Update the damping
         try:
             self._damping.value = self.soil_type.damping(strain)
         except TypeError:
+            # No iteration provided by damping
             self._damping.value = self.soil_type.damping
 
+
+class Location(object):
+    def __init__(self, layer: Layer, index: int, depth_within: float,
+                 wave_field: str=''):
+        self._layer = layer
+        self._index = index
+        self._depth_within = depth_within
+        self._wave_field = wave_field
+
+    @property
+    def layer(self) -> Layer:
+        return self._layer
+
+    @property
+    def index(self) -> int:
+        return self._index
+
+    @property
+    def depth_within(self) -> float:
+        return self._depth_within
+
+    @property
+    def wave_field(self) -> str:
+        return self._wave_field
+
+    @wave_field.setter
+    def wave_field(self, wave_field: str):
+        assert wave_field in ['within', 'outcrop', 'incoming_only']
+        self._wave_field = wave_field
 
 class Profile(object):
     """Docstring for Profile """
 
-    def __init__(self):
+    def __init__(self, layers: Iterable(Layer)=[]):
         """@todo: to be defined1 """
+        self._layers = []
+        for l in layers:
+            self.append_layer(l)
 
-        self.layers = []
+    def index(self, layer: Layer) -> int:
+        return self._layers.index(layer)
+
+    def update_depths(self, start_layer: int=0):
+        if start_layer < 1:
+            depth = 0
+        else:
+            depth = self._layers[start_layer - 1].depth_base
+
+        for l in self._layers[start_layer:]:
+            l._depth = depth
+            if l != self._layers[-1]:
+                depth = l.depth_base
+
+    @property
+    def layers(self):
+        return self._layers
+
+    def append_layer(self, layer: Layer):
+        self.insert_layer(len(self._layers), layer)
+
+    def insert_layer(self, index: int, layer: Layer):
+        layer._profile = self
+        self._layers.insert(index, layer)
+        self.update_depths(index)
 
     def auto_discretize(self):
-        pass
+        raise NotImplementedError
+
+    def location(self, depth: float, wave_field: str):
+        for i, l in enumerate(self._layers[:-1]):
+            if l.depth <= depth < l.depth_base:
+                break
+        else:
+            # Bedrock
+            i = len(self._layers) - 1
+            l = self._layers[-1]
+
+        return Location(l, i, depth - l.depth, wave_field)

@@ -17,10 +17,14 @@
 #
 # Copyright (C) Albert Kottke, 2013
 
+from typing import Dict
+
 import numpy as np
 
 from scipy import Inf
 from scipy.integrate import quad
+
+import pyrvt
 
 
 class Motion(object):
@@ -42,6 +46,13 @@ class Motion(object):
                 (np.square(self.freq) - np.square(osc_freq)
                     - 2.j * damping * osc_freq * self.freq))
 
+    @property
+    def freqs(self):
+        return self._freqs
+
+    @property
+    def angular_freqs(self):
+        return 2 * np.pi * self.freqs
 
 class TimeSeriesMotion(Motion):
     def compute_peak(self, fourier_amp=None):
@@ -115,143 +126,107 @@ class TimeSeriesMotion(Motion):
 
         return cls(filename, description, time_step, accels)
 
-class RvtMotion(Motion):
-    def __init__(self, freq=None, fourier_amp=None, duration=None):
-        self.freq = freq
-        self.fourier_amp = fourier_amp
-        self.duration = duration
+class CompatibleRvtMotion(pyrvt.motions.CompatibleRvtMotion, Motion):
+    """A :class:`~.motion.CompatibleRvtMotion` object is used to compute a
+    Fourier amplitude spectrum that is compatible with a target response
+    spectrum.
 
-    def compute_osc_resp(self, osc_freq, damping=0.05):
-        '''Compute the response of an oscillator with a specific frequency and
-        damping.
+    Parameters
+    ----------
+    osc_freqs : :class:`numpy.array`
+        Frequencies of the oscillator response [Hz].
 
-        Parameters
-        ----------
-        osc_freq : array_like
-            natural frequency of the oscillator
-        damping : float (optional)
-            damping of the oscillator in decimal
+    osc_accels_target : :class:`numpy.array`
+        Spectral acceleration of the oscillator at the specified frequencies
+        [g].
 
-        Returns:
-        psa : float
-            peak psuedo spectral acceleration of the oscillator
-        '''
+    duration : float or None, default: None
+        Duration of the ground motion [sec]. If ``None``, then the duration is
+        computed using
 
-        def compute_spec_accel(fn):
-            # Compute the transfer function
-            h = np.abs(self._compute_oscillator_transfer_function(fn, damping))
+    osc_damping : float, default: 0.05
+        Damping ratio of the oscillator [dec].
 
-            fourier_amp = self.fourier_amp * h
-            duration_rms = self._compute_duration_rms(
-                fn, damping, method='liu_pezeshk',
-                fa_sqr=np.square(fourier_amp))
+    event_kwds : dict or ``None``, default: ``None``
+        Keywords passed to :class:`~.motions.SourceTheoryMotion` and used
+        to compute the duration of the motion. Only *duration* or
+        *event_kwds* should be specified.
 
-            return self.compute_peak(fourier_amp, duration_rms)
+    window_len : int or ``None``, default: ``None``
+        Window length used for smoothing the computed Fourier amplitude
+        spectrum. If ``None``, then no smoothing is applied. The smoothing is
+        applied as a moving average with a width of ``window_len``.
 
-        return np.array(map(compute_spec_accel, osc_freq))
+    peak_calculator : str or :class:`~.peak_calculators.Calculator`, default: ``None``
+        Peak calculator to use. If ``None``, then the default peak
+        calculator is used. The peak calculator may either be specified by a
+        :class:`~.peak_calculators.Calculator` object, or by the initials of
+        the calculator.
 
-    def compute_peak(self, fourier_amp=None, duration=None):
-        '''Compute the expected peak response in the time domain.
+    calc_kwds : dict or ``None``, default: ``None``
+        Keywords to be passed during the creation the peak calculator. These
+        keywords are only required for some peak calculators.
 
-        Parameters
-        ----------
-        fourier_amp : array_like, optional
-            Fourier amplitude spectra at frequencies of self.freq
+    """
+    def __init__(self,
+             osc_freqs: np.ndarray,
+             osc_accels_target: np.ndarray,
+             duration: float=None,
+             osc_damping: float=0.05,
+             event_kwds: Dict=None,
+             window_len: int=None,
+             peak_calculator: pyrvt.peak_calculators.Calculator=None,
+             calc_kwds: Dict=None):
+        super(CompatibleRvtMotion, self).__init__(
+            osc_freqs, osc_accels_target, duration=duration,
+            osc_damping=osc_damping, event_kwds=event_kwds,
+            window_len=window_len, peak_calculator=peak_calculator,
+            calc_kwds=calc_kwds)
 
-        duration : float, optional
-            root-mean-squared duration. If no value is given, the ground motion
-            duration is used.
+class SourceTheoryRvtMotion(pyrvt.motions.SourceTheoryMotion, Motion):
+    """Single-corner source theory model with default parameters from [C03]_.
 
-        Returns:
-        --------
-        peak : float
-            peak response in the time domain
-        '''
-        if fourier_amp is None:
-            fourier_amp = self.fourier_amp
+    Parameters
+    ----------
+    magnitude : float
+        Moment magnitude of the event
 
-        if duration is None:
-            duration = self.duration
+    distance : float
+        Epicentral distance [km]
 
-        fa_sqr = np.square(fourier_amp)
-        m0 = self._compute_moment(fa_sqr, 0)
-        m2 = self._compute_moment(fa_sqr, 2)
-        m4 = self._compute_moment(fa_sqr, 4)
+    region : {'cena', 'wna'}, str
+        Region for the parameters. Either 'cena' for Central and Eastern
+        North America, or 'wna' for Western North America.
 
-        bandWidth = np.sqrt((m2 * m2) / (m0 * m4))
-        numExtrema = max(2., np.sqrt(m4 / m2) * self.duration / np.pi)
+    stress_drop : float or None, default: ``None``
+        Stress drop of the event [bars]. If ``None``, then the default value is
+        used. For *region* = 'cena', the default value is computed by the
+        [AB11]_ model, while for *region* = 'wna' the default value is 100
+        bars.
 
-        # Compute the peak factor by the indefinite integral
-        peakFactor = np.sqrt(2.) * quad(
-            lambda z: 1. - (1. - bandWidth * np.exp(-z * z)) ** numExtrema,
-            0, Inf)[0]
+    depth : float, default: 8
+        Hypocenter depth [km]. The *depth* is combined with the
+        *distance* to compute the hypocentral distance.
 
-        return np.sqrt(m0 / duration) * peakFactor
+    peak_calculator : str or :class:`~.peak_calculators.Calculator`, default: ``None``
+        Peak calculator to use. If ``None``, then the default peak
+        calculator is used. The peak calculator may either be specified by a
+        :class:`~.peak_calculators.Calculator` object, or by the initials of
+        the calculator.
 
-    def _compute_moment(self, fa_sqr, order=0):
-        '''Compute the n-th moment.
+    calc_kwds : dict or ``None``, default: ``None``
+        Keywords to be passed during the creation the peak calculator. These
+        keywords are only required for some peak calculators.
 
-        Parameters
-        ----------
-            fa_sqr : array_like
-                Squared Fourier amplitude spectrum according to frequencies of
-                self.freq
-            order : int, optional
-                the order of the moment. Default is 0
-
-        Returns
-        -------
-        out : float
-            the moment of the Fourier amplitude spectrum
-        '''
-        return 2. * np.trapz(
-            np.power(2 * np.pi * self.freq, order) * fa_sqr, self.freq)
-
-    def _compute_duration_rms(self, osc_freq, damping=0.05,
-                              method='liu_pezeshk', fa_sqr=None):
-        '''Compute the oscillator duration correction using the Liu and
-        Pezeshk correction.
-
-        The duration
-
-        Parameters
-        ----------
-            osc_freq : float
-                Frequency of the oscillator in Hz
-            damping : float
-                Damping of the oscillator in decimal.
-            method : str, optional
-                Method used to compute the oscillator duration. Default is Liu and Pezeshk.
-            fa_sqr : array_like, optional
-                Squared Fourier amplitude spectrum (FAS). If none is provided
-                then the FAS of the motion is used.
-
-
-        Returns
-        -------
-            The root-mean-squared duration of the ground motion.
-        '''
-        if method == 'liu_pezeshk':
-            if fa_sqr is None:
-                fa_sqr = np.square(self.fourier_amp)
-
-            m0 = self._compute_moment(fa_sqr, 0)
-            m1 = self._compute_moment(fa_sqr, 1)
-            m2 = self._compute_moment(fa_sqr, 2)
-
-            power = 2.0
-            bar = np.sqrt(2. * np.pi * (1. - m1 ** 2. / (m0 * m2)))
-        elif method == 'boore_joyner':
-            power = 3.0
-            bar = 1.0 / 3.0
-        else:
-            raise NotImplementedError
-
-        osc_freq = np.asarray(osc_freq)
-
-        foo = np.power(self.duration * osc_freq, power)
-
-        duration_osc = 1. / (2. * np.pi * damping * osc_freq)
-        duration_rms = self.duration + duration_osc * (foo / (foo + bar))
-
-        return duration_rms
+    """
+    def __init__(self,
+                 magnitude: float,
+                 distance: float,
+                 region: str,
+                 stress_drop: float=None,
+                 depth: float=8,
+                 peak_calculator: pyrvt.peak_calculators.Calculator=None,
+                 calc_kwds: Dict=None):
+        super(SourceTheoryRvtMotion, self).__init__(
+            magnitude, distance, region, stress_drop, depth,
+            peak_calculator=peak_calculator, calc_kwds=calc_kwds)
