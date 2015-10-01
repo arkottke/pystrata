@@ -1,6 +1,6 @@
 import nose
 
-from numpy.testing import assert_almost_equal
+from numpy.testing import assert_almost_equal, assert_approx_equal
 
 from pysra.base import site
 
@@ -32,7 +32,7 @@ def test_nlp_upperbound():
 @nose.with_setup(nlp_setup, nlp_teardown)
 def test_nlp_midpoint():
     global nlp
-    assert_almost_equal(nlp(0.1), 0.5)
+    assert_approx_equal(nlp(0.1), 0.5)
 
 
 @nose.with_setup(nlp_setup, nlp_teardown)
@@ -46,7 +46,7 @@ def test_nlp_update():
     nlp.strains = new_strains
     assert_almost_equal(new_strains, nlp.strains)
 
-    assert_almost_equal(nlp(1.), 1.)
+    assert_approx_equal(nlp(1.), 1.)
 
 
 def test_iterative_value():
@@ -54,8 +54,8 @@ def test_iterative_value():
     iv = site.IterativeValue(11)
     value = 10
     iv.value = value
-    assert_almost_equal(iv.value, value)
-    assert_almost_equal(iv.relative_error(), 10.)
+    assert_approx_equal(iv.value, value)
+    assert_approx_equal(iv.relative_error, 10.)
 
 
 def test_soil_type_linear():
@@ -64,8 +64,8 @@ def test_soil_type_linear():
     l = site.Layer(site.SoilType('', 18.0, 9.81, None, damping), 2., 500.)
     l.strain = 0.1
 
-    assert_almost_equal(l.shear_mod.value, l.max_shear_mod())
-    assert_almost_equal(l.damping.value, damping)
+    assert_approx_equal(l.shear_mod.value, l.initial_shear_mod)
+    assert_approx_equal(l.damping.value, damping)
 
 
 def test_soil_type_iterative():
@@ -79,7 +79,7 @@ def test_soil_type_iterative():
     strain = 0.1
     l.strain = strain
 
-    assert_almost_equal(l.strain.value, strain)
-    assert_almost_equal(l.shear_mod.value, 0.5 * l.max_shear_mod())
-    assert_almost_equal(l.damping.value, 5.0)
+    assert_approx_equal(l.strain.value, strain)
+    assert_approx_equal(l.shear_mod.value, 0.5 * l.initial_shear_mod)
+    assert_approx_equal(l.damping.value, 5.0)
 
