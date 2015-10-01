@@ -5,6 +5,7 @@ import numpy as np
 from .site import Layer, Location
 from .motion import Motion
 
+
 class LinearElasticCalculator(object):
     def __init__(self):
         self._waves_a = np.array([])
