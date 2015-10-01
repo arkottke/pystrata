@@ -1,4 +1,5 @@
 
+from . import base
 
 from numpy.testing import Tester
 
