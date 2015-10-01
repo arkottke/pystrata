@@ -15,9 +15,9 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
-# Copyright (C) Albert Kottke, 2013
+# Copyright (C) Albert Kottke, 2013-2015
 
-from typing import Dict
+from typing import Dict, Iterable, Optional
 
 import numpy as np
 
@@ -28,6 +28,9 @@ import pyrvt
 
 
 class Motion(object):
+    def __init__(self, freqs: Optional[Iterable]):
+        self._freqs = np.array([] if freqs is None else freqs)
+
     def _compute_oscillator_transfer_function(self, osc_freq, damping=0.05):
         '''Compute the transfer function for a single-degree-of-freedom oscillator.
 
@@ -59,12 +62,13 @@ class TimeSeriesMotion(Motion):
         pass
 
     def __init__(self, filename, description, time_step, accels):
+        super(Motion).__init__(None)
+
         self._filename = None
         self._description = description
         self._time_step = time_step
         self._accels = np.asarray(accels)
 
-        self._freqs = None
         self._fourier_amps = None
 
     @property
