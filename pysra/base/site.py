@@ -184,7 +184,7 @@ class Layer(object):
         self._thickness = thickness
         self._initial_shear_vel = shear_vel
 
-        self._shear_mod = IterativeValue(None)
+        self._shear_mod = IterativeValue(self.initial_shear_mod)
         self._damping = IterativeValue(None)
         self._strain = IterativeValue(None)
 
