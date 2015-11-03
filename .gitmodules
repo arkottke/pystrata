@@ -1,3 +1,0 @@
-[submodule "pysra/base/pyrvt"]
-	path = pysra/base/pyrvt
-	url = https://github.com/arkottke/pyrvt.git
