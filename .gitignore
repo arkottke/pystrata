@@ -31,3 +31,9 @@ nosetests.xml
 
 # PyCharm
 .idea/
+
+# Sphinx docs
+docs/_build/
+
+# Vim tags
+tags
