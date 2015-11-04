@@ -15,7 +15,7 @@ install:
     - conda create -n testenv --yes pip python=$TRAVIS_PYTHON_VERSION
     - conda update conda --yes
     - source activate testenv
-    - conda install --yes numpy scipy matplotlib openpyxl coverage
+    - conda install --yes numpy scipy matplotlib coverage
     - pip install coveralls nose
     - python setup.py install
 
