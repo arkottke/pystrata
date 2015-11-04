@@ -17,6 +17,7 @@ install:
     - source activate testenv
     - conda install --yes numpy scipy matplotlib coverage
     - pip install coveralls nose typing
+    - pip install https://github.com/arkottke/pyrvt/archive/master.zip
     - python setup.py install
 
 script:  
