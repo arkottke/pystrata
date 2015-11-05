@@ -25,7 +25,7 @@ import numpy as np
 
 from scipy.interpolate import interp1d
 
-from pysra.base import GRAVITY
+from pysra import GRAVITY
 
 
 class NonlinearProperty(object):
@@ -48,8 +48,10 @@ class NonlinearProperty(object):
             value of the property corresponding to each strain
         """
         self.name = name
-        self._strains = strains or list()
-        self._values = values or list()
+        self._strains = strains or np.array([])
+        self._values = values or np.array([])
+
+        self._interpolater = None
 
         self._update()
 
@@ -101,8 +103,19 @@ class NonlinearProperty(object):
 
     def _update(self):
         """Initialize the 1D interpolation."""
+
         if self.strains and self.values:
-            self._interpolater = interp1d(np.log(self.strains), self.values)
+            x = np.log(self.strains)
+            y = self.values
+
+            try:
+                # Prefer cubic spline interpolation
+                self._interpolater = interp1d(x, y, 'cubic')
+            except TypeError:
+                # Fallback on linear interpolation if not enough points are
+                # specified
+                self._interpolater = interp1d(x, y, 'linear')
+
 
 
 class SoilType(object):

@@ -60,7 +60,7 @@ def test_iterative_value():
 def test_soil_type_linear():
     """Test the soil type update process on a linear material."""
     damping = 1.0
-    l = site.Layer(site.SoilType('', 18.0, 9.81, None, damping), 2., 500.)
+    l = site.Layer(site.SoilType('', 18.0, None, damping), 2., 500.)
     l.strain = 0.1
 
     assert_approx_equal(l.shear_mod.value, l.initial_shear_mod)
@@ -72,7 +72,7 @@ def test_soil_type_iterative():
     mod_reduc = site.NonlinearProperty('', [0.01, 1.], [1, 0])
     damping = site.NonlinearProperty('', [0.01, 1.], [0, 10])
 
-    st = site.SoilType('', 18.0, 9.81, mod_reduc, damping)
+    st = site.SoilType('', 18.0, mod_reduc, damping)
     l = site.Layer(st, 2., 500.)
 
     strain = 0.1

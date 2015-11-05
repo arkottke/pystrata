@@ -14,13 +14,13 @@ profile = pysra.site.Profile(layers)
 motion = pysra.motion.SourceTheoryRvtMotion(6, 20, 'wna')
 motion.compute_fourier_amps()
 
-loc_in = profile.location(layers[0].depth_base, 'outcrop')
-loc_out = profile.location(0, 'outcrop')
+loc_in = profile.location('outcrop', index=-1)
+loc_out = profile.location('outcrop', index=0)
 
 calculator = pysra.propagation.LinearElasticCalculator()
-calculator.calc_waves(motion, profile)
+calculator.calc_waves(motion, profile, loc_in)
 
-trans_func = pysra.calculator.calc_accel_tf(loc_in, loc_out)
+trans_func = calculator.calc_accel_tf(loc_in, loc_out)
 
 fig, ax = plt.subplots(1, 1, subplot_kw=dict(xscale='log'))
 ax.plot(motion.freqs, np.abs(trans_func))
