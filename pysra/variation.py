@@ -7,12 +7,25 @@ from pysra import site
 
 
 class ToroThicknessVariation(object):
-    """Toro (1995) [1]_ thickness variation model.
+    """ Toro (1995) [T95]_ thickness variation model.
 
+    The recommended values are provided as defaults to this model.
 
-       .. [1] Toro, G. R. (1995). Probabilistic models of site velocity
-       profiles for generic and site-specific ground-motion amplification
-       studies. Brookhaven National Laboratory Technical Report: 779574.
+    .. rubric:: References
+
+    .. [T95] Toro, G. R. (1995). Probabilistic models of site velocity
+        profiles for generic and site-specific ground-motion amplification
+        studies. Brookhaven National Laboratory Technical Report: 779574.
+
+    Parameters
+    ----------
+    c_1: float, optional
+        :math:`c_1` model parameter.
+    c_2: float, optional
+        :math:`c_2` model parameter.
+    c_3: float, optional
+        :math:`c_3` model parameter.
+
     """
 
     def __init__(self,
@@ -20,23 +33,9 @@ class ToroThicknessVariation(object):
                  c_2: float = -0.89,
                  c_3: float = 1.98,
                  ):
-        """Initialize the model.
-
-        The model parameters proposed in Toro (1995) are provided by default.
-
-        Parameters
-        ----------
-        c_1 : float, optional
-            `c_1` model parameter.
-        c_2 : float, optional
-            `c_2` model parameter.
-        c_3 : float, optional
-            `c_3` model parameter.
-        """
-
-        self._c_3 = c_3
         self._c_1 = c_1
         self._c_2 = c_2
+        self._c_3 = c_3
 
     @property
     def c_3(self) -> float:
@@ -50,18 +49,17 @@ class ToroThicknessVariation(object):
     def c_1(self) -> float:
         return self._c_1
 
-    def iter_thickness(self, depth_total: float) -> Iterator:
+    def iter_thickness(self, depth_total: float) -> Iterator[float]:
         """Iterate over the varied thicknesses.
 
         The layering is generated using a non-homogenous Poisson process. The
         following routine is used to generate the layering. The rate
         function, :math:`\lambda(t)`, is integrated from 0 to t to generate
         cumulative rate function, :math:`\Lambda(t)`. This function is then
-        inverted producing :math:`\Lambda^-1(t)`. Random variables
-        are produced using the a
-        exponential random variation with :math:`\mu = 1` and converted to the
-        nonhomogenous variables using the inverted function. Random variable
-        that is a sum of exponential random variables.
+        inverted producing :math:`\Lambda^{-1}(t)`. Random variables
+        are produced using the a exponential random variation with
+        :math:`\mu = 1` and converted to the nonhomogenous variables using
+        the inverted function.
 
         Parameters
         ----------
@@ -73,17 +71,18 @@ class ToroThicknessVariation(object):
         ------
         float
             Varied thickness.
+
         """
-        sum = 0
+        total = 0
         depth_prev = 0
 
         while depth_prev < depth_total:
-            # Add a random c_2ial increment
-            sum += np.random.exponential(1.0)
+            # Add a random exponential increment
+            total += np.random.exponential(1.0)
 
             # Convert between x and depth using the inverse of \Lambda(t)
             depth = np.power(
-                (self.c_2 * sum) / self.c_3 + sum / self.c_3 +
+                (self.c_2 * total) / self.c_3 + total / self.c_3 +
                 np.power(self.c_1, self.c_2 + 1),
                 1 / (self.c_2 + 1)) - self.c_1
 
@@ -110,6 +109,7 @@ class ToroThicknessVariation(object):
         -------
         site.Profile
             Varied site profile.
+
         """
 
         profile_varied = site.Profile()
@@ -137,13 +137,24 @@ class ToroThicknessVariation(object):
 
 
 class ToroVelocityVariation(object):
-    """Toro (1995) velocity variation model.
+    """ Toro (1995) [T95] velocity variation model.
 
-    Citation:
-       Toro, G. R. (1995). Probabilistic models of site velocity profiles for
-       generic and site-specific ground-motion amplification studies.
-       Brookhaven National Laboratory Technical Rep, 779574.
+    Default values can be selected with :meth:`.generic_model`.
 
+    Parameters
+    ----------
+    ln_std: float, optional
+        :math:`\sigma_{ln}` model parameter.
+    rho_0: float, optional
+        :math:`ρ_0` model parameter.
+    delta: float, optional
+        :math:`\Delta` model parameter.
+    rho_200: float, optional
+        :math:`ρ_200` model parameter.
+    h_0: float, optional
+        :math:`h_0` model parameter.
+    b: float, optional
+        :math:`b` model parameter.
     """
 
     PARAMS = {
@@ -214,25 +225,7 @@ class ToroVelocityVariation(object):
     }
 
     def __init__(self, ln_std, rho_0, delta, rho_200, h_0, b):
-        """Initialize the model.
-
-        The model parameters proposed in Toro (1995) are provided by default.
-
-        Parameters
-        ----------
-        ln_std : float, optional
-            :math:`\sigma_\ln` model parameter.
-        rho_0 : float, optional
-            :math:`\rho_0` model parameter.
-        delta : float, optional
-            :math:`\delta` model parameter.
-        rho_200 : float, optional
-            :math:`\rho_200` model parameter.
-        h_0 : float, optional
-            :math:`h_0` model parameter.
-        b : float, optional
-            :math:`b` model parameter.
-        """
+        """Initialize the model."""
         self._ln_std = ln_std
         self._rho_0 = rho_0
         self._delta = delta
@@ -353,25 +346,33 @@ class ToroVelocityVariation(object):
 
         Parameters
         ----------
-        site_class : str
+        site_class: str
             Site classification. Possible options are:
-                Geomatrix AB
-                Geomatrix CD
-                USGS AB
-                USGS CD
-                USGS A
-                USGS B
-                USGS C
-                USGS D
+             * Geomatrix AB
+             * Geomatrix CD
+             * USGS AB
+             * USGS CD
+             * USGS A
+             * USGS B
+             * USGS C
+             * USGS D
+
             See the report for definitions of the Geomatrix site
             classication. USGS site classification is based on :math:`V_{s30}`:
-                A: >750 m/s
-                B: 360 to 750 m/s
-                C: 180 to 360 m/s
-                D: <180 m/s
+
+            =========== =====================
+            Site Class  :math:`V_{s30}` (m/s)
+            =========== =====================
+            A           >750 m/s
+            B           360 to 750 m/s
+            C           180 to 360 m/s
+            D           <180 m/s
+            =========== =====================
+
         Returns
         -------
         ToroVelocityVariation
+            Initialized :class:`ToroVelocityVariation` with generic parameters.
         """
         p = dict(cls.PARAMS[site_class])
         p.update(kwds)

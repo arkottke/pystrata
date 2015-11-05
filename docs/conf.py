@@ -25,8 +25,8 @@ class Mock(MagicMock):
     def __getattr__(cls, name):
         return Mock()
 
-MOCK_MODULES = ['numpy', 'scipy', 'scipy.integrate', 'scipy.interpolate',
-                'scipy.stats', 'matplotlib']
+MOCK_MODULES = ['scipy', 'scipy.integrate',
+                'scipy.interpolate', 'scipy.stats', 'matplotlib']
 sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 
 # If extensions (or modules to document with autodoc) are in another directory,
@@ -44,11 +44,17 @@ sys.path.insert(0, os.path.abspath('..'))
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
+    'sphinx.ext.autosummary',
     'sphinx.ext.intersphinx',
     'sphinx.ext.todo',
     'sphinx.ext.coverage',
-    'numpydoc',
+    'sphinx.ext.mathjax',
+    'sphinx.ext.napoleon',
 ]
+
+# Disable autosummary from numpydoc
+# See https://github.com/phn/pytpm/issues/3#issuecomment-12133978
+numpydoc_show_class_members = False
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -122,6 +128,10 @@ pygments_style = 'sphinx'
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
 
+# Natbib references file
+natbib = {
+    "file": "references.bib"
+}
 
 # -- Options for HTML output ----------------------------------------------
 
@@ -301,7 +311,6 @@ texinfo_documents = [
 
 # If true, do not generate a @detailmenu in the "Top" node's menu.
 #texinfo_no_detailmenu = False
-
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {'https://docs.python.org/': None}

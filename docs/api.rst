@@ -3,19 +3,30 @@
 Developer Interface
 ===================
 
-.. module:: pysra
-
-This part of the documentation covers all the interfaces of pysra.
-
-Base
+Site
 ----
 
-.. automodule:: pysra.base
+.. automodule:: pysra.site
     :members:
+    :special-members:
 
-Graphical User Interface
-------------------------
+Propagation
+-----------
 
-.. automodule:: pysra.gui
+.. automodule:: pysra.propagation
+    :members:
+    :special-members:
+
+Variation
+---------
+
+.. automodule:: pysra.variation
+    :members:
+    :special-members:
+
+Motion
+------
+
+.. automodule:: pysra.motion
     :members:
     :special-members:

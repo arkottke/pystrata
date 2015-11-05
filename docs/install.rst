@@ -14,7 +14,7 @@ addition to Python, the following packages need to be installed:
 
 - nose -- required for the unit tests
 
--  matplotlib -- used for plotting
+- matplotlib -- used for plotting
 
 Install Python dependencies is best accomplished with a package manager. On
 Windows or OS-X, I recommend using Miniconda3. On Linux, the package manager
