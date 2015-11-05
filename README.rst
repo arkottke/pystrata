@@ -20,7 +20,7 @@ Far from being ready to be used.
 Installation
 ------------
 
-Using ``conda`` is the simpliest way to get started using ``pysra``. Install
+Using ``conda`` is the simplest way to get started using ``pysra``. Install
 ``conda`` using these_ instructions. Next, install the required dependencies
 using ``conda``::
 
