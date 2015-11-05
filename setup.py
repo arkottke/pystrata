@@ -12,7 +12,6 @@ config = {
     'url': 'http://github.com/arkottke/pysra',
     'entry_points': {
         'console_scripts': [
-            'pysra = pysra.runner:main',
             ],
         },
     'packages': ['pysra'],
@@ -23,9 +22,10 @@ config = {
         'matplotlib',
         'nose',
         'numpy',
-        'openpyxl',
         'scipy',
-        'setuptools'
+        'setuptools',
+        'typing',
+        'pyrvt'
     ],
     'test_suite': 'nose.collector',
     'classifiers': [
