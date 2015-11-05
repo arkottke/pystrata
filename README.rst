@@ -20,16 +20,18 @@ Far from being ready to be used.
 Installation
 ------------
 
-The ``conda`` is the simpliest way to get started using `pysra`. Install
-`conda` using [these](http://conda.pydata.org/docs/install/quick.html)
-instructions. Next, install the required dependencies using `conda`::
+Using ``conda`` is the simpliest way to get started using ``pysra``. Install
+``conda`` using these_ instructions. Next, install the required dependencies
+using ``conda``::
 
-    $ conda install --yes setuptools numpy scipy matplotlib nose
+     $ conda install --yes setuptools numpy scipy matplotlib nose
 
-You also need to install `pyrvt`::
+You also need to install ``pyrvt``::
 
     $ pip install https://github.com/arkottke/pyrvt/archive/master.zip
 
-And finally install `pysra`::
+And finally install ``pysra``::
 
     $ pip install https://github.com/arkottke/pysra/archive/master.zip
+
+.. _these: http://conda.pydata.org/docs/install/quick.html
