@@ -2,7 +2,7 @@ from typing import List
 
 import numpy as np
 
-from .site import Layer, Location
+from .site import Profile, Location
 from .motion import Motion
 
 
@@ -12,14 +12,33 @@ class LinearElasticCalculator(object):
         self._waves_b = np.array([])
         self._wave_nums = np.array([])
 
-    def calc_waves(self, motion: Motion, layers: List[Layer]):
+        self._input_location = None
+
+    def calc_waves(self,
+                   motion: Motion,
+                   profile: Profile,
+                   input_location: Location):
+        """Perform the wave propagation.
+
+        Parameters
+        ----------
+        motion: :class:`~.base.motion.Motion`
+            Input motion.
+
+        profile: :class:`~.base.site.Profile`
+            Site profile.
+
+        input_location: :class:`~.base.site.Location`
+            Location of the input motion.
+        """
         # Set intial properties
-        for l in layers:
-            l.strain = 0.
+        for l in profile:
+            if l.strain is None:
+                l.strain = 0.
 
         # Compute the complex wave numbers of the system
-        wave_nums = np.empty((len(layers), len(motion.freqs)), np.complex)
-        for i, l in enumerate(layers):
+        wave_nums = np.empty((len(profile), len(motion.freqs)), np.complex)
+        for i, l in enumerate(profile):
             wave_nums[i, :] = motion.angular_freqs / l.comp_shear_vel
 
         # Compute the waves. In the top surface layer, the up-going and
@@ -27,10 +46,10 @@ class LinearElasticCalculator(object):
         # reflected at the surface.
         waves_a = np.ones_like(wave_nums, np.complex)
         waves_b = np.ones_like(wave_nums, np.complex)
-        for i, l in enumerate(layers[:-1]):
+        for i, l in enumerate(profile[:-1]):
             # Complex impedance
             cimped = ((wave_nums[i] * l.comp_shear_mod) /
-                      (wave_nums[i + 1] * layers[i + 1].comp_shear_mod))
+                      (wave_nums[i + 1] * profile[i + 1].comp_shear_mod))
 
             # Complex term to simplify equations -- uses full layer height
             cterm = 1j * wave_nums[i, :] * l.thickness
@@ -57,7 +76,7 @@ class LinearElasticCalculator(object):
 
         Returns
         -------
-        `np.array`
+        `np.ndarray`
             Amplitude and phase of waves
         """
         cterm = 1j * self._wave_nums[l.index] * l.depth_within
@@ -115,3 +134,104 @@ class LinearElasticCalculator(object):
         trans_func = ratio * (numer / denom)
 
         return trans_func
+
+
+class EquivalentLinearCalculation(LinearElasticCalculator):
+    """Equivalent-linear site response calculator.
+
+    Parameters
+    ----------
+    input_location: :class:`pysra.base.site.Location`
+        Location of the input motion -- including motion type.
+
+    strain_ratio: float, default=0.65
+        Ratio between the maximum strain and effective strain used to
+        compute strain compatible properties.
+
+    tolerance: float, default=0.01
+        Tolerance in the iterative properties, which would cause the
+        iterative process to terminate.
+
+    max_iterations: int, default=15
+        Maximum number of iterations to perform.
+    """
+    def __init__(self,
+                 input_location: Location,
+                 strain_ratio: float=0.65,
+                 tolerance: float=0.01,
+                 max_iterations: int=15):
+        super().__init__(input_location)
+        self._strain_ratio = strain_ratio
+        self._tolerance = tolerance
+        self._max_iterations = max_iterations
+
+    @property
+    def strain_ratio(self):
+        return self._strain_ratio
+
+    @property
+    def tolerance(self):
+        return self._tolerance
+
+    @property
+    def max_iterations(self):
+        return self._max_iterations
+
+    @classmethod
+    def calc_strain_ratio(cls, mag: float) -> float:
+        """Compute the effective strain ratio using Idriss and Sun (1991).
+
+        Parameters
+        ----------
+        mag: float
+            Magnitude of the input motion.
+
+        Returns
+        -------
+        float
+            Effective strain ratio
+        """
+        return (mag - 1) / 10
+
+    def calc_waves(self,
+                   motion: Motion,
+                   profile: Profile,
+                   input_location: Location):
+        """Perform the wave propagation.
+
+        Parameters
+        ----------
+        motion: :class:`~.base.motion.Motion`
+            Input motion.
+
+        profile: :class:`~.base.site.Profile`
+            Site profile.
+
+        input_location: :class:`~.base.site.Location`
+            Location of the input motion.
+        """
+
+        # Estimate the strain based on the PGV and shear-wave velocity
+        for l in profile:
+            l.strain = motion.pgv / l.initial_shear_vel
+
+        iteration = 0
+        while iteration < self.max_iterations:
+            LinearElasticCalculator.calc_waves(self, motion, profile)
+
+            for i, l in enumerate(profile[:-1]):
+                l.strain = (
+                    self.strain_ratio * motion.compute_peak(
+                        self.calc_strain_tf(input_location,
+                                            Location(i, l, 'within'))
+                    )
+                )
+
+            max_error = max(
+                max(l.shear_mod.relative_error, l.damping.relative_error)
+                for l in profile)
+
+            if max_error < self.tolerance:
+                break
+
+            iteration += 1

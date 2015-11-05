@@ -1,10 +1,9 @@
 __author__ = 'akottke'
 
+import numpy as np
 from typing import Iterable, Iterator
 
-import numpy as np
-
-from . import site
+from pysra import site
 
 
 class ToroThicknessVariation(object):

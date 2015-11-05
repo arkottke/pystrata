@@ -25,11 +25,16 @@ import numpy as np
 
 from scipy.interpolate import interp1d
 
+from pysra.base import GRAVITY
+
 
 class NonlinearProperty(object):
     """Docstring for NonlinearProperty """
 
-    def __init__(self, name='', strains=None, values=None):
+    def __init__(self,
+                 name='',
+                 strains=Optional[np.ndarray],
+                 values=Optional[np.ndarray]):
         """Class for nonlinear property with a method for log-linear
         interpolation.
 
@@ -37,9 +42,9 @@ class NonlinearProperty(object):
         ----------
         name : str, optional
             used for identification
-        strains : float iterable
+        strains : :class:`numpy.ndarray`
             strains for each of the values
-        values : float iterable
+        values : :class:`numpy.ndarray`
             value of the property corresponding to each strain
         """
         self.name = name
@@ -75,12 +80,12 @@ class NonlinearProperty(object):
         return value
 
     @property
-    def strains(self):
+    def strains(self) -> np.ndarray:
         """Strains"""
         return self._strains
 
     @strains.setter
-    def strains(self, strains):
+    def strains(self, strains: np.ndarray):
         self._strains = strains
         self._update()
 
@@ -103,9 +108,9 @@ class NonlinearProperty(object):
 class SoilType(object):
     """Docstring for SoilType """
 
-    def __init__(self, name: str = '', unit_wt: float = 0., gravity: float = 0.,
-                 mod_reduc: Optional[NonlinearProperty] = None,
-                 damping: Union[NonlinearProperty, float] = None):
+    def __init__(self, name: str = '', unit_wt: float = 0.,
+                 mod_reduc: Optional[NonlinearProperty]=None,
+                 damping: Union[NonlinearProperty, float]=None):
         """Soil Type
 
         Parameters:
@@ -114,24 +119,23 @@ class SoilType(object):
         name : str, optional
             used for identification
         unit_wt : float
-            unit weight of the material in [kN/m3] or [lbf/ft3]
-        gravity : float
-            gravity in [m/s2] or [ft/s2]
+            unit weight of the material in [kN/m³]
         mod_reduc : NonlinearProperty or None
-            shear-modulus reduction curves. If None, linear behavior with no reduction is used
+            shear-modulus reduction curves. If None, linear behavior with no
+            reduction is used
         damping : NonlinearProperty or float
-            damping ratio. If float, then linear behavior with constant damping is used.
+            damping ratio. If float, then linear behavior with constant damping
+            is used.
         """
 
         self.name = name
         self.unit_wt = unit_wt
-        self.gravity = gravity
         self.mod_reduc = mod_reduc
         self.damping = damping
 
     @property
     def density(self) -> float:
-        return self.unit_wt / self.gravity
+        return self.unit_wt / GRAVITY
 
     @property
     def damping_min(self) -> float:
@@ -142,7 +146,8 @@ class SoilType(object):
             return self.damping
 
 
-# TODO for nonlinear site response this class wouldn't be used. Better way to do this? Maybe have the calculator create it?
+# TODO: for nonlinear site response this class wouldn't be used. Better way
+# to do this? Maybe have the calculator create it?
 class IterativeValue(object):
     def __init__(self, value: Optional[float]):
         self._value = value
@@ -185,7 +190,7 @@ class Layer(object):
         self._initial_shear_vel = shear_vel
 
         self._shear_mod = IterativeValue(self.initial_shear_mod)
-        self._damping = IterativeValue(None)
+        self._damping = IterativeValue(self.soil_type.damping_min)
         self._strain = IterativeValue(None)
 
         self._depth = 0
@@ -224,7 +229,7 @@ class Layer(object):
 
     @property
     def comp_shear_mod(self) -> complex:
-        '''Complex shear modulus from Kramer (1996).'''
+        """Complex shear modulus from Kramer (1996)."""
         return self.shear_mod.value * (1 - self.damping.value ** 2 +
                                        2j * self.damping.value)
 
@@ -282,11 +287,23 @@ class Layer(object):
 
 
 class Location(object):
-    def __init__(self, layer: Layer, index: int, depth_within: float, wave_field: str):
-        self._layer = layer
+
+    def __init__(self,
+                 index: int,
+                 layer: Layer,
+                 wave_field: str,
+                 depth_within: float=0):
         self._index = index
+        self._layer = layer
         self._depth_within = depth_within
-        self._wave_field = wave_field
+        self._wave_field = None
+
+        # Use the setter to check the values
+        self.wave_field = wave_field
+
+    @property
+    def depth_within(self) -> float:
+        return self._depth_within
 
     @property
     def layer(self) -> Layer:
@@ -295,10 +312,6 @@ class Location(object):
     @property
     def index(self) -> int:
         return self._index
-
-    @property
-    def depth_within(self) -> float:
-        return self._depth_within
 
     @property
     def wave_field(self) -> str:
@@ -310,8 +323,9 @@ class Location(object):
         self._wave_field = wave_field
 
     def __repr__(self):
-        return '<Location(layer_index={_index}, depth_within={_depth_within}, wave_field={_wave_field})>'.format(
-            **self.__dict__
+        return (
+            '<Location(layer_index={_index}, wave_field={_wave_field})>'.
+            format(**self.__dict__)
         )
 
 
@@ -335,16 +349,47 @@ class Profile(collections.UserList):
     def auto_discretize(self) -> Iterable(Layer):
         raise NotImplementedError
 
-    def location(self, depth: float, wave_field: str) -> Location:
-        for i, l in enumerate(self[:-1]):
-            if l.depth <= depth < l.depth_base:
-                break
-        else:
-            # Bedrock
-            i = len(self) - 1
-            l = self[-1]
-
-        return Location(l, i, depth - l.depth, wave_field)
-
     def calc_site_attenuation(self) -> float:
-        return sum(l.incr_site_atten for l in self._layers)
+        return sum(l.incr_site_atten for l in self)
+
+    def location(self,
+                 wave_field: str,
+                 depth: Optional[float]=None,
+                 index: Optional[int]=None
+                 ) -> Location:
+        """Create a Location for a specific depth.
+
+        Parameters
+        ----------
+        wave_field: str
+            Wave field. See :class:`Location`
+        depth: float, optional
+            Depth corresponding to the Location of interest. If provided,
+            then index is ignored.
+        index: int, optional
+            Location provided at top of the provided layer. If provided,
+            then depth is ignored.
+
+        Returns
+        -------
+        :class:`~.site.Location`
+        """
+
+        if index is None and depth is not None:
+            for i, l in enumerate(self[:-1]):
+                if l.depth <= depth < l.depth_base:
+                    depth_within = depth - l.depth
+                    break
+            else:
+                # Bedrock
+                i = len(self) - 1
+                l = self[-1]
+                depth_within = 0
+        elif index is not None and depth is None:
+            l = self[index]
+            i = self.index(l)
+            depth_within = 0
+        else:
+            raise NotImplementedError
+
+        return Location(i, l, wave_field, depth_within)

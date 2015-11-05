@@ -1,48 +1,42 @@
 """Compute transfer functions for within and outcrop conditions."""
 
+import collections
 import sys
 
-import collections
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
-sys.path.append('..')
-sys.path.append('../../pyrvt')
 import pysra
 
-__author__ = 'albert'
-
-GRAVITY = 9.81
-
-motion = pysra.base.motion.Motion(np.logspace(-1, 2, 301))
+motion = pysra.motion.Motion(np.logspace(-1, 2, 301))
 
 profiles = [
     # Initial
-    pysra.base.site.Profile([
-        pysra.base.site.Layer(
-            pysra.base.site.SoilType(
-                'Soil', 18., GRAVITY, None, 0.05
+    pysra.site.Profile([
+        pysra.site.Layer(
+            pysra.site.SoilType(
+                'Soil', 18., None, 0.05
             ),
             30, 400
         ),
-        pysra.base.site.Layer(
-            pysra.base.site.SoilType(
-                'Rock', 24., GRAVITY, None, 0.01
+        pysra.site.Layer(
+            pysra.site.SoilType(
+                'Rock', 24., None, 0.01
             ),
             0, 1200
         ),
     ]),
     # Reduced properties
-    pysra.base.site.Profile([
-        pysra.base.site.Layer(
-            pysra.base.site.SoilType(
-                'Soil', 18., GRAVITY, None, 0.08
+    pysra.site.Profile([
+        pysra.site.Layer(
+            pysra.site.SoilType(
+                'Soil', 18., None, 0.08
             ),
             30, 300
         ),
-        pysra.base.site.Layer(
-            pysra.base.site.SoilType(
-                'Rock', 24., GRAVITY, None, 0.01
+        pysra.site.Layer(
+            pysra.site.SoilType(
+                'Rock', 24., None, 0.01
             ),
             0, 1200
         ),
@@ -51,18 +45,17 @@ profiles = [
 
 wave_fields = ['outcrop', 'within']
 
-calc = pysra.base.propagation.LinearElasticCalculator()
+calc = pysra.propagation.LinearElasticCalculator()
 
 rsrs = collections.OrderedDict()
 for wave_field in wave_fields:
     trans_funcs = []
     for p in profiles:
-        calc.calc_waves(motion, p.data)
-        surface = p.location(0, 'outcrop')
-        bedrock = p.location(p[0].thickness, wave_field)
-        trans_funcs.append(
-            calc.calc_accel_tf(bedrock, surface)
-        )
+        surface = p.location('outcrop', index=0)
+        bedrock = p.location(wave_field, index=-1)
+
+        calc.calc_waves(motion, p.data, bedrock)
+        trans_funcs.append(calc.calc_accel_tf(bedrock, surface))
 
     rsrs[wave_field] = np.abs(trans_funcs[1]) / np.abs(trans_funcs[0])
 

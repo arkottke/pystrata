@@ -21,33 +21,34 @@ from typing import Dict, Iterable, Optional
 
 import numpy as np
 
-from scipy import Inf
-from scipy.integrate import quad
-
 import pyrvt
 
 
 class Motion(object):
-    def __init__(self, freqs: Optional[Iterable]):
+    def __init__(self, freqs: Optional[Iterable]=None):
         self._freqs = np.array([] if freqs is None else freqs)
 
+        self._pgv = None
+
     def _compute_oscillator_transfer_function(self, osc_freq, damping=0.05):
-        '''Compute the transfer function for a single-degree-of-freedom oscillator.
+        """Compute the transfer function for a single-degree-of-freedom
+        oscillator.
 
         Parameters
         ----------
-            osc_freq : float
-                natural frequency of the oscillator [Hz]
-            damping : float, optional
-                damping ratio of the oscillator in decimal. Default value is 0.05, or 5%.
+        osc_freq : float
+            natural frequency of the oscillator [Hz]
+        damping : float, optional
+            damping ratio of the oscillator in decimal. Default value is
+            0.05, or 5%.
 
         Returns
         -------
         Complex-valued transfer function with length equal to self.freq
-        '''
+        """
         return (-osc_freq ** 2. /
-                (np.square(self.freq) - np.square(osc_freq)
-                    - 2.j * damping * osc_freq * self.freq))
+                (np.square(self.freqs) - np.square(osc_freq) -
+                    2.j * damping * osc_freq * self.freqs))
 
     @property
     def freqs(self):
@@ -57,19 +58,31 @@ class Motion(object):
     def angular_freqs(self):
         return 2 * np.pi * self.freqs
 
+    @property
+    def pgv(self):
+        if self._pgv is None:
+            self._pgv = self.compute_peak(1 / (self.angular_freqs * 1j))
+
+        return self.pgv
+
+    def compute_peak(self, transfer_func=None, **kwargs):
+        raise NotImplementedError
+
+
 class TimeSeriesMotion(Motion):
-    def compute_peak(self, fourier_amp=None):
-        pass
+    def __init__(self,
+                 filename: str,
+                 description: str,
+                 time_step: float,
+                 accels: Iterable[float]):
+        super().__init__()
 
-    def __init__(self, filename, description, time_step, accels):
-        super(Motion).__init__(None)
-
-        self._filename = None
+        self._filename = filename
         self._description = description
         self._time_step = time_step
         self._accels = np.asarray(accels)
 
-        self._fourier_amps = None
+        self._calc_fourier_spectrum()
 
     @property
     def accels(self):
@@ -89,7 +102,7 @@ class TimeSeriesMotion(Motion):
 
     @property
     def freqs(self):
-        '''Return the frequencies.'''
+        """Return the frequencies."""
         if self._freqs is None:
             self._calc_fourier_spectrum()
         
@@ -97,14 +110,17 @@ class TimeSeriesMotion(Motion):
 
     @property
     def fourier_amps(self):
-        '''Return the frequencies.'''
+        """Return the frequencies."""
         if self._fourier_amps is None:
             self._calc_fourier_spectrum()
 
         return self._fourier_amps
 
+    def compute_peak(self, trans_func=None, **kwargs):
+        return np.fft.irfft(trans_func * self._fourier_amps)
+
     def _calc_fourier_spectrum(self):
-        '''Compute the Fourier Amplitude Spectrum of the time series.'''
+        """Compute the Fourier Amplitude Spectrum of the time series."""
 
         # Use the next power of 2 for the length
         n = 1
@@ -117,8 +133,15 @@ class TimeSeriesMotion(Motion):
         self._freqs = freq_step * np.arange(1 + n / 2)
 
     @classmethod
-    def load_at2_file(cls, filename):
-        '''Read an AT2 formatted time series.'''
+    def load_at2_file(cls, filename: str):
+        """Read an AT2 formatted time series.
+
+        Parameters
+        ----------
+        filename: str
+            Filename to open.
+
+        """
         with open(filename) as fp:
             next(fp)
             description = next(fp).strip()
@@ -129,6 +152,7 @@ class TimeSeriesMotion(Motion):
             accels = [float(p) for l in fp for p in l.split()]
 
         return cls(filename, description, time_step, accels)
+
 
 class CompatibleRvtMotion(pyrvt.motions.CompatibleRvtMotion, Motion):
     """A :class:`~.motion.CompatibleRvtMotion` object is used to compute a
@@ -173,19 +197,25 @@ class CompatibleRvtMotion(pyrvt.motions.CompatibleRvtMotion, Motion):
 
     """
     def __init__(self,
-             osc_freqs: np.ndarray,
-             osc_accels_target: np.ndarray,
-             duration: float=None,
-             osc_damping: float=0.05,
-             event_kwds: Dict=None,
-             window_len: int=None,
-             peak_calculator: pyrvt.peak_calculators.Calculator=None,
-             calc_kwds: Dict=None):
+                 osc_freqs: np.ndarray,
+                 osc_accels_target: np.ndarray,
+                 duration: float=None,
+                 osc_damping: float=0.05,
+                 event_kwds: Dict=None,
+                 window_len: int=None,
+                 peak_calculator: pyrvt.peak_calculators.Calculator=None,
+                 calc_kwds: Dict=None):
         super(CompatibleRvtMotion, self).__init__(
             osc_freqs, osc_accels_target, duration=duration,
             osc_damping=osc_damping, event_kwds=event_kwds,
             window_len=window_len, peak_calculator=peak_calculator,
             calc_kwds=calc_kwds)
+
+    def compute_peak(self, transfer_func=None, osc_freq=None,
+                     osc_damping=None):
+        return CompatibleRvtMotion.compute_peak(
+            self, transfer_func, osc_freq, osc_damping)
+
 
 class SourceTheoryRvtMotion(pyrvt.motions.SourceTheoryMotion, Motion):
     """Single-corner source theory model with default parameters from [C03]_.
@@ -223,6 +253,7 @@ class SourceTheoryRvtMotion(pyrvt.motions.SourceTheoryMotion, Motion):
         keywords are only required for some peak calculators.
 
     """
+
     def __init__(self,
                  magnitude: float,
                  distance: float,
@@ -234,3 +265,8 @@ class SourceTheoryRvtMotion(pyrvt.motions.SourceTheoryMotion, Motion):
         super(SourceTheoryRvtMotion, self).__init__(
             magnitude, distance, region, stress_drop, depth,
             peak_calculator=peak_calculator, calc_kwds=calc_kwds)
+
+    def compute_peak(self, transfer_func=None, osc_freq=None,
+                     osc_damping=None):
+        return CompatibleRvtMotion.compute_peak(
+            self, transfer_func, osc_freq, osc_damping)
