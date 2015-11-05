@@ -29,11 +29,9 @@ While pyRVT has support Python27, Python3 is preferred.
 
 After the installer is finished, install the required dependencies by opening a
 terminal. On Windows, this is best accomplished with ``Windows Key + r``, enter
-``cmd``. Next enter the following command:
-
-::
+``cmd``. Next enter the following command::
  
-  conda install --yes setuptools numpy scipy matplotlib nose 
+  conda install --yes setuptools numpy scipy matplotlib nose
 
 On Windows, the text can copied and pasted if "Quick Edit" mode is enabled. To
 enable this feature, right click on the icon in the upper left portion of the
@@ -41,12 +39,10 @@ window, and select "Properties", and then check the "Quick Edit Mode" check box
 within the "Edit Options" group. Copy the text, and then paste it by click the
 right mouse button.
 
-Now that the dependencies have been installed, install or upgrade pyRVT using
-pip:
+Now that the dependencies have been installed, install or upgrade pyRVT and
+pysra using pip::
 
-::
-
-  pip install --upgrade pysra
+  pip install --upgrade pyrvt pysra
 
 You should now have pysra completely installed. Next, read about
 :ref:`using <usage>` pysra.
