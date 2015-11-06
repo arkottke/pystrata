@@ -1,7 +1,23 @@
-__author__ = 'akottke'
+#!/usr/bin/env python
+# encoding: utf-8
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+#
+# Copyright (C) Albert Kottke, 2013-2015
 
 import numpy as np
-from typing import Iterable, Iterator
 
 from pysra import site
 
@@ -28,28 +44,24 @@ class ToroThicknessVariation(object):
 
     """
 
-    def __init__(self,
-                 c_1: float = 10.86,
-                 c_2: float = -0.89,
-                 c_3: float = 1.98,
-                 ):
+    def __init__(self, c_1=10.86, c_2=-0.89, c_3=1.98):
         self._c_1 = c_1
         self._c_2 = c_2
         self._c_3 = c_3
 
     @property
-    def c_3(self) -> float:
+    def c_3(self):
         return self._c_3
 
     @property
-    def c_2(self) -> float:
+    def c_2(self):
         return self._c_2
 
     @property
-    def c_1(self) -> float:
+    def c_1(self):
         return self._c_1
 
-    def iter_thickness(self, depth_total: float) -> Iterator[float]:
+    def iter_thickness(self, depth_total):
         """Iterate over the varied thicknesses.
 
         The layering is generated using a non-homogenous Poisson process. The
@@ -97,7 +109,7 @@ class ToroThicknessVariation(object):
 
             depth_prev = depth
 
-    def __call__(self, profile) -> site.Profile:
+    def __call__(self, profile):
         """Calculated a varied thickness profile.
 
         Parameters
@@ -233,7 +245,7 @@ class ToroVelocityVariation(object):
         self._h_0 = h_0
         self._b = b
 
-    def iter_correlated_variables(self, profile: site.Profile) -> Iterator:
+    def iter_correlated_variables(self, profile):
         """Iteratively provide corrlated variables.
 
         Parameters
@@ -278,7 +290,7 @@ class ToroVelocityVariation(object):
         # Bedrock is perfectly correlated with layer above it
         yield var_prev
 
-    def __call__(self, profile: site.Profile) -> site.Profile:
+    def __call__(self, profile):
         """Calculate a varied shear-wave velocity profile.
 
         Parameters
@@ -313,35 +325,35 @@ class ToroVelocityVariation(object):
         return profile_varied
 
     @property
-    def ln_std(self) -> float:
+    def ln_std(self):
         return self._ln_std
 
     @property
-    def rho_0(self) -> float:
+    def rho_0(self):
         return self._rho_0
 
     @property
-    def delta(self) -> float:
+    def delta(self):
         return self._delta
 
     @property
-    def rho_200(self) -> float:
+    def rho_200(self):
         return self._rho_200
 
     @property
-    def h_0(self) -> float:
+    def h_0(self):
         return self._h_0
 
     @property
-    def b(self) -> float:
+    def b(self):
         return self._b
 
     @classmethod
-    def site_classes(cls) -> Iterable[str]:
+    def site_classes(cls):
         return cls.PARAMS.keys()
 
     @classmethod
-    def generic_model(cls, site_class: str, **kwds) -> 'ToroVelocityVariation':
+    def generic_model(cls, site_class, **kwds):
         """Use generic model parameters based on site class.
 
         Parameters

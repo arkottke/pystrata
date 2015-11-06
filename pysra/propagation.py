@@ -1,4 +1,21 @@
-from typing import List
+#!/usr/bin/env python
+# encoding: utf-8
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+#
+# Copyright (C) Albert Kottke, 2013-2015
 
 import numpy as np
 
@@ -15,10 +32,7 @@ class LinearElasticCalculator(object):
 
         self._input_location = None
 
-    def __call__(self,
-                 motion: Motion,
-                 profile: Profile,
-                 input_location: Location):
+    def __call__(self, motion, profile, input_location):
         """Perform the wave propagation.
 
         Parameters
@@ -39,9 +53,7 @@ class LinearElasticCalculator(object):
 
         self._calc_waves(motion.angular_freqs, profile)
 
-    def _calc_waves(self,
-                    angular_freqs: np.ndarray,
-                    profile: Profile):
+    def _calc_waves(self, angular_freqs, profile):
         """Compute the wave numbers and amplitudes (up- and down-going).
 
         Parameters
@@ -84,12 +96,13 @@ class LinearElasticCalculator(object):
         self._waves_b = waves_b
         self._wave_nums = wave_nums
 
-    def wave_at_location(self, l: Location) -> np.ndarray:
+    def wave_at_location(self, l):
         """Compute the wave field at specific location.
 
         Parameters
         ----------
-        l : Location
+        l : site.Location
+            :class:`site.Location` of the input
 
         Returns
         -------
@@ -108,21 +121,18 @@ class LinearElasticCalculator(object):
         else:
             raise NotImplementedError
 
-    def calc_accel_tf(self, location_in: Location, location_out: Location) -> \
-            np.ndarray:
+    def calc_accel_tf(self, location_in, location_out):
         """Compute the acceleration transfer function."""
         return (self.wave_at_location(location_out) /
                 self.wave_at_location(location_in))
 
-    def calc_stress_tf(self, location_in: Location, location_out: Location) -> \
-            np.ndarray:
+    def calc_stress_tf(self, location_in, location_out):
         """Compute the stress transfer function."""
         trans_func = self.calc_strain_tf(location_in, location_out)
         trans_func *= location_out.layer.comp_shear_mod
         return trans_func
 
-    def calc_strain_tf(self, location_in: Location, location_out: Location) \
-            -> np.ndarray:
+    def calc_strain_tf(self, location_in, location_out):
         # FIXME: Correct discussion for using acceleration FAS
         # The strain transfer function from the acceleration at layer n (outcrop)
         # to the mid-height of layer m (within) is defined as:
@@ -172,19 +182,13 @@ class EquivalentLinearCalculation(LinearElasticCalculator):
     max_iterations: int, default=15
         Maximum number of iterations to perform.
     """
-    def __init__(self,
-                 strain_ratio: float=0.65,
-                 tolerance: float=0.01,
-                 max_iterations: int=15):
+    def __init__(self, strain_ratio=0.65, tolerance=0.01, max_iterations=15):
         super().__init__()
         self._strain_ratio = strain_ratio
         self._tolerance = tolerance
         self._max_iterations = max_iterations
 
-    def __call__(self,
-                 motion: Motion,
-                 profile: Profile,
-                 input_location: Location):
+    def __call__(self, motion, profile, input_location):
         """Perform the wave propagation.
 
         Parameters
@@ -236,7 +240,7 @@ class EquivalentLinearCalculation(LinearElasticCalculator):
         return self._max_iterations
 
     @classmethod
-    def calc_strain_ratio(cls, mag: float) -> float:
+    def calc_strain_ratio(cls, mag):
         """Compute the effective strain ratio using Idriss and Sun (1991).
 
         Parameters

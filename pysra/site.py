@@ -19,11 +19,10 @@
 
 import collections
 
-from typing import Iterable, Optional, Union
-
 import numpy as np
 
 from scipy.interpolate import interp1d
+from six.moves import UserList
 
 from pysra import GRAVITY
 
@@ -42,11 +41,7 @@ class NonlinearProperty(object):
         specified in decimal, e.g., 0.05 for 5%.
     """
 
-    def __init__(self,
-                 name='',
-                 strains=Optional[np.ndarray],
-                 values=Optional[np.ndarray]):
-
+    def __init__(self, name='', strains=None, values=None):
         self.name = name
         self._strains = strains or np.array([])
         self._values = values or np.array([])
@@ -55,7 +50,7 @@ class NonlinearProperty(object):
 
         self._update()
 
-    def __call__(self, strain: float):
+    def __call__(self, strain):
         """Return the nonlinear property at a specific strain.
 
         If the strain is within the range of the provided strains, then the
@@ -88,12 +83,12 @@ class NonlinearProperty(object):
         return value
 
     @property
-    def strains(self) -> np.ndarray:
+    def strains(self):
         """Strains [decimal]."""
         return self._strains
 
     @strains.setter
-    def strains(self, strains: np.ndarray):
+    def strains(self, strains):
         self._strains = strains
         self._update()
 
@@ -123,7 +118,6 @@ class NonlinearProperty(object):
                 self._interpolater = interp1d(x, y, 'linear')
 
 
-
 class SoilType(object):
     """Soiltype that combines nonlinear behavior and material properties.
 
@@ -141,21 +135,19 @@ class SoilType(object):
         is used.
     """
 
-    def __init__(self, name: str = '', unit_wt: float = 0.,
-                 mod_reduc: Optional[NonlinearProperty]=None,
-                 damping: Union[NonlinearProperty, float]=None):
+    def __init__(self, name='', unit_wt=0., mod_reduc=None, damping=None):
         self.name = name
         self.unit_wt = unit_wt
         self.mod_reduc = mod_reduc
         self.damping = damping
 
     @property
-    def density(self) -> float:
+    def density(self):
         """Density of the soil in kN/m³."""
         return self.unit_wt / GRAVITY
 
     @property
-    def damping_min(self) -> float:
+    def damping_min(self):
         """Return the small-strain damping."""
         try:
             return self.damping.values[0]
@@ -171,25 +163,25 @@ class SoilType(object):
 # TODO: for nonlinear site response this class wouldn't be used. Better way
 # to do this? Maybe have the calculator create it?
 class IterativeValue(object):
-    def __init__(self, value: Optional[float]):
+    def __init__(self, value):
         self._value = value
         self._previous = None
 
     @property
-    def value(self) -> float:
+    def value(self):
         return self._value
 
     @value.setter
-    def value(self, value: float):
+    def value(self, value):
         self._previous = self._value
         self._value = value
 
     @property
-    def previous(self) -> float:
+    def previous(self):
         return self._previous
 
     @property
-    def relative_error(self) -> float:
+    def relative_error(self):
         """The relative error, in percent, between the two iterations.
         """
         if self.previous:
@@ -203,7 +195,7 @@ class IterativeValue(object):
 class Layer(object):
     """Docstring for Layer """
 
-    def __init__(self, soil_type: SoilType, thickness: float, shear_vel: float):
+    def __init__(self, soil_type, thickness, shear_vel):
         """@todo: to be defined1 """
         self._profile = None
 
@@ -218,47 +210,47 @@ class Layer(object):
         self._depth = 0
 
     @property
-    def depth(self) -> float:
+    def depth(self):
         """Depth to the top of the layer [m]."""
         return self._depth
 
     @property
-    def depth_mid(self) -> float:
+    def depth_mid(self):
         """Depth to the middle of the layer [m]."""
         return self._depth + self._thickness / 2
 
     @property
-    def depth_base(self) -> float:
+    def depth_base(self):
         """Depth to the base of the layer [m]."""
         return self._depth + self._thickness
 
     @classmethod
-    def duplicate(cls, other: 'Layer') -> 'Layer':
+    def duplicate(cls, other):
         """Create a copy of the layer."""
         return cls(other.soil_type, other.thickness, other.shear_vel)
 
     @property
-    def density(self) -> float:
+    def density(self):
         """Density of soil in [kN/m³]."""
         return self.soil_type.density
 
     @property
-    def damping(self) -> IterativeValue:
+    def damping(self):
         """Strain-compatible damping."""
         return self._damping
 
     @property
-    def initial_shear_mod(self) -> float:
+    def initial_shear_mod(self):
         """Initial complex shear modulus from Kramer (1996) [kN/m²]."""
         return self.density * self.initial_shear_vel ** 2
 
     @property
-    def initial_shear_vel(self) -> float:
+    def initial_shear_vel(self):
         """Initial (small-strain) shear-wave velocity [m/s]."""
         return self._initial_shear_vel
 
     @property
-    def comp_shear_mod(self) -> complex:
+    def comp_shear_mod(self):
         """Strain-compatible complex shear modulus [kN/m²].
 
         Calculated from Kramer (1996), Equation ##."""
@@ -266,41 +258,40 @@ class Layer(object):
                                        2j * self.damping.value)
 
     @property
-    def comp_shear_vel(self) -> complex:
+    def comp_shear_vel(self):
         """Strain-compatible complex shear-wave velocity [m/s]."""
         return np.sqrt(self.comp_shear_mod / self.density)
 
     @property
-    def shear_mod(self) -> IterativeValue:
+    def shear_mod(self):
         """Strain-compatible shear modulus [kN//m²]."""
         return self._shear_mod
 
     @property
-    def shear_vel(self) -> float:
+    def shear_vel(self):
         """Strain-compatible shear-wave velocity [m/s]."""
         return np.sqrt(self.shear_mod.value / self.density)
 
     @property
-    def strain(self) -> Union[IterativeValue, float]:
-
+    def strain(self):
         # FIXME simplify so that a float is always returned?
         return self._strain
 
     @property
-    def soil_type(self) -> SoilType:
+    def soil_type(self):
         return self._soil_type
 
     @property
-    def thickness(self) -> float:
+    def thickness(self):
         return self._thickness
 
     @thickness.setter
-    def thickness(self, thickness: float):
+    def thickness(self, thickness):
         self._thickness = thickness
         self._profile.update_depths(self, self._profile.index(self) + 1)
 
     @strain.setter
-    def strain(self, strain: float):
+    def strain(self, strain):
         if self.soil_type.is_nonlinear:
             self._strain.value = strain
         else:
@@ -320,7 +311,7 @@ class Layer(object):
             self._damping.value = self.soil_type.damping
 
     @property
-    def incr_site_atten(self) -> float:
+    def incr_site_atten(self):
         return ((2 * self.soil_type.damping_min * self._thickness) /
                 self.initial_shear_vel)
 
@@ -330,11 +321,7 @@ class Location(object):
 
     WAVE_FIELDS = ['within', 'outcrop', 'incoming_only']
 
-    def __init__(self,
-                 index: int,
-                 layer: Layer,
-                 wave_field: str,
-                 depth_within: float=0):
+    def __init__(self, index, layer, wave_field, depth_within=0):
         self._index = index
         self._layer = layer
         self._depth_within = depth_within
@@ -344,23 +331,23 @@ class Location(object):
         self.wave_field = wave_field
 
     @property
-    def depth_within(self) -> float:
+    def depth_within(self):
         return self._depth_within
 
     @property
-    def layer(self) -> Layer:
+    def layer(self):
         return self._layer
 
     @property
-    def index(self) -> int:
+    def index(self):
         return self._index
 
     @property
-    def wave_field(self) -> str:
+    def wave_field(self):
         return self._wave_field
 
     @wave_field.setter
-    def wave_field(self, wave_field: str):
+    def wave_field(self, wave_field):
         assert wave_field in self.WAVE_FIELDS
         self._wave_field = wave_field
 
@@ -371,13 +358,13 @@ class Location(object):
         )
 
 
-class Profile(collections.UserList):
+class Profile(UserList):
     """Docstring for Profile """
 
-    def __init__(self, layers: Iterable[Layer] = None):
-        collections.UserList.__init__(self, layers)
+    def __init__(self, layers=None):
+        UserList.__init__(self, layers)
 
-    def update_depths(self, start_layer: int = 0):
+    def update_depths(self, start_layer=0):
         if start_layer < 1:
             depth = 0
         else:
@@ -388,17 +375,13 @@ class Profile(collections.UserList):
             if l != self[-1]:
                 depth = l.depth_base
 
-    def auto_discretize(self) -> Iterable[Layer]:
+    def auto_discretize(self):
         raise NotImplementedError
 
-    def calc_site_attenuation(self) -> float:
+    def calc_site_attenuation(self):
         return sum(l.incr_site_atten for l in self)
 
-    def location(self,
-                 wave_field: str,
-                 depth: Optional[float]=None,
-                 index: Optional[int]=None
-                 ) -> Location:
+    def location(self, wave_field, depth=None, index=None):
         """Create a Location for a specific depth.
 
         Parameters

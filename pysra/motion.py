@@ -17,15 +17,13 @@
 #
 # Copyright (C) Albert Kottke, 2013-2015
 
-from typing import Dict, Iterable, Optional
-
 import numpy as np
 
 import pyrvt
 
 
 class Motion(object):
-    def __init__(self, freqs: Optional[Iterable]=None):
+    def __init__(self, freqs=None):
         self._freqs = np.array([] if freqs is None else freqs)
 
         self._pgv = None
@@ -70,12 +68,8 @@ class Motion(object):
 
 
 class TimeSeriesMotion(Motion):
-    def __init__(self,
-                 filename: str,
-                 description: str,
-                 time_step: float,
-                 accels: Iterable[float]):
-        super().__init__()
+    def __init__(self, filename, description, time_step, accels):
+        super(Motion, self).__init__()
 
         self._filename = filename
         self._description = description
@@ -133,7 +127,7 @@ class TimeSeriesMotion(Motion):
         self._freqs = freq_step * np.arange(1 + n / 2)
 
     @classmethod
-    def load_at2_file(cls, filename: str):
+    def load_at2_file(cls, filename):
         """Read an AT2 formatted time series.
 
         Parameters
@@ -196,15 +190,9 @@ class CompatibleRvtMotion(pyrvt.motions.CompatibleRvtMotion, Motion):
         keywords are only required for some peak calculators.
 
     """
-    def __init__(self,
-                 osc_freqs: np.ndarray,
-                 osc_accels_target: np.ndarray,
-                 duration: float=None,
-                 osc_damping: float=0.05,
-                 event_kwds: Dict=None,
-                 window_len: int=None,
-                 peak_calculator: pyrvt.peak_calculators.Calculator=None,
-                 calc_kwds: Dict=None):
+    def __init__(self, osc_freqs, osc_accels_target, duration=None,
+                 osc_damping=0.05, event_kwds=None, window_len=None,
+                 peak_calculator=None, calc_kwds=None):
         super(CompatibleRvtMotion, self).__init__(
             osc_freqs, osc_accels_target, duration=duration,
             osc_damping=osc_damping, event_kwds=event_kwds,
@@ -254,14 +242,8 @@ class SourceTheoryRvtMotion(pyrvt.motions.SourceTheoryMotion, Motion):
 
     """
 
-    def __init__(self,
-                 magnitude: float,
-                 distance: float,
-                 region: str,
-                 stress_drop: float=None,
-                 depth: float=8,
-                 peak_calculator: pyrvt.peak_calculators.Calculator=None,
-                 calc_kwds: Dict=None):
+    def __init__(self, magnitude, distance, region, stress_drop=None,
+                 depth=8, peak_calculator=None, calc_kwds=None):
         super(SourceTheoryRvtMotion, self).__init__(
             magnitude, distance, region, stress_drop, depth,
             peak_calculator=peak_calculator, calc_kwds=calc_kwds)
