@@ -29,3 +29,7 @@ from . import motion
 from . import propagation
 from . import site
 from . import variation
+
+from ._version import get_versions
+__version__ = get_versions()['version']
+del get_versions
