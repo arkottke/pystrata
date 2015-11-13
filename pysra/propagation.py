@@ -21,7 +21,6 @@ import numpy as np
 
 from . import GRAVITY
 from .site import Profile, Location
-from .motion import Motion
 
 
 class LinearElasticCalculator(object):

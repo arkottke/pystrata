@@ -32,21 +32,34 @@ class NonlinearProperty(object):
 
     Parameters
     ----------
-    name : str, optional
+    name: str, optional
         used for identification
-    strains : :class:`numpy.ndarray`
+    strains: :class:`numpy.ndarray`, optional
         strains for each of the values [decimal].
-    values : :class:`numpy.ndarray`
+    values: :class:`numpy.ndarray`, optional
         value of the property corresponding to each strain. Damping should be
         specified in decimal, e.g., 0.05 for 5%.
+    param: str, optional
+        type of parameter. Possible values are:
+
+            mod_reduc
+                Shear-modulus reduction curve
+
+            damping
+                Damping ratio curve
     """
 
-    def __init__(self, name='', strains=None, values=None):
+    PARAMS = ['mod_reduc', 'damping']
+
+    def __init__(self, name='', strains=None, values=None, param=None):
         self.name = name
         self._strains = strains or np.array([])
         self._values = values or np.array([])
 
         self._interpolater = None
+
+        self._param = None
+        self.param = param
 
         self._update()
 
@@ -94,13 +107,24 @@ class NonlinearProperty(object):
 
     @property
     def values(self):
-        """Values of either shear-modulus reduction or damping ratio"""
+        """Values of either shear-modulus reduction or damping ratio."""
         return self._values
 
     @values.setter
     def values(self, values):
         self._values = values
         self._update()
+
+    @property
+    def param(self):
+        """Nonlinear parameter name."""
+        return self._param
+
+    @param.setter
+    def param(self, value):
+        if value:
+            assert value in self.PARAMS
+        self._param = value
 
     def _update(self):
         """Initialize the 1D interpolation."""
@@ -159,6 +183,11 @@ class SoilType(object):
         """If nonlinear properties are specified."""
         return any(isinstance(p, NonlinearProperty)
                    for p in [self.mod_reduc, self.damping])
+
+    def __eq__(self, other):
+        return all(getattr(self, attr) == getattr(other, attr)
+                   for attr in ['name', 'unit_wt', 'mod_reduc', 'damping'])
+
 
 # TODO: for nonlinear site response this class wouldn't be used. Better way
 # to do this? Maybe have the calculator create it?
@@ -319,7 +348,7 @@ class Layer(object):
 class Location(object):
     """loc"""
 
-    WAVE_FIELDS = ['within', 'outcrop', 'incoming_only']
+    WAVE_FIELDS = ['outcrop', 'within', 'incoming_only']
 
     def __init__(self, index, layer, wave_field, depth_within=0):
         self._index = index
@@ -361,8 +390,10 @@ class Location(object):
 class Profile(UserList):
     """Docstring for Profile """
 
-    def __init__(self, layers=None):
+    def __init__(self, layers=None, wt_depth=0):
         UserList.__init__(self, layers)
+
+        self.wt_depth = wt_depth
 
     def update_depths(self, start_layer=0):
         if start_layer < 1:
