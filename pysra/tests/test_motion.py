@@ -30,7 +30,7 @@ def ts_setup():
     '''Setup the default time series for testing.'''
     global ts
     ts = motion.TimeSeriesMotion.load_at2_file(
-            os.path.join(os.path.dirname(__file__), 'NIS090.AT2'))
+            os.path.join(os.path.dirname(__file__), 'data', 'NIS090.AT2'))
 
 def ts_teardown():
     global ts

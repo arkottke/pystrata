@@ -21,11 +21,15 @@ import numpy as np
 
 import pyrvt
 
+from . import GRAVITY
+
 
 class Motion(object):
     def __init__(self, freqs=None):
-        self._freqs = np.array([] if freqs is None else freqs)
+        object.__init__(self)
 
+        self._freqs = np.array([] if freqs is None else freqs)
+        self._pga = None
         self._pgv = None
 
     def _compute_oscillator_transfer_function(self, osc_freq, damping=0.05):
@@ -58,25 +62,34 @@ class Motion(object):
 
     @property
     def pgv(self):
+        """Peak-ground velocity [cm/sec]."""
         if self._pgv is None:
-            self._pgv = self.compute_peak(1 / (self.angular_freqs * 1j))
+            tf = 1 / (self.angular_freqs * 1j)
+            tf[0] = 0.
+            self._pgv = GRAVITY * 100 * self.compute_peak(tf)
 
         return self.pgv
+
+    @property
+    def pga(self):
+        if self._pga is None:
+            self._pga = self.compute_peak()
+        return self._pga
 
     def compute_peak(self, transfer_func=None, **kwargs):
         raise NotImplementedError
 
 
 class TimeSeriesMotion(Motion):
-    def __init__(self, filename, description, time_step, accels):
-        super(Motion, self).__init__()
+    def __init__(self, filename, description, time_step, accels, fa_length=None):
+        Motion.__init__(self)
 
         self._filename = filename
         self._description = description
         self._time_step = time_step
         self._accels = np.asarray(accels)
 
-        self._calc_fourier_spectrum()
+        self._calc_fourier_spectrum(fa_length)
 
     @property
     def accels(self):
@@ -111,15 +124,23 @@ class TimeSeriesMotion(Motion):
         return self._fourier_amps
 
     def compute_peak(self, trans_func=None, **kwargs):
-        return np.fft.irfft(trans_func * self._fourier_amps)
+        if trans_func is None:
+            ts = np.fft.irfft(self._fourier_amps)
+        else:
+            ts = np.fft.irfft(trans_func * self._fourier_amps)
 
-    def _calc_fourier_spectrum(self):
+        return np.abs(ts).max()
+
+    def _calc_fourier_spectrum(self, fa_length=None):
         """Compute the Fourier Amplitude Spectrum of the time series."""
 
-        # Use the next power of 2 for the length
-        n = 1
-        while n < self.accels.size:
-            n <<= 1
+        if fa_length is None:
+            # Use the next power of 2 for the length
+            n = 1
+            while n < self.accels.size:
+                n <<= 1
+        else:
+            n = fa_length
 
         self._fourier_amps = np.fft.rfft(self._accels, n)
 
