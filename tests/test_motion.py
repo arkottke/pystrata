@@ -19,40 +19,31 @@
 
 
 import os
+import pytest
 
-import nose
 from numpy.testing import assert_almost_equal, assert_equal
 
 from pysra import motion
 
 
-def ts_setup():
+@pytest.fixture
+def tsm():
     '''Setup the default time series for testing.'''
-    global ts
-    ts = motion.TimeSeriesMotion.load_at2_file(
+    return motion.TimeSeriesMotion.load_at2_file(
             os.path.join(os.path.dirname(__file__), 'data', 'NIS090.AT2'))
 
-def ts_teardown():
-    global ts
-    del ts
 
-@nose.with_setup(ts_setup, ts_teardown)
-def test_ts_load_at2_file():
-    global ts
+def test_ts_load_at2_file(tsm):
+    assert_equal(tsm.accels.size, 4096)
+    assert_almost_equal(tsm.time_step, 0.01)
 
-    assert_equal(ts.accels.size, 4096)
-    assert_almost_equal(ts.time_step, 0.01)
+    assert_almost_equal(tsm.accels[0], 0.233833E-06)
+    assert_almost_equal(tsm.accels[-1], 0.496963E-04)
 
-    assert_almost_equal(ts.accels[0], 0.233833E-06)
-    assert_almost_equal(ts.accels[-1], 0.496963E-04)
 
-@nose.with_setup(ts_setup, ts_teardown)
-def test_ts_freqs():
-    global ts
-
-    freqs = ts.freqs
-
+def test_ts_freqs(tsm):
+    freqs = tsm.freqs
     assert_almost_equal(freqs[0], 0)
     assert_almost_equal(freqs[-1], 50.)
 
-    assert_equal(ts.freqs.size, ts.fourier_amps.size)
+    assert_equal(tsm.freqs.size, tsm.fourier_amps.size)

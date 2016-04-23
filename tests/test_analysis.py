@@ -32,7 +32,7 @@ layers = [
 profile = pysra.site.Profile(layers)
 
 motion = pysra.motion.SourceTheoryRvtMotion(6, 20, 'wna')
-motion.compute_fourier_amps()
+motion.calc_fourier_amps()
 
 loc_in = profile.location('outcrop', index=-1)
 loc_out = profile.location('outcrop', index=0)
@@ -42,7 +42,7 @@ calculator(motion, profile, loc_in)
 
 trans_func = calculator.calc_accel_tf(loc_in, loc_out)
 
-if os.environ.get('TRAVIS', False) == False:
+if os.environ.get('TRAVIS', False) is False:
     import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots(1, 1, subplot_kw=dict(xscale='log'))
@@ -53,4 +53,3 @@ if os.environ.get('TRAVIS', False) == False:
     fig.savefig('test_analysis.png')
 
 assert np.all(np.isfinite(trans_func))
-

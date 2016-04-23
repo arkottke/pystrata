@@ -17,45 +17,29 @@
 #
 # Copyright (C) Albert Kottke, 2013-2015
 
-import nose
+import pytest
+
 from numpy.testing import assert_almost_equal, assert_approx_equal
 
 from pysra import site
 
 
-def nlp_setup():
-    """Setup for the NonlinearProperty tests"""
-    global nlp
-    nlp = site.NonlinearProperty('', [0.01, 1], [0., 1.])
+@pytest.fixture
+def nlp():
+    """Simple nonlinear property."""
+    return site.NonlinearProperty('', [0.01, 1], [0., 1.])
 
 
-def nlp_teardown():
-    """Teardown for the NonlinearProperty tests"""
-    global nlp
-    del nlp
+@pytest.mark.parametrize('strain,expected', [
+    (0.001, 0.),
+    (2., 1.),
+    (0.1, 0.5),
+])
+def test_nlp(nlp, strain, expected):
+    assert_almost_equal(nlp(strain), expected)
 
 
-@nose.with_setup(nlp_setup, nlp_teardown)
-def test_nlp_lowerbound():
-    global nlp
-    assert_almost_equal(nlp(0.001), 0.)
-
-
-@nose.with_setup(nlp_setup, nlp_teardown)
-def test_nlp_upperbound():
-    global nlp
-    assert_almost_equal(nlp(2.), 1.)
-
-
-@nose.with_setup(nlp_setup, nlp_teardown)
-def test_nlp_midpoint():
-    global nlp
-    assert_approx_equal(nlp(0.1), 0.5)
-
-
-@nose.with_setup(nlp_setup, nlp_teardown)
-def test_nlp_update():
-    global nlp
+def test_nlp_update(nlp):
     new_values = [0, 2]
     nlp.values = new_values
     assert_almost_equal(new_values, nlp.values)
@@ -100,4 +84,3 @@ def test_soil_type_iterative():
     assert_approx_equal(l.strain.value, strain)
     assert_approx_equal(l.shear_mod.value, 0.5 * l.initial_shear_mod)
     assert_approx_equal(l.damping.value, 5.0)
-
