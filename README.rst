@@ -1,37 +1,42 @@
-pysra
+=====
+pySRA
 =====
 
-.. image:: https://travis-ci.org/arkottke/pysra.svg?branch=master
+.. image:: https://img.shields.io/pypi/v/pysra.svg
+    :target: https://pypi.python.org/pypi/pysra
+    :alt: PyPi Cheese Shop
+
+.. image:: https://img.shields.io/travis/arkottke/pysra.svg
     :target: https://travis-ci.org/arkottke/pysra
+    :alt: Build Status
 
-.. image:: https://readthedocs.org/projects/pysra/badge/?version=latest
-    :target: http://pysra.readthedocs.org/
+.. image:: https://readthedocs.org/projects/pysra/badge/?version=latest&style=flat
+    :target: https://pysra.readthedocs.org
+    :alt: Documentation Status
 
-.. image:: https://coveralls.io/repos/arkottke/pysra/badge.png?branch=master
-    :target: https://coveralls.io/r/arkottke/pysra?branch=master
+.. image:: https://coveralls.io/repos/github/arkottke/pysra/badge.svg?branch=master
+    :target: https://coveralls.io/github/arkottke/pysra?branch=master
+    :alt: Test Coverage
 
 .. image:: https://landscape.io/github/arkottke/pysra/master/landscape.svg?style=flat
-    :target: https://landscape.io/github/arkottke/pysra
+    :target: https://landscape.io/github/arkottke/pysra/master
+    :alt: Code Health
 
-Site Response Analysis Toolkit for Python.
+.. image:: https://img.shields.io/badge/license-MIT-blue.svg
+    :target: https://github.com/arkottke/pysra/blob/master/LICENSE
+    :alt: License
 
-Far from being ready to be used.
+Site response analyses implemented in Python.
 
-Installation
-------------
+* Free software: MIT license
+* Documentation: https://pysra.readthedocs.org.
 
-Using ``conda`` is the simplest way to get started using ``pysra``. Install
-``conda`` using these_ instructions. Next, install the required dependencies
-using ``conda``::
 
-     $ conda install --yes setuptools numpy scipy matplotlib nose
 
-You also need to install ``pyrvt``::
+Credits
+---------
 
-    $ pip install https://github.com/arkottke/pyrvt/archive/master.zip
+This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypackage`_ project template.
 
-And finally install ``pysra``::
-
-    $ pip install https://github.com/arkottke/pysra/archive/master.zip
-
-.. _these: http://conda.pydata.org/docs/install/quick.html
+.. _Cookiecutter: https://github.com/audreyr/cookiecutter
+.. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
