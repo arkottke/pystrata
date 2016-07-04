@@ -18,11 +18,11 @@
 # Copyright (C) Albert Kottke, 2013-2015
 
 import pytest
-import numpy as np
 
 from numpy.testing import assert_allclose
 
 from pysra import site
+
 
 @pytest.fixture
 def nlp():
@@ -53,6 +53,7 @@ def test_nlp_update(nlp):
 
     assert_allclose(nlp(1.), 1.)
 
+
 class TestDarendeli:
     @classmethod
     def setup_class(cls):
@@ -66,6 +67,7 @@ class TestDarendeli:
             **kwds, param='damping')
         return cls
 
+
     @pytest.mark.parametrize(
         'attr,expected',
         [
@@ -74,6 +76,8 @@ class TestDarendeli:
         ]
     )
     def test_values(self, attr, expected):
+        # Reference values taken from Tables 10.13 and 10.14 of the Darendeli
+        # dissertation.
         actual = getattr(self, attr).values.tolist()
         assert_allclose(actual, expected, rtol=0.01)
 

@@ -389,3 +389,24 @@ class ToroVelocityVariation(object):
         p = dict(cls.PARAMS[site_class])
         p.update(kwds)
         return cls(**p)
+
+
+class DarendeliVariation(object):
+    def __init__(self, correlation):
+        self._correlation = correlation
+
+    @property
+    def correlation(self):
+        return self._correlation
+
+    def _calc_std_mod_reduc(self, mod_reduc):
+        mod_reduc = np.asarray(mod_reduc)
+        std = (np.exp(-4.23) +
+               np.sqrt(0.25 / np.exp(3.62) -
+                       (mod_reduc - 0.5) ** 2 / np.exp(3.62)))
+        return std
+
+    def _calc_std_damping(self, damping):
+        damping = np.asarray(damping)
+        std = np.exp(-5) + np.exp(-0.25) * np.sqrt(damping)
+        return std
