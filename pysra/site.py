@@ -53,8 +53,8 @@ class NonlinearProperty(object):
 
     def __init__(self, name='', strains=None, values=None, param=None):
         self.name = name
-        self._strains = strains or np.array([])
-        self._values = values or np.array([])
+        self._strains = np.asarray(strains)
+        self._values = np.asarray(values)
 
         self._interpolater = None
 
@@ -102,7 +102,7 @@ class NonlinearProperty(object):
 
     @strains.setter
     def strains(self, strains):
-        self._strains = strains
+        self._strains = np.asarray(strains)
         self._update()
 
     @property
@@ -112,7 +112,7 @@ class NonlinearProperty(object):
 
     @values.setter
     def values(self, values):
-        self._values = values
+        self._values = np.asarray(values)
         self._update()
 
     @property
@@ -129,17 +129,61 @@ class NonlinearProperty(object):
     def _update(self):
         """Initialize the 1D interpolation."""
 
-        if self.strains and self.values:
+        if self.strains.size and self.strains.size == self.values.size:
             x = np.log(self.strains)
             y = self.values
 
-            try:
-                # Prefer cubic spline interpolation
-                self._interpolater = interp1d(x, y, 'cubic')
-            except TypeError:
-                # Fallback on linear interpolation if not enough points are
-                # specified
+            if x.size < 4:
                 self._interpolater = interp1d(x, y, 'linear')
+            else:
+                self._interpolater = interp1d(x, y, 'cubic')
+
+
+class DarendeliNonlinearProperty(NonlinearProperty):
+    def __init__(self, plas_index, ocr, mean_stress, freq=1, num_cycles=10,
+                 strains=np.logspace(-4, 0.5, num=20), param='mod_reduc'):
+        strains = np.asarray(strains)
+
+        name = "Darendeli (PI={:.0f}, OCR={:.1f}, s'_v={:.1f} atm)".format(
+            plas_index, ocr, mean_stress)
+        # Compute the reference strain based on the PI, OCR, and mean stress
+        strain_ref = ((0.0352 + 0.0010 * plas_index * ocr ** 0.3246) *
+                      mean_stress ** 0.3483)
+        curvature = 0.9190
+        mod_reduc = 1 / (1 + (strains / strain_ref) ** curvature)
+
+        if param == 'damping':
+            # Empirical minimum damping
+            damping_min = ((0.8005 + 0.0129 * plas_index * ocr ** -0.1069) *
+                           mean_stress ** -0.2889 *
+                           (1 + 0.2919 * np.log(freq)))
+            # Masing damping based on shear-modulus reduction
+            damping_masing_a1 = (
+                (100./np.pi) *
+                (4 * (strains - strain_ref *
+                      np.log((strains + strain_ref) / strain_ref)) /
+                 (strains ** 2 / (strains + strain_ref)) - 2.)
+            )
+            # Correction between perfect hyperbolic strain model and modified
+            # model.
+            c1 = -1.1143 * curvature ** 2 + 1.8618 * curvature + 0.2523
+            c2 = 0.0805 * curvature ** 2 - 0.0710 * curvature - 0.0095
+            c3 = -0.0005 * curvature ** 2 + 0.0002 * curvature + 0.0003
+            damping_masing = (c1 * damping_masing_a1 +
+                              c2 * damping_masing_a1 ** 2 +
+                              c3 * damping_masing_a1 ** 3)
+            # Masing correction factor
+            masing_corr = 0.6329 - 0.00566 * np.log(num_cycles)
+            # Compute the damping in percent
+            damping = (damping_min +
+                       damping_masing * masing_corr * mod_reduc ** 0.1)
+            values = damping
+        else:
+            values = mod_reduc
+
+        super(DarendeliNonlinearProperty, self).__init__(
+                name, strains, values, param
+        )
 
 
 class SoilType(object):
