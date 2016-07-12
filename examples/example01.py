@@ -54,7 +54,7 @@ for wave_field in wave_fields:
         surface = p.location('outcrop', index=0)
         bedrock = p.location(wave_field, index=-1)
 
-        calc.calc_waves(motion, p.data, bedrock)
+        calc(motion, p.data, bedrock)
         trans_funcs.append(calc.calc_accel_tf(bedrock, surface))
 
     rsrs[wave_field] = np.abs(trans_funcs[1]) / np.abs(trans_funcs[0])
@@ -76,5 +76,4 @@ ax.grid()
 ax.legend(loc='upper left', title='Bedrock Wave Field')
 
 fig.tight_layout()
-
-fig.savefig('example01')
+fig.savefig(__file__.replace('.py', '.png'), dpi=150)

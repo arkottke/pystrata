@@ -1,29 +1,35 @@
-sudo: false
 language: python
 python:
-  - "2.7"
-  - "3.4"
-  - "3.5"
-
-# This was taken from https://github.com/mwaskom/seaborn/blob/master/.travis.yml
+- '2.7'
+- '3.4'
+- '3.5'
 before_install:
-    - wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh 
-    - chmod +x miniconda.sh
-    - ./miniconda.sh -b
-    - export PATH=/home/travis/miniconda3/bin:$PATH
-
+- sudo apt-get update
+- if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh
+  -O miniconda.sh; else wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+  -O miniconda.sh; fi
+- bash miniconda.sh -b -p $HOME/miniconda
+- export PATH="$HOME/miniconda/bin:$PATH"
+- hash -r
+- conda config --set always_yes yes --set changeps1 no
+- conda update -q conda
+- conda info -a
 install:
-    - conda update conda --yes
-    - conda create -n testenv --yes pip python=$TRAVIS_PYTHON_VERSION
-    - conda update conda --yes
-    - source activate testenv
-    - conda install --yes numpy scipy matplotlib coverage
-    - pip install coveralls nose typing pyrvt
-    - python setup.py install
-
-script:  
-    - python setup.py nosetests --with-coverage --cover-package=pysra --verbosity=2
-
+- conda create -q -n testenv --yes pip python=$TRAVIS_PYTHON_VERSION
+- source activate testenv
+- conda install --yes numpy scipy matplotlib
+- pip install -r requirements_dev.txt
+- python setup.py install
+script:
+- py.test --flake8 --cov-report html --cov pysra tests/
 after_success:
-    - coveralls
-
+- coveralls
+deploy:
+  provider: pypi
+  user: arkottke
+  password:
+    secure: XJ68lufBupCicSgg7mnA85+IsXVHgqKOV3ZfUwjruKh4J/5e67XJXfKZs5vx66VL872bjoID/NPZ2TpGlf48MMT4leIokPmO0IZy0B4Ixsar0ABq1z76x3YUvFYLIxWGGyd1wtFDZfJiCYHJoO98I/CT/g2Uphb7Fzux77vYGok=
+  on:
+    tags: true
+    distributions: sdist bdist_wheel
+    repo: arkottke/pysra

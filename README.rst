@@ -1,4 +1,5 @@
-pysra
+=====
+pySRA
 =====
 
 .. image:: https://travis-ci.org/arkottke/pysra.svg?branch=master
@@ -25,11 +26,9 @@ Using ``conda`` is the simplest way to get started using ``pysra``. Install
 using ``conda``::
 
      $ conda install --yes setuptools numpy scipy matplotlib nose
-
 You also need to install ``pyrvt``::
 
     $ pip install https://github.com/arkottke/pyrvt/archive/master.zip
-
 And finally install ``pysra``::
 
     $ pip install https://github.com/arkottke/pysra/archive/master.zip

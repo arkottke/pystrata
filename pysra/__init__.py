@@ -17,9 +17,7 @@
 #
 # Copyright (C) Albert Kottke, 2013-2015
 
-from numpy.testing import Tester
-
-test = Tester().test
+from pkg_resources import get_distribution
 
 # Gravity in m/sec²
 # Source: http://physics.nist.gov/cgi-bin/cuu/Value?gn
@@ -30,6 +28,18 @@ from . import propagation
 from . import site
 from . import variation
 
-from ._version import get_versions
-__version__ = get_versions()['version']
-del get_versions
+__all__ = [
+    'motion',
+    'propagation',
+    'site',
+    'variation'
+]
+
+__author__ = 'Albert Kottke'
+__copyright__ = 'Copyright 2016 Albert Kottke'
+__license__ = 'MIT'
+__title__ = 'pySRA'
+__version__ = get_distribution('pySRA').version
+
+
+

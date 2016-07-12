@@ -72,7 +72,7 @@ class TestDarendeli:
         'attr,expected',
         [
             ('mod_reduc', [1.0, 0.936, 0.050]),
-            ('damping', [1.778, 2.476, 21.542]),
+            ('damping', [0.01778, 0.02476, 0.21542]),
         ]
     )
     def test_values(self, attr, expected):

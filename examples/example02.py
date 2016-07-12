@@ -59,5 +59,4 @@ ax.set_ylim(55, 0)
 ax.grid()
 
 fig.tight_layout()
-
-fig.savefig('example02')
+fig.savefig(__file__.replace('.py', '.png'), dpi=150)

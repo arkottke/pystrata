@@ -32,7 +32,7 @@ layers = [
 profile = pysra.site.Profile(layers)
 
 motion = pysra.motion.SourceTheoryRvtMotion(6, 20, 'wna')
-motion.compute_fourier_amps()
+motion.calc_fourier_amps()
 
 loc_in = profile.location('outcrop', index=-1)
 loc_out = profile.location('outcrop', index=0)

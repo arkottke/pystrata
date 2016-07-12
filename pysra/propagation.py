@@ -211,9 +211,10 @@ class EquivalentLinearCalculation(LinearElasticCalculator):
 
             for i, l in enumerate(profile[:-1]):
                 l.strain = (
-                    self.strain_ratio * motion.compute_peak(
-                        self.calc_strain_tf(input_location,
-                                            Location(i, l, 'within'))
+                    self.strain_ratio * motion.calc_peak(
+                        self.calc_strain_tf(
+                            input_location,
+                            Location(i, l, 'within', l.thickness / 2))
                     )
                 )
 

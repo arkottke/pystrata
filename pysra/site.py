@@ -53,8 +53,8 @@ class NonlinearProperty(object):
 
     def __init__(self, name='', strains=None, values=None, param=None):
         self.name = name
-        self._strains = np.asarray(strains)
-        self._values = np.asarray(values)
+        self._strains = np.asarray(strains).astype(float)
+        self._values = np.asarray(values).astype(float)
 
         self._interpolater = None
 
@@ -102,7 +102,7 @@ class NonlinearProperty(object):
 
     @strains.setter
     def strains(self, strains):
-        self._strains = np.asarray(strains)
+        self._strains = np.asarray(strains).astype(float)
         self._update()
 
     @property
@@ -112,7 +112,7 @@ class NonlinearProperty(object):
 
     @values.setter
     def values(self, values):
-        self._values = np.asarray(values)
+        self._values = np.asarray(values).astype(float)
         self._update()
 
     @property
@@ -177,7 +177,8 @@ class DarendeliNonlinearProperty(NonlinearProperty):
             # Compute the damping in percent
             damping = (damping_min +
                        damping_masing * masing_corr * mod_reduc ** 0.1)
-            values = damping
+            # Convert to decimal values
+            values = damping / 100.
         else:
             values = mod_reduc
 
