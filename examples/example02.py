@@ -5,8 +5,6 @@ import sys
 import matplotlib.pyplot as plt
 import numpy as np
 
-sys.path.append('..')
-sys.path.append('../../pyrvt')
 import pysra
 
 count = 10
