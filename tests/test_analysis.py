@@ -42,7 +42,7 @@ calculator(motion, profile, loc_in)
 
 trans_func = calculator.calc_accel_tf(loc_in, loc_out)
 
-if os.environ.get('TRAVIS', False) == False:
+if not os.environ.get('TRAVIS', False):
     import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots(1, 1, subplot_kw=dict(xscale='log'))
@@ -53,4 +53,3 @@ if os.environ.get('TRAVIS', False) == False:
     fig.savefig('test_analysis.png')
 
 assert np.all(np.isfinite(trans_func))
-

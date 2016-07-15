@@ -50,7 +50,7 @@ lint:
 	flake8 pysra tests
 
 test:
-	python setup.py test
+	py.test --flake8 --cov-report html --cov pysra tests/
 
 test-all:
 	tox

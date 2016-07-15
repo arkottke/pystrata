@@ -67,7 +67,6 @@ class TestDarendeli:
             **kwds, param='damping')
         return cls
 
-
     @pytest.mark.parametrize(
         'attr,expected',
         [
@@ -115,5 +114,3 @@ def test_soil_type_iterative():
     assert_allclose(l.strain.value, strain)
     assert_allclose(l.shear_mod.value, 0.5 * l.initial_shear_mod)
     assert_allclose(l.damping.value, 5.0)
-
-

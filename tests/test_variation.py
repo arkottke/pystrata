@@ -18,8 +18,8 @@
 # Copyright (C) Albert Kottke, 2013-2015
 
 import numpy as np
+
 from numpy.testing import assert_allclose
-import pytest
 from scipy.stats import pearsonr
 
 from pysra import site, variation
@@ -127,7 +127,8 @@ class TestSpidVariation:
 
     def test_sample_std_mod_reduc(self):
         assert_allclose(
-            np.std(np.log(self.mod_reducs)), self.svar.std_mod_reduc, rtol=0.10)
+            np.std(np.log(self.mod_reducs)), self.svar.std_mod_reduc,
+            rtol=0.10)
 
     def test_sample_std_damping(self):
         assert_allclose(
