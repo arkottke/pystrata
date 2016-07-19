@@ -227,7 +227,3 @@ def load_shake_inp(fname):
         input[key] = parser(block, **input)
 
     return input
-
-
-
-load_shake_inp('pysra/tests/data/example.inp')
