@@ -315,7 +315,7 @@ class Layer(object):
 
     @property
     def initial_shear_mod(self):
-        """Initial complex shear modulus from Kramer (1996) [kN/m²]."""
+        """Initial (small-strain) shear modulus from Kramer (1996) [kN/m²]."""
         return self.density * self.initial_shear_vel ** 2
 
     @property

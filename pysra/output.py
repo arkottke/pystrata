@@ -2,10 +2,9 @@
 
 
 class Output(object):
-
-
     def __call__(self, site, motion):
         # Save results
+        pass
 
 
 class LocationOutput(Output):
@@ -29,9 +28,11 @@ class ResponseSpectrumOutput(Output):
         super().__init__(self)
 
     def __call__(self, profile, motion, calc):
-        loc = profile.location( self.wave_field, depth=self.depth)
-        tf = calc.calc_accel_tf(loc_bedrock, loc_surface))
-ars_surface = motion.calc_osc_accels(
-    osc_freqs, osc_damping,
+        # loc = profile.location( self.wave_field, depth=self.depth)
+        # tf = calc.calc_accel_tf(loc_bedrock, loc_surface))
+        # ars_surface = motion.calc_osc_accels(
+        # osc_freqs, osc_damping,
+
+        pass
 
 

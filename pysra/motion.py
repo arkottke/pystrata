@@ -78,7 +78,8 @@ class Motion(object):
 
 
 class TimeSeriesMotion(Motion):
-    def __init__(self, filename, description, time_step, accels, fa_length=None):
+    def __init__(self, filename, description, time_step, accels,
+                 fa_length=None):
         Motion.__init__(self)
 
         self._filename = filename
@@ -109,7 +110,7 @@ class TimeSeriesMotion(Motion):
         """Return the frequencies."""
         if self._freqs is None:
             self._calc_fourier_spectrum()
-        
+
         return self._freqs
 
     @property
@@ -168,12 +169,11 @@ class TimeSeriesMotion(Motion):
 
 class RvtMotion(pyrvt.motions.RvtMotion, Motion):
     def __init__(self, osc_freqs, osc_accels_target, duration=None,
-                 osc_damping=0.05, event_kwds=None, window_len=None,
                  peak_calculator=None, calc_kwds=None):
         Motion.__init__(self)
-        pyrvt.motions.RvtMotion.__init__(self,
-            osc_freqs, osc_accels_target, duration=duration,
-             peak_calculator=peak_calculator,
+        pyrvt.motions.RvtMotion.__init__(
+            self, osc_freqs, osc_accels_target, duration=duration,
+            peak_calculator=peak_calculator,
             calc_kwds=calc_kwds)
 
 
@@ -182,8 +182,8 @@ class CompatibleRvtMotion(pyrvt.motions.CompatibleRvtMotion, Motion):
                  osc_damping=0.05, event_kwds=None, window_len=None,
                  peak_calculator=None, calc_kwds=None):
         Motion.__init__(self)
-        pyrvt.motions.CompatibleRvtMotion.__init__(self,
-            osc_freqs, osc_accels_target, duration=duration,
+        pyrvt.motions.CompatibleRvtMotion.__init__(
+            self, osc_freqs, osc_accels_target, duration=duration,
             osc_damping=osc_damping, event_kwds=event_kwds,
             window_len=window_len, peak_calculator=peak_calculator,
             calc_kwds=calc_kwds)
@@ -193,6 +193,6 @@ class SourceTheoryRvtMotion(pyrvt.motions.SourceTheoryMotion, Motion):
     def __init__(self, magnitude, distance, region, stress_drop=None,
                  depth=8, peak_calculator=None, calc_kwds=None):
         Motion.__init__(self)
-        pyrvt.motions.SourceTheoryMotion.__init__(self,
-            magnitude, distance, region, stress_drop, depth,
+        pyrvt.motions.SourceTheoryMotion.__init__(
+            self, magnitude, distance, region, stress_drop, depth,
             peak_calculator=peak_calculator, calc_kwds=calc_kwds)

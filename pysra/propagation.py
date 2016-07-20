@@ -20,7 +20,7 @@
 import numpy as np
 
 from . import GRAVITY
-from .site import Profile, Location
+from .site import Location
 
 
 class LinearElasticCalculator(object):
@@ -132,9 +132,27 @@ class LinearElasticCalculator(object):
         return trans_func
 
     def calc_strain_tf(self, location_in, location_out):
+        """Compute the strain transfer function from `location_out` to
+        `location_in`.
+
+        The strain transfer function from the acceleration at layer `n`
+        (outcrop) to the mid-height of layer `m` (within) is defined as
+
+        Parameters
+        ----------
+        location_in : :class:`~site.Location`
+            Location of input
+        location_out : :class:`~site.Location`
+            Location of output. Note that this would typically be midheight
+            of the layer.
+
+        Returns
+        -------
+        strain_tf : :class:`numpy.ndarray`
+            Transfer function to be applied to an acceleration FAS.
+        """
         # FIXME: Correct discussion for using acceleration FAS
-        # The strain transfer function from the acceleration at layer n (outcrop)
-        # to the mid-height of layer m (within) is defined as:
+
         # Strain(angFreq, z=h_m/2)   i k*_m [ A_m exp(i k*_m h_m / 2) - B_m exp(-i k*_m h_m / 2)]
         # ------------------------ = ------------------------------------------------------------
         #    accel_n(angFreq)                       -angFreq^2 (2 * A_n)
@@ -164,24 +182,23 @@ class LinearElasticCalculator(object):
 
 class EquivalentLinearCalculation(LinearElasticCalculator):
     """Equivalent-linear site response calculator.
-
-    Parameters
-    ----------
-    input_location: :class:`pysra.base.site.Location`
-        Location of the input motion -- including motion type.
-
-    strain_ratio: float, default=0.65
-        Ratio between the maximum strain and effective strain used to
-        compute strain compatible properties.
-
-    tolerance: float, default=0.01
-        Tolerance in the iterative properties, which would cause the
-        iterative process to terminate.
-
-    max_iterations: int, default=15
-        Maximum number of iterations to perform.
     """
     def __init__(self, strain_ratio=0.65, tolerance=0.01, max_iterations=15):
+        """Initialize the class.
+
+        Parameters
+        ----------
+        strain_ratio: float, default=0.65
+            Ratio between the maximum strain and effective strain used to
+            compute strain compatible properties.
+
+        tolerance: float, default=0.01
+            Tolerance in the iterative properties, which would cause the
+            iterative process to terminate.
+
+        max_iterations: int, default=15
+            Maximum number of iterations to perform.
+        """
         super().__init__()
         self._strain_ratio = strain_ratio
         self._tolerance = tolerance
