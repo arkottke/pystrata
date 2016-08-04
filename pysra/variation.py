@@ -20,10 +20,51 @@
 import copy
 
 import numpy as np
+from scipy.stats import truncnorm, norm
 
 from pysra import site
 
-MAX_STDS = 2
+# Limit of number of standard deviation for number generation
+STD_LIM = 2
+# Need to scale the standard deviation to achieve sample standard deviation
+# based on the truncation. Given truncation of 2 standard deviations,
+# the input standard deviation must be increased to 1.136847 to maintain a
+# unit standard deviation for the random samples. This is based on equation
+# on Wikipedia.
+#
+# https://en.wikipedia.org/wiki/Truncated_normal_distribution#Moments
+#
+# If STD_LIM is changed, then this should be adjusted.
+STD_SCALE = 1 / np.sqrt((
+    1 +
+    (-STD_LIM * norm.pdf(-STD_LIM) -
+     STD_LIM * norm.pdf(STD_LIM)) /
+    (norm.cdf(STD_LIM) - norm.cdf(-STD_LIM)) -
+    ((norm.pdf(-STD_LIM) - norm.pdf(STD_LIM)) /
+     (norm.cdf(STD_LIM) - norm.cdf(-STD_LIM)) ** 2)))
+
+
+def randnorm(size=1):
+    """Random number generator that follows a truncated normal distribution.
+
+    This is the defalut random number generator used by the program. It
+    generates normally distributed values ranging from -2 to +2 with unit
+    standard deviation.
+
+    The state of the random number generator is controlled by the
+    ``np.random.RandomState`` instance.
+
+    Parameters
+    ----------
+    size : int
+        Number of random values to compute
+
+    Returns
+    -------
+    rvs : ndarray or scalar
+        Random variates of given `size`.
+    """
+    return truncnorm.rvs(-STD_LIM, STD_LIM, scale=STD_SCALE, size=size)
 
 
 class ToroThicknessVariation(object):
@@ -263,7 +304,7 @@ class ToroVelocityVariation(object):
             Correlated random variable of velocity ranging from
             :math:`-\infty` to :math:`+\infty`.
         """
-        var_prev = np.clip(np.random.standard_normal(), -MAX_STDS, MAX_STDS)
+        var_prev = randnorm()
         yield var_prev
 
         for i in range(len(profile) - 1):
@@ -285,11 +326,7 @@ class ToroVelocityVariation(object):
             corr = (1 - corr_d) * corr_t + corr_d
 
             # Correlated random variable
-            var_cur = (
-                corr * var_prev +
-                np.clip(np.random.standard_normal(), -MAX_STDS, MAX_STDS) *
-                np.sqrt(1 - corr ** 2)
-            )
+            var_cur = corr * var_prev + randnorm() * np.sqrt(1 - corr ** 2)
             yield var_cur
             var_prev = var_cur
 
@@ -413,11 +450,19 @@ class SoilTypeVariation(object):
         mod_reduc = get_values(soil_type.mod_reduc)
         damping = get_values(soil_type.damping)
 
-        # Create correlated random variables
-        randvar = np.clip(
-            np.random.multivariate_normal(
-                [0, 0], [[1, self.correlation], [self.correlation, 1]]),
-            -MAX_STDS, MAX_STDS)
+        # Create correlated random variables. Generating truncated
+        # correlated random variables is challenging. Instead, we just loop
+        # until it works.
+        #
+        # todo: More elegant solution?
+        while True:
+            randvar = np.random.multivariate_normal(
+                [0, 0],
+                [[STD_SCALE ** 2, self.correlation * STD_SCALE ** 2],
+                 [self.correlation * STD_SCALE ** 2, STD_SCALE ** 2]])
+            if np.all(abs(randvar) < STD_LIM):
+                break
+
         varied_mod_reduc, varied_damping = self._get_varied(
             randvar, mod_reduc, damping)
 

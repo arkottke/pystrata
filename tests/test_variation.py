@@ -25,6 +25,11 @@ from scipy.stats import pearsonr
 from pysra import site, variation
 
 
+def test_randnorm():
+    assert_allclose(1, np.std(variation.randnorm(size=100000)),
+                    rtol=0.005)
+
+
 class TestSoilTypeVariation:
     @classmethod
     def setup_class(cls):
@@ -92,7 +97,7 @@ class TestDarendeliVariation:
             np.std(self.mod_reducs, axis=0),
             # Values from Table 11.1 of Darendeli (2001).
             [0.01836, 0.05699, 0.04818],
-            rtol=0.10
+            rtol=0.2
         )
 
     def test_sample_std_damping(self):
@@ -100,7 +105,7 @@ class TestDarendeliVariation:
             np.std(self.dampings, axis=0),
             # Values from Table 11.1 of Darendeli (2001).
             [0.0070766, 0.0099402, 0.0355137],
-            rtol=0.10
+            rtol=0.2
         )
 
     def test_correlation(self):
@@ -127,12 +132,11 @@ class TestSpidVariation:
 
     def test_sample_std_mod_reduc(self):
         assert_allclose(
-            np.std(np.log(self.mod_reducs)), self.svar.std_mod_reduc,
-            rtol=0.10)
+            np.std(np.log(self.mod_reducs)), self.svar.std_mod_reduc, rtol=0.2)
 
     def test_sample_std_damping(self):
         assert_allclose(
-            np.std(np.log(self.dampings)), self.svar.std_damping, rtol=0.10)
+            np.std(np.log(self.dampings)), self.svar.std_damping, rtol=0.2)
 
     def test_correlation(self):
         assert_allclose(
