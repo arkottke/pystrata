@@ -1,4 +1,4 @@
-.PHONY: clean-pyc clean-build docs clean
+.PHONY: clean-pyc clean-build docs clean examples
 define BROWSER_PYSCRIPT
 import os, webbrowser, sys
 try:
@@ -18,7 +18,6 @@ help:
 	@echo "clean-test - remove test and coverage artifacts"
 	@echo "lint - check style with flake8"
 	@echo "test - run tests quickly with the default Python"
-	@echo "test-all - run tests on every Python version with tox"
 	@echo "examples - run all examples"
 	@echo "coverage - check code coverage quickly with the default Python"
 	@echo "docs - generate Sphinx HTML documentation, including API docs"
@@ -42,7 +41,6 @@ clean-pyc:
 	find . -name '__pycache__' -exec rm -fr {} +
 
 clean-test:
-	rm -fr .tox/
 	rm -f .coverage
 	rm -fr htmlcov/
 
@@ -50,13 +48,12 @@ lint:
 	flake8 pysra tests
 
 test:
-	py.test --flake8 --cov-report html --cov pysra tests/
+	py.test --flake8 --cov-report html --cov=pysra tests/
 
 examples:
 	find examples -name 'example*.py' -exec python {} \;
 
-coverage:
-	coverage run --source pysra setup.py test
+coverage: test
 	coverage report -m
 	coverage html
 	$(BROWSER) htmlcov/index.html

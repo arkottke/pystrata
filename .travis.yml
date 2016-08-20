@@ -18,7 +18,8 @@ install:
     - pip install -r requirements_dev.txt
     - python setup.py install
 script:
-    - py.test --flake8 --cov-report html --cov pysra tests/
+    - make test
+    - make examples
 after_success:
     - coveralls
 deploy:
