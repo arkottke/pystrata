@@ -170,7 +170,6 @@ class ToroThicknessVariation(object):
         """
 
         profile_varied = site.Profile()
-
         for thickness, depth_mid in self.iter_thickness(profile[-2].depth_base):
             # Locate the proper layer and add it to the model
             for l in profile:
@@ -188,7 +187,7 @@ class ToroThicknessVariation(object):
             site.Layer(l.soil_type, 0, l.initial_shear_vel)
         )
 
-        profile_varied.update_depths()
+        profile_varied.update_layers()
 
         return profile_varied
 
@@ -362,7 +361,7 @@ class ToroVelocityVariation(object):
                 )
             )
 
-        profile_varied.update_depths()
+        profile_varied.update_layers()
 
         return profile_varied
 
@@ -440,7 +439,7 @@ class SoilTypeVariation(object):
         self._limits_mod_reduc = list(limits_mod_reduc)
         self._limits_damping = list(limits_damping)
 
-    def __call__(self, soil_type: site.SoilType):
+    def __call__(self, soil_type):
         def get_values(nlp):
             try:
                 return nlp.values
@@ -592,3 +591,25 @@ class SpidVariation(SoilTypeVariation):
     @property
     def std_mod_reduc(self):
         return self._std_mod_reduc
+
+
+def iter_varied_profiles(profile, count, var_thickness=None,
+                         var_velocity=None,
+                         var_soiltypes=None):
+    for i in range(count):
+        if var_thickness is None:
+            varied = copy.deepcopy(profile)
+        else:
+            varied = var_thickness(profile)
+
+        if var_velocity is not None:
+            var_velocity(varied)
+
+        if var_soiltypes is not None:
+            for st in varied.iter_soil_types():
+                st_varied = var_soiltypes(st_varied)
+                # Copy over the varied properties
+                for attr in ['mod_reduc', 'damping']:
+                    if getattr(st, attr) is not None:
+                        getattr(st, attr).values[:] = \
+                            getattr(st_varied, attr).values

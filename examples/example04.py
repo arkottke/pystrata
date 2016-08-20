@@ -1,4 +1,4 @@
-"""Randomize nonlinear properties"""
+"""Randomize nonlinear properties."""
 
 import matplotlib.pyplot as plt
 import numpy as np

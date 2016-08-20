@@ -34,15 +34,18 @@ def iter_geopsy_profiles(fname):
 
             yield d
 
+
 motion = pysra.motion.SourceTheoryRvtMotion(6.5, 20, 'wna')
 motion.calc_fourier_amps()
 
 calc = pysra.propagation.EquivalentLinearCalculation(strain_ratio=0.65)
 
-osc_damping = 0.05
-osc_freqs = np.logspace(-1, 2, 181)
-
-ars_input = motion.calc_osc_accels(osc_freqs, osc_damping)
+site_amp = pysra.output.ResponseSpectrumRatioOutput(
+    np.logspace(-1, 2, 181),
+    pysra.output.OutputLocation('outcrop', index=-1),
+    pysra.output.OutputLocation('outcrop', index=0),
+    0.05
+)
 
 fname_profiles = os.path.join(
     os.path.dirname(__file__), 'data', 'best100_GM_linux.txt')
@@ -57,19 +60,13 @@ for geopsy_profile in iter_geopsy_profiles(fname_profiles):
     ])
     # Use 1% damping for the half-space
     profile[-1].soil_type.damping = 0.01
-    # Find the locations of the surface and bedrock
-    loc_surface = profile.location('outcrop', index=0)
-    loc_bedrock = profile.location('outcrop', index=-1)
-    # Compute the waves
-    calc(motion, profile.data, loc_bedrock)
+    # Compute the waves from the last layer
+    calc(motion, profile, profile.location('outcrop', index=-1))
     # Compute the site amplification
-    ars_surface = motion.calc_osc_accels(
-        osc_freqs, osc_damping, calc.calc_accel_tf(loc_bedrock, loc_surface))
-
-    site_ampls.append(ars_surface / ars_input)
+    site_amp(calc)
 
 fig, ax = plt.subplots()
-ax.plot(osc_freqs, np.transpose(site_ampls), 'b-', alpha=0.6)
+ax.plot(site_amp.freqs, site_amp.values, 'b-', alpha=0.6)
 
 ax.set_xlabel('Frequency (Hz)')
 ax.set_xscale('log')

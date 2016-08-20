@@ -24,7 +24,7 @@ import numpy as np
 from scipy.interpolate import interp1d
 from six.moves import UserList
 
-from pysra import GRAVITY
+import pysra
 
 
 class NonlinearProperty(object):
@@ -206,14 +206,18 @@ class SoilType(object):
 
     def __init__(self, name='', unit_wt=0., mod_reduc=None, damping=None):
         self.name = name
-        self.unit_wt = unit_wt
+        self._unit_wt = unit_wt
         self.mod_reduc = mod_reduc
         self.damping = damping
 
     @property
+    def unit_wt(self):
+        return self._unit_wt
+
+    @property
     def density(self):
-        """Density of the soil in kN/m³."""
-        return self.unit_wt / GRAVITY
+        """Density of the soil in kg/m³."""
+        return self.unit_wt / pysra.GRAVITY
 
     @property
     def damping_min(self):
@@ -261,8 +265,7 @@ class IterativeValue(object):
         if self.previous:
             err = 100. * (self.previous - self.value) / self.value
         else:
-            err = None
-
+            err = 0
         return err
 
 
@@ -282,6 +285,7 @@ class Layer(object):
         self._strain = IterativeValue(None)
 
         self._depth = 0
+        self._vert_stress = 0
 
     @property
     def depth(self):
@@ -305,7 +309,7 @@ class Layer(object):
 
     @property
     def density(self):
-        """Density of soil in [kN/m³]."""
+        """Density of soil in [kg/m³]."""
         return self.soil_type.density
 
     @property
@@ -327,14 +331,20 @@ class Layer(object):
     def comp_shear_mod(self):
         """Strain-compatible complex shear modulus [kN/m²].
 
-        Calculated from Kramer (1996), Equation ##."""
-        return self.shear_mod.value * (1 - self.damping.value ** 2 +
-                                       2j * self.damping.value)
+        Frequency independent formulation."""
+        return self.shear_mod.value * (1 + 2j * self.damping.value)
 
     @property
     def comp_shear_vel(self):
         """Strain-compatible complex shear-wave velocity [m/s]."""
         return np.sqrt(self.comp_shear_mod / self.density)
+
+    @property
+    def max_error(self):
+        return max(
+            self.shear_mod.relative_error,
+            self.damping.relative_error,
+        )
 
     @property
     def shear_mod(self):
@@ -362,7 +372,21 @@ class Layer(object):
     @thickness.setter
     def thickness(self, thickness):
         self._thickness = thickness
-        self._profile.update_depths(self, self._profile.index(self) + 1)
+        self._profile.update_layers(self, self._profile.index(self) + 1)
+
+    @property
+    def unit_wt(self):
+        return self.soil_type.unit_wt
+
+    def vert_stress(self, depth_within=0, effective=False):
+        """Vertical stress from the top of the layer [kN//m²]."""
+        assert depth_within <= self.thickness
+        vert_stress = self._vert_stress + depth_within * self.unit_wt
+        if effective:
+            pore_pressure = self._profile.pore_pressure(
+                self.depth + depth_within)
+            vert_stress -= pore_pressure
+        return vert_stress
 
     @strain.setter
     def strain(self, strain):
@@ -391,18 +415,15 @@ class Layer(object):
 
 
 class Location(object):
-    """loc"""
-
-    WAVE_FIELDS = ['outcrop', 'within', 'incoming_only']
-
+    """Location within a profile"""
     def __init__(self, index, layer, wave_field, depth_within=0):
         self._index = index
         self._layer = layer
         self._depth_within = depth_within
-        self._wave_field = None
 
-        # Use the setter to check the values
-        self.wave_field = wave_field
+        if not isinstance(wave_field, pysra.motion.WaveField):
+            wave_field = pysra.motion.WaveField[wave_field]
+        self._wave_field = wave_field
 
     @property
     def depth_within(self):
@@ -420,14 +441,13 @@ class Location(object):
     def wave_field(self):
         return self._wave_field
 
-    @wave_field.setter
-    def wave_field(self, wave_field):
-        assert wave_field in self.WAVE_FIELDS
-        self._wave_field = wave_field
+    def vert_stress(self, effective=False):
+        return self._layer.vert_stress(self.depth_within, effective=effective)
 
     def __repr__(self):
         return (
-            '<Location(layer_index={_index}, wave_field={_wave_field})>'.
+            '<Location(layer_index={_index}, depth_within={_depth_within} '
+            'wave_field={_wave_field})>'.
             format(**self.__dict__)
         )
 
@@ -437,22 +457,54 @@ class Profile(UserList):
 
     def __init__(self, layers=None, wt_depth=0):
         UserList.__init__(self, layers)
-
         self.wt_depth = wt_depth
+        if layers:
+            self.update_layers()
 
-    def update_depths(self, start_layer=0):
+    def update_layers(self, start_layer=0):
         if start_layer < 1:
             depth = 0
+            vert_stress = 0
         else:
-            depth = self[start_layer - 1].depth_base
+            ref_layer = self[start_layer - 1]
+            depth = ref_layer.depth_base
+            vert_stress = ref_layer.vert_stress(
+                ref_layer.thickness, effective=False)
 
         for l in self[start_layer:]:
+            l._profile = self
             l._depth = depth
+            l._vert_stress = vert_stress
             if l != self[-1]:
+                # Use the layer to compute the values at the base of the
+                # layer, and apply them at the top of the next layer
                 depth = l.depth_base
+                vert_stress = l.vert_stress(l.thickness, effective=False)
+
+    def iter_soil_types(self):
+        yielded = set()
+        for l in self:
+            if l.soil_type in yielded:
+                continue
+            else:
+                yielded.add(l)
+                yield l.soil_type
 
     def auto_discretize(self):
         raise NotImplementedError
+
+    def pore_pressure(self, depth):
+        """Pore pressure at a given depth in [kN//m²].
+
+        Parameters
+        ----------
+        depth
+
+        Returns
+        -------
+
+        """
+        return pysra.GRAVITY * max(depth - self.wt_depth, 0)
 
     def calc_site_attenuation(self):
         return sum(l.incr_site_atten for l in self)
@@ -477,6 +529,8 @@ class Profile(UserList):
         Location
             Corresponding :class:`Location` object.
         """
+        if not isinstance(wave_field, pysra.motion.WaveField):
+            wave_field = pysra.motion.WaveField[wave_field]
 
         if index is None and depth is not None:
             for i, l in enumerate(self[:-1]):

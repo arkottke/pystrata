@@ -32,7 +32,7 @@ profile = pysra.site.Profile([
         ),
     ])
 
-profile.update_depths()
+profile.update_layers()
 
 toro_thickness = pysra.variation.ToroThicknessVariation()
 toro_velocity = pysra.variation.ToroVelocityVariation.generic_model('USGS B')

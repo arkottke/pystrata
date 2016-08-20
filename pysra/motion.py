@@ -17,11 +17,19 @@
 #
 # Copyright (C) Albert Kottke, 2013-2015
 
+import enum
+
 import numpy as np
 
 import pyrvt
 
 from . import GRAVITY
+
+
+class WaveField(enum.Enum):
+    outcrop = 0
+    within = 1
+    incoming_only = 2
 
 
 class Motion(object):
@@ -31,26 +39,6 @@ class Motion(object):
         self._freqs = np.array([] if freqs is None else freqs)
         self._pga = None
         self._pgv = None
-
-    def _calc_oscillator_transfer_function(self, osc_freq, damping=0.05):
-        """Compute the transfer function for a single-degree-of-freedom
-        oscillator.
-
-        Parameters
-        ----------
-        osc_freq : float
-            natural frequency of the oscillator [Hz]
-        damping : float, optional
-            damping ratio of the oscillator in decimal. Default value is
-            0.05, or 5%.
-
-        Returns
-        -------
-        Complex-valued transfer function with length equal to self.freq
-        """
-        return (-osc_freq ** 2. /
-                (np.square(self.freqs) - np.square(osc_freq) -
-                    2.j * damping * osc_freq * self.freqs))
 
     @property
     def freqs(self):
@@ -121,13 +109,47 @@ class TimeSeriesMotion(Motion):
 
         return self._fourier_amps
 
-    def calc_peak(self, trans_func=None, **kwargs):
-        if trans_func is None:
+    def calc_time_series(self, tf=None):
+        if tf is None:
             ts = np.fft.irfft(self._fourier_amps)
         else:
-            ts = np.fft.irfft(trans_func * self._fourier_amps)
+            ts = np.fft.irfft(tf * self._fourier_amps)
+        return ts
 
+    def calc_peak(self, tf=None, **kwargs):
+        ts = self.calc_time_series(tf)
         return np.abs(ts).max()
+
+    def calc_osc_accels(self, osc_freqs, osc_damping=0.05, tf=None):
+        """Compute the pseudo-acceleration spectral response of an oscillator
+        with a specific frequency and damping.
+
+        Parameters
+        ----------
+        osc_freq : float
+            Frequency of the oscillator (Hz).
+        osc_damping : float
+            Fractional damping of the oscillator (dec). For example, 0.05 for a
+            damping ratio of 5%.
+        tf : array_like, optional
+            Transfer function to be applied to motion prior calculation of the
+            oscillator response.
+
+        Returns
+        -------
+        spec_accels : :class:`numpy.ndarray`
+            Peak pseudo-spectral acceleration of the oscillator
+        """
+        if tf is None:
+            tf = np.ones_like(self.freqs)
+        else:
+            tf = np.asarray(tf).astype(complex)
+
+        resp = np.array(
+            [self.calc_peak(tf * self._calc_sdof_tf(of, osc_damping))
+             for of in osc_freqs]
+        )
+        return resp
 
     def _calc_fourier_spectrum(self, fa_length=None):
         """Compute the Fourier Amplitude Spectrum of the time series."""
@@ -144,6 +166,27 @@ class TimeSeriesMotion(Motion):
 
         freq_step = 1. / (2 * self._time_step * (n / 2))
         self._freqs = freq_step * np.arange(1 + n / 2)
+
+    def _calc_sdof_tf(self, osc_freq, damping=0.05):
+        """Compute the transfer function for a single-degree-of-freedom
+        oscillator.
+
+        Parameters
+        ----------
+        osc_freq : float
+            natural frequency of the oscillator [Hz]
+        damping : float, optional
+            damping ratio of the oscillator in decimal. Default value is
+            0.05, or 5%.
+
+        Returns
+        -------
+        tf : :class:`numpy.ndarray`
+            Complex-valued transfer function with length equal to `self.freq`.
+        """
+        return (-osc_freq ** 2. /
+                (np.square(self.freqs) - np.square(osc_freq) -
+                    2.j * damping * osc_freq * self.freqs))
 
     @classmethod
     def load_at2_file(cls, filename):

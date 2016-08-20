@@ -117,7 +117,7 @@ def _parse_soil_profile(block, units, curves, **kwargs):
             l.shear_vel *= 0.3048
 
     p = site.Profile(layers)
-    p.update_depths()
+    p.update_layers()
     p.wt_depth = p[wt_layer - 1].depth
 
     return p
@@ -166,7 +166,7 @@ def _parse_input_loc(block, profile, **kwargs):
     )
 
     return profile.location(
-        site.Location.WAVE_FIELDS[wave_field],
+        motion.WaveField[wave_field],
         index=(layer - 1),
     )
 

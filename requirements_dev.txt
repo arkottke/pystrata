@@ -5,7 +5,6 @@ coveralls
 cryptography
 flake8
 jinja2
-matplotlib
 pyprind
 pytest-cov
 pytest-flake8

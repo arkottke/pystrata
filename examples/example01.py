@@ -43,7 +43,10 @@ profiles = [
     ])
 ]
 
-wave_fields = ['outcrop', 'within']
+wave_fields = [
+    pysra.motion.WaveField.outcrop,
+    pysra.motion.WaveField.within,
+]
 
 calc = pysra.propagation.LinearElasticCalculator()
 
