@@ -1,8 +1,3 @@
-<<<<<<< HEAD
-=======
-=====
-pySRA
->>>>>>> origin/dev
 =====
 pySRA
 =====
@@ -33,23 +28,7 @@ pySRA
 
 Site response analyses implemented in Python.
 
-<<<<<<< HEAD
 * Free software: MIT license
 * Documentation: https://pysra.readthedocs.org.
 
 
-
-Credits
----------
-=======
-     $ conda install --yes setuptools numpy scipy matplotlib nose
-You also need to install ``pyrvt``::
-
-    $ pip install https://github.com/arkottke/pyrvt/archive/master.zip
-And finally install ``pysra``::
->>>>>>> origin/dev
-
-This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypackage`_ project template.
-
-.. _Cookiecutter: https://github.com/audreyr/cookiecutter
-.. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
