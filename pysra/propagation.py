@@ -15,13 +15,12 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
-# Copyright (C) Albert Kottke, 2013-2015
+# Copyright (C) Albert Kottke, 2013-2016
 
 import numpy as np
 
-from . import GRAVITY
 from .site import Location
-from .motion import WaveField
+from .motion import WaveField, GRAVITY
 
 
 class LinearElasticCalculator(object):
@@ -203,17 +202,14 @@ class LinearElasticCalculator(object):
             Transfer function to be applied to an acceleration FAS.
         """
         # FIXME: Correct discussion for using acceleration FAS
-
-        # Strain(angFreq, z=h_m/2)   i k*_m [ A_m exp(i k*_m h_m / 2) - B_m exp(-i k*_m h_m / 2)]
-        # ------------------------ = ------------------------------------------------------------
-        #    accel_n(angFreq)                       -angFreq^2 (2 * A_n)
-        # The problem with this formula is that at low frequencies the division is
-        # prone to errors -- in particular when angFreq = 0.
-        # To solve this problem, strain is computed from the velocity FAS.  The associated
-        # transfer function to compute the strain is then defined as:
-        # Strain(angFreq, z=h_m/2)   -i [ A_m exp(i k*_m h_m / 2) - B_m exp(-i k*_m h_m / 2)]
-        # ------------------------ = ------------------------------------------------------------
-        #      vel_n(angFreq)                       v*_s (2 * A_n)
+        # Strain(angFreq, z=h_m/2)
+        # ------------------------ =
+        #    accel_n(angFreq)
+        #
+        #          i k*_m [ A_m exp(i k*_m h_m / 2) - B_m exp(-i k*_m h_m / 2)]
+        #          ------------------------------------------------------------
+        #                         -angFreq^2 (2 * A_n)
+        #
         assert lout.wave_field == WaveField.within
         # The numerator cannot be computed using wave_at_location() because
         # it is A - B.

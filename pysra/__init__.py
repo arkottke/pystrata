@@ -15,13 +15,9 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
-# Copyright (C) Albert Kottke, 2013-2015
+# Copyright (C) Albert Kottke, 2013-2016
 
 from pkg_resources import get_distribution
-
-# Gravity in m/sec²
-# Source: http://physics.nist.gov/cgi-bin/cuu/Value?gn
-GRAVITY = 9.80665
 
 from . import motion
 from . import propagation
@@ -32,6 +28,7 @@ from . import variation
 __all__ = [
     'motion',
     'propagation',
+    'output',
     'site',
     'variation'
 ]
@@ -41,5 +38,3 @@ __copyright__ = 'Copyright 2016 Albert Kottke'
 __license__ = 'MIT'
 __title__ = 'pySRA'
 __version__ = get_distribution('pySRA').version
-
-

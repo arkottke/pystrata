@@ -1,9 +1,28 @@
+#!/usr/bin/env python
+# encoding: utf-8
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+#
+# Copyright (C) Albert Kottke, 2013-2016
+
 import collections
 
 import numpy as np
 import scipy.integrate
 
-import pysra.motion
+from .motion import TimeSeriesMotion, WaveField, GRAVITY
 
 
 class OutputCollection(collections.UserList):
@@ -86,8 +105,8 @@ class OutputLocation(object):
     def __init__(self, wave_field, depth=None, index=None):
         self._depth = depth
         self._index = index
-        if not isinstance(wave_field, pysra.motion.WaveField):
-            wave_field = pysra.motion.WaveField[wave_field]
+        if not isinstance(wave_field, WaveField):
+            wave_field = WaveField[wave_field]
         self._wave_field = wave_field
 
     @property
@@ -137,7 +156,7 @@ class TimeSeriesOutput(LocationBasedOutput):
         return self.refs
 
     def __call__(self, calc):
-        if not isinstance(calc.motion, pysra.motion.TimeSeriesMotion):
+        if not isinstance(calc.motion, TimeSeriesMotion):
             raise NotImplementedError
         # Compute the response
         loc = self._get_location(calc)
@@ -169,7 +188,7 @@ class AriasIntensityTSOutput(AccelerationTSOutput):
     def _modify_values(self, calc, location, values):
         time_step = calc.motion.time_step
         values = scipy.integrate.cumtrapz(values ** 2, dx=time_step)
-        values *= pysra.GRAVITY * np.pi / 2
+        values *= GRAVITY * np.pi / 2
         return values
 
 
@@ -178,7 +197,7 @@ class StrainTSOutput(TimeSeriesOutput):
 
     def __init__(self, location):
         super().__init__(location)
-        assert self.location.wave_field == pysra.motion.WaveField.within
+        assert self.location.wave_field == WaveField.within
 
     def _get_trans_func(self, calc, location):
         return calc.calc_strain_tf(calc.loc_input, location)
@@ -194,7 +213,7 @@ class StressTSOutput(TimeSeriesOutput):
     def __init__(self, location, damped=False):
         super().__init__(location)
         self._damped = damped
-        assert self.location.wave_field == pysra.motion.WaveField.within
+        assert self.location.wave_field == WaveField.within
 
     @property
     def damped(self):
@@ -259,10 +278,6 @@ class RatioBasedOutput(Output):
 
 
 class AccelTransferFunctionOutput(RatioBasedOutput):
-    @property
-    def freqs(self):
-        return self._refs
-
     def __call__(self, calc):
         # Locate position within the profile
         loc_in, loc_out = self._get_locations(calc)
@@ -270,6 +285,10 @@ class AccelTransferFunctionOutput(RatioBasedOutput):
         tf = calc.calc_accel_tf(loc_in, loc_out)
         self._add_values(tf)
         self._add_refs(calc.motion.freqs)
+
+    @property
+    def freqs(self):
+        return self._refs
 
 
 class ResponseSpectrumRatioOutput(RatioBasedOutput):
@@ -288,10 +307,6 @@ class ResponseSpectrumRatioOutput(RatioBasedOutput):
     @property
     def osc_damping(self):
         return self._osc_damping
-
-    @property
-    def freqs(self):
-        return self._refs
 
     def __call__(self, calc):
         loc_in, loc_out = self._get_locations(calc)
