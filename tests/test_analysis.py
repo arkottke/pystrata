@@ -15,7 +15,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
-# Copyright (C) Albert Kottke, 2013-2015
+# Copyright (C) Albert Kottke, 2013-2016
 
 import os
 
@@ -42,7 +42,7 @@ calculator(motion, profile, loc_in)
 
 trans_func = calculator.calc_accel_tf(loc_in, loc_out)
 
-if os.environ.get('TRAVIS', False) is False:
+if not os.environ.get('TRAVIS', False):
     import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots(1, 1, subplot_kw=dict(xscale='log'))

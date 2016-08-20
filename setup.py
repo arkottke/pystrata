@@ -1,6 +1,5 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
+# encoding: utf-8
 
 try:
     from setuptools import setup
@@ -17,7 +16,6 @@ with open('HISTORY.rst') as history_file:
 requirements = [
     'matplotlib',
     'numpy',
-    'six'
 ]
 
 setup_requirements = [
@@ -52,7 +50,6 @@ setup(
     classifiers=[
         'License :: OSI Approved :: MIT License',
         'Natural Language :: English',
-        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.3',
         'Programming Language :: Python :: 3.4',
@@ -63,4 +60,5 @@ setup(
     ],
     setup_requires=setup_requirements,
     tests_require=test_requirements,
+    test_suite='tests',
 )

@@ -1,3 +1,11 @@
 --index-url https://pypi.python.org/simple/
 
--e .
+numpy
+openpyxl
+pyprind
+setuptools
+scipy
+pyrvt
+xlrd
+xlwt
+matplotlib

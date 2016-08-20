@@ -15,13 +15,23 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
-# Copyright (C) Albert Kottke, 2013-2015
+# Copyright (C) Albert Kottke, 2013-2016
+
+import enum
 
 import numpy as np
 
 import pyrvt
 
-from . import GRAVITY
+# Gravity in m/sec²
+# Source: http://physics.nist.gov/cgi-bin/cuu/Value?gn
+GRAVITY = 9.80665
+
+
+class WaveField(enum.Enum):
+    outcrop = 0
+    within = 1
+    incoming_only = 2
 
 
 class Motion(object):
@@ -31,26 +41,6 @@ class Motion(object):
         self._freqs = np.array([] if freqs is None else freqs)
         self._pga = None
         self._pgv = None
-
-    def _compute_oscillator_transfer_function(self, osc_freq, damping=0.05):
-        """Compute the transfer function for a single-degree-of-freedom
-        oscillator.
-
-        Parameters
-        ----------
-        osc_freq : float
-            natural frequency of the oscillator [Hz]
-        damping : float, optional
-            damping ratio of the oscillator in decimal. Default value is
-            0.05, or 5%.
-
-        Returns
-        -------
-        Complex-valued transfer function with length equal to self.freq
-        """
-        return (-osc_freq ** 2. /
-                (np.square(self.freqs) - np.square(osc_freq) -
-                    2.j * damping * osc_freq * self.freqs))
 
     @property
     def freqs(self):
@@ -66,22 +56,20 @@ class Motion(object):
         if self._pgv is None:
             tf = 1 / (self.angular_freqs * 1j)
             tf[0] = 0.
-            self._pgv = GRAVITY * 100 * self.compute_peak(tf)
+            self._pgv = GRAVITY * 100 * self.calc_peak(tf)
 
-        return self.pgv
+        return self._pgv
 
     @property
     def pga(self):
         if self._pga is None:
-            self._pga = self.compute_peak()
+            self._pga = self.calc_peak()
         return self._pga
-
-    def compute_peak(self, transfer_func=None, **kwargs):
-        raise NotImplementedError
 
 
 class TimeSeriesMotion(Motion):
-    def __init__(self, filename, description, time_step, accels, fa_length=None):
+    def __init__(self, filename, description, time_step, accels,
+                 fa_length=None):
         Motion.__init__(self)
 
         self._filename = filename
@@ -112,7 +100,7 @@ class TimeSeriesMotion(Motion):
         """Return the frequencies."""
         if self._freqs is None:
             self._calc_fourier_spectrum()
-        
+
         return self._freqs
 
     @property
@@ -123,13 +111,47 @@ class TimeSeriesMotion(Motion):
 
         return self._fourier_amps
 
-    def compute_peak(self, trans_func=None, **kwargs):
-        if trans_func is None:
+    def calc_time_series(self, tf=None):
+        if tf is None:
             ts = np.fft.irfft(self._fourier_amps)
         else:
-            ts = np.fft.irfft(trans_func * self._fourier_amps)
+            ts = np.fft.irfft(tf * self._fourier_amps)
+        return ts
 
+    def calc_peak(self, tf=None, **kwargs):
+        ts = self.calc_time_series(tf)
         return np.abs(ts).max()
+
+    def calc_osc_accels(self, osc_freqs, osc_damping=0.05, tf=None):
+        """Compute the pseudo-acceleration spectral response of an oscillator
+        with a specific frequency and damping.
+
+        Parameters
+        ----------
+        osc_freq : float
+            Frequency of the oscillator (Hz).
+        osc_damping : float
+            Fractional damping of the oscillator (dec). For example, 0.05 for a
+            damping ratio of 5%.
+        tf : array_like, optional
+            Transfer function to be applied to motion prior calculation of the
+            oscillator response.
+
+        Returns
+        -------
+        spec_accels : :class:`numpy.ndarray`
+            Peak pseudo-spectral acceleration of the oscillator
+        """
+        if tf is None:
+            tf = np.ones_like(self.freqs)
+        else:
+            tf = np.asarray(tf).astype(complex)
+
+        resp = np.array(
+            [self.calc_peak(tf * self._calc_sdof_tf(of, osc_damping))
+             for of in osc_freqs]
+        )
+        return resp
 
     def _calc_fourier_spectrum(self, fa_length=None):
         """Compute the Fourier Amplitude Spectrum of the time series."""
@@ -146,6 +168,27 @@ class TimeSeriesMotion(Motion):
 
         freq_step = 1. / (2 * self._time_step * (n / 2))
         self._freqs = freq_step * np.arange(1 + n / 2)
+
+    def _calc_sdof_tf(self, osc_freq, damping=0.05):
+        """Compute the transfer function for a single-degree-of-freedom
+        oscillator.
+
+        Parameters
+        ----------
+        osc_freq : float
+            natural frequency of the oscillator [Hz]
+        damping : float, optional
+            damping ratio of the oscillator in decimal. Default value is
+            0.05, or 5%.
+
+        Returns
+        -------
+        tf : :class:`numpy.ndarray`
+            Complex-valued transfer function with length equal to `self.freq`.
+        """
+        return (-osc_freq ** 2. /
+                (np.square(self.freqs) - np.square(osc_freq) -
+                    2.j * damping * osc_freq * self.freqs))
 
     @classmethod
     def load_at2_file(cls, filename):
@@ -169,107 +212,32 @@ class TimeSeriesMotion(Motion):
         return cls(filename, description, time_step, accels)
 
 
+class RvtMotion(pyrvt.motions.RvtMotion, Motion):
+    def __init__(self, osc_freqs, osc_accels_target, duration=None,
+                 peak_calculator=None, calc_kwds=None):
+        Motion.__init__(self)
+        pyrvt.motions.RvtMotion.__init__(
+            self, osc_freqs, osc_accels_target, duration=duration,
+            peak_calculator=peak_calculator,
+            calc_kwds=calc_kwds)
+
+
 class CompatibleRvtMotion(pyrvt.motions.CompatibleRvtMotion, Motion):
-    """A :class:`~.motion.CompatibleRvtMotion` object is used to compute a
-    Fourier amplitude spectrum that is compatible with a target response
-    spectrum.
-
-    Parameters
-    ----------
-    osc_freqs : :class:`numpy.array`
-        Frequencies of the oscillator response [Hz].
-
-    osc_accels_target : :class:`numpy.array`
-        Spectral acceleration of the oscillator at the specified frequencies
-        [g].
-
-    duration : float or None, default: None
-        Duration of the ground motion [sec]. If ``None``, then the duration is
-        computed using
-
-    osc_damping : float, default: 0.05
-        Damping ratio of the oscillator [dec].
-
-    event_kwds : dict or ``None``, default: ``None``
-        Keywords passed to :class:`~.motions.SourceTheoryMotion` and used
-        to compute the duration of the motion. Only *duration* or
-        *event_kwds* should be specified.
-
-    window_len : int or ``None``, default: ``None``
-        Window length used for smoothing the computed Fourier amplitude
-        spectrum. If ``None``, then no smoothing is applied. The smoothing is
-        applied as a moving average with a width of ``window_len``.
-
-    peak_calculator : str or :class:`~.peak_calculators.Calculator`, default: ``None``
-        Peak calculator to use. If ``None``, then the default peak
-        calculator is used. The peak calculator may either be specified by a
-        :class:`~.peak_calculators.Calculator` object, or by the initials of
-        the calculator.
-
-    calc_kwds : dict or ``None``, default: ``None``
-        Keywords to be passed during the creation the peak calculator. These
-        keywords are only required for some peak calculators.
-
-    """
     def __init__(self, osc_freqs, osc_accels_target, duration=None,
                  osc_damping=0.05, event_kwds=None, window_len=None,
                  peak_calculator=None, calc_kwds=None):
-        super(CompatibleRvtMotion, self).__init__(
-            osc_freqs, osc_accels_target, duration=duration,
+        Motion.__init__(self)
+        pyrvt.motions.CompatibleRvtMotion.__init__(
+            self, osc_freqs, osc_accels_target, duration=duration,
             osc_damping=osc_damping, event_kwds=event_kwds,
             window_len=window_len, peak_calculator=peak_calculator,
             calc_kwds=calc_kwds)
 
-    def compute_peak(self, transfer_func=None, osc_freq=None,
-                     osc_damping=None):
-        return CompatibleRvtMotion.compute_peak(
-            self, transfer_func, osc_freq, osc_damping)
-
 
 class SourceTheoryRvtMotion(pyrvt.motions.SourceTheoryMotion, Motion):
-    """Single-corner source theory model with default parameters from [C03]_.
-
-    Parameters
-    ----------
-    magnitude : float
-        Moment magnitude of the event
-
-    distance : float
-        Epicentral distance [km]
-
-    region : {'cena', 'wna'}, str
-        Region for the parameters. Either 'cena' for Central and Eastern
-        North America, or 'wna' for Western North America.
-
-    stress_drop : float or None, default: ``None``
-        Stress drop of the event [bars]. If ``None``, then the default value is
-        used. For *region* = 'cena', the default value is computed by the
-        [AB11]_ model, while for *region* = 'wna' the default value is 100
-        bars.
-
-    depth : float, default: 8
-        Hypocenter depth [km]. The *depth* is combined with the
-        *distance* to compute the hypocentral distance.
-
-    peak_calculator : str or :class:`~.peak_calculators.Calculator`, default: ``None``
-        Peak calculator to use. If ``None``, then the default peak
-        calculator is used. The peak calculator may either be specified by a
-        :class:`~.peak_calculators.Calculator` object, or by the initials of
-        the calculator.
-
-    calc_kwds : dict or ``None``, default: ``None``
-        Keywords to be passed during the creation the peak calculator. These
-        keywords are only required for some peak calculators.
-
-    """
-
     def __init__(self, magnitude, distance, region, stress_drop=None,
                  depth=8, peak_calculator=None, calc_kwds=None):
-        super(SourceTheoryRvtMotion, self).__init__(
-            magnitude, distance, region, stress_drop, depth,
+        Motion.__init__(self)
+        pyrvt.motions.SourceTheoryMotion.__init__(
+            self, magnitude, distance, region, stress_drop, depth,
             peak_calculator=peak_calculator, calc_kwds=calc_kwds)
-
-    def compute_peak(self, transfer_func=None, osc_freq=None,
-                     osc_damping=None):
-        return CompatibleRvtMotion.compute_peak(
-            self, transfer_func, osc_freq, osc_damping)

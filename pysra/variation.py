@@ -15,11 +15,56 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
-# Copyright (C) Albert Kottke, 2013-2015
+# Copyright (C) Albert Kottke, 2013-2016
+
+import copy
 
 import numpy as np
+from scipy.stats import truncnorm, norm
 
-from pysra import site
+from . import site
+
+# Limit of number of standard deviation for number generation
+STD_LIM = 2
+# Need to scale the standard deviation to achieve sample standard deviation
+# based on the truncation. Given truncation of 2 standard deviations,
+# the input standard deviation must be increased to 1.136847 to maintain a
+# unit standard deviation for the random samples. This is based on equation
+# on Wikipedia.
+#
+# https://en.wikipedia.org/wiki/Truncated_normal_distribution#Moments
+#
+# If STD_LIM is changed, then this should be adjusted.
+STD_SCALE = 1 / np.sqrt((
+    1 +
+    (-STD_LIM * norm.pdf(-STD_LIM) -
+     STD_LIM * norm.pdf(STD_LIM)) /
+    (norm.cdf(STD_LIM) - norm.cdf(-STD_LIM)) -
+    ((norm.pdf(-STD_LIM) - norm.pdf(STD_LIM)) /
+     (norm.cdf(STD_LIM) - norm.cdf(-STD_LIM)) ** 2)))
+
+
+def randnorm(size=1):
+    """Random number generator that follows a truncated normal distribution.
+
+    This is the defalut random number generator used by the program. It
+    generates normally distributed values ranging from -2 to +2 with unit
+    standard deviation.
+
+    The state of the random number generator is controlled by the
+    ``np.random.RandomState`` instance.
+
+    Parameters
+    ----------
+    size : int
+        Number of random values to compute
+
+    Returns
+    -------
+    rvs : ndarray or scalar
+        Random variates of given `size`.
+    """
+    return truncnorm.rvs(-STD_LIM, STD_LIM, scale=STD_SCALE, size=size)
 
 
 class ToroThicknessVariation(object):
@@ -125,8 +170,8 @@ class ToroThicknessVariation(object):
         """
 
         profile_varied = site.Profile()
-
-        for thickness, depth_mid in self.iter_thickness(profile[-2].depth_base):
+        for (thickness, depth_mid) in \
+                self.iter_thickness(profile[-2].depth_base):
             # Locate the proper layer and add it to the model
             for l in profile:
                 if l.depth < depth_mid <= l.depth_base:
@@ -143,7 +188,7 @@ class ToroThicknessVariation(object):
             site.Layer(l.soil_type, 0, l.initial_shear_vel)
         )
 
-        profile_varied.update_depths()
+        profile_varied.update_layers()
 
         return profile_varied
 
@@ -259,7 +304,7 @@ class ToroVelocityVariation(object):
             Correlated random variable of velocity ranging from
             :math:`-\infty` to :math:`+\infty`.
         """
-        var_prev = np.random.standard_normal()
+        var_prev = randnorm()
         yield var_prev
 
         for i in range(len(profile) - 1):
@@ -281,9 +326,7 @@ class ToroVelocityVariation(object):
             corr = (1 - corr_d) * corr_t + corr_d
 
             # Correlated random variable
-            var_cur = (corr * var_prev +
-                       np.random.standard_normal() * np.sqrt(1 - corr ** 2))
-
+            var_cur = corr * var_prev + randnorm() * np.sqrt(1 - corr ** 2)
             yield var_cur
             var_prev = var_cur
 
@@ -307,7 +350,6 @@ class ToroVelocityVariation(object):
         profile_varied = site.Profile()
         for l, corr_var in zip(profile,
                                self.iter_correlated_variables(profile)):
-
             # FIXME: add layer specific ln_std
             ln_std = self.ln_std
             shear_vel_varied = l.initial_shear_vel * np.exp(ln_std * corr_var)
@@ -320,7 +362,7 @@ class ToroVelocityVariation(object):
                 )
             )
 
-        profile_varied.update_depths()
+        profile_varied.update_layers()
 
         return profile_varied
 
@@ -389,3 +431,187 @@ class ToroVelocityVariation(object):
         p = dict(cls.PARAMS[site_class])
         p.update(kwds)
         return cls(**p)
+
+
+class SoilTypeVariation(object):
+    def __init__(self, correlation,
+                 limits_mod_reduc=[0, 1], limits_damping=[0, 0.15]):
+        self._correlation = correlation
+        self._limits_mod_reduc = list(limits_mod_reduc)
+        self._limits_damping = list(limits_damping)
+
+    def __call__(self, soil_type):
+        def get_values(nlp):
+            try:
+                return nlp.values
+            except AttributeError:
+                return np.asarray(nlp).astype(float)
+
+        mod_reduc = get_values(soil_type.mod_reduc)
+        damping = get_values(soil_type.damping)
+
+        # Create correlated random variables. Generating truncated
+        # correlated random variables is challenging. Instead, we just loop
+        # until it works.
+        #
+        # todo: More elegant solution?
+        while True:
+            randvar = np.random.multivariate_normal(
+                [0, 0],
+                [[STD_SCALE ** 2, self.correlation * STD_SCALE ** 2],
+                 [self.correlation * STD_SCALE ** 2, STD_SCALE ** 2]])
+            if np.all(abs(randvar) < STD_LIM):
+                break
+
+        varied_mod_reduc, varied_damping = self._get_varied(
+            randvar, mod_reduc, damping)
+
+        # Clip the values to the specified min/max
+        varied_mod_reduc = np.clip(
+            varied_mod_reduc, self.limits_mod_reduc[0],
+            self.limits_mod_reduc[1]
+        )
+        varied_damping = np.clip(
+            varied_damping, self.limits_damping[0], self.limits_damping[1]
+        )
+
+        # Set the values
+        realization = copy.deepcopy(soil_type)
+        for attr_name, values in zip(['mod_reduc', 'damping'],
+                                     [varied_mod_reduc, varied_damping]):
+            try:
+                getattr(realization, attr_name).values = values
+            except AttributeError:
+                setattr(realization, attr_name, values)
+        return realization
+
+    def _get_varied(self, randvar, mod_reduc, damping):
+        raise NotImplementedError
+
+    @property
+    def correlation(self):
+        return self._correlation
+
+    @property
+    def limits_damping(self):
+        return self._limits_damping
+
+    @property
+    def limits_mod_reduc(self):
+        return self._limits_mod_reduc
+
+
+class DarendeliVariation(SoilTypeVariation):
+    def _get_varied(self, randvar, mod_reduc, damping):
+        mod_reduc_means = mod_reduc
+        mod_reduc_stds = self.calc_std_mod_reduc(mod_reduc_means)
+        varied_mod_reduc = mod_reduc_means + randvar[0] * mod_reduc_stds
+
+        damping_means = damping
+        damping_stds = self.calc_std_damping(damping_means)
+        varied_damping = damping_means + randvar[1] * damping_stds
+
+        return varied_mod_reduc, varied_damping
+
+    @staticmethod
+    def calc_std_mod_reduc(mod_reduc):
+        """Calculate the standard deviation as a function of G/G_max.
+
+        Equation 7.29 from Darendeli (2001).
+
+        Parameters
+        ----------
+        mod_reduc : array_like
+            Modulus reduction values.
+
+        Returns
+        -------
+        std : :class:`numpy.ndarray`
+            Standard deviation.
+        """
+        mod_reduc = np.asarray(mod_reduc).astype(float)
+        std = (np.exp(-4.23) +
+               np.sqrt(0.25 / np.exp(3.62) -
+                       (mod_reduc - 0.5) ** 2 / np.exp(3.62)))
+        return std
+
+    @staticmethod
+    def calc_std_damping(damping):
+        """Calculate the standard deviation as a function of damping in decimal.
+
+        Equation 7.30 from Darendeli (2001).
+
+        Parameters
+        ----------
+        damping : array_like
+            Material damping values in decimal.
+
+        Returns
+        -------
+        std : :class:`numpy.ndarray`
+            Standard deviation.
+        """
+        damping = np.asarray(damping).astype(float)
+        std = (np.exp(-5) + np.exp(-0.25) * np.sqrt(100 * damping)) / 100.
+        return std
+
+
+class SpidVariation(SoilTypeVariation):
+    """Variation defined by the EPRI SPID (2013) and documented in
+    PNNL (2014)."""
+
+    def __init__(self, correlation,
+                 limits_mod_reduc=[0, 1], limits_damping=[0, 0.15],
+                 std_mod_reduc=0.15, std_damping=0.30):
+        super().__init__(
+            correlation, limits_mod_reduc, limits_damping)
+        self._std_mod_reduc = std_mod_reduc
+        self._std_damping = std_damping
+
+    def _get_varied(self, randvar, mod_reduc, damping):
+        # Vary the G/Gmax in transformed space.
+        # Equation 9.43 of PNNL (2014)
+        f_mean = (mod_reduc / (1 - mod_reduc))
+        # Instead of constraining the standard deviation at a specific
+        # strain, then standard deviation is constrained at G/Gmax of 0.5.
+        # This is modified from Equation 9.44 of PNNL (2014).
+        f_std = self.std_mod_reduc * (1 / (1 - 0.5))
+        f_real = np.exp(randvar[0] * f_std) * f_mean
+        # Equation 9.45 of PNNL (2014)
+        varied_mod_reduc = f_real / (1 + f_real)
+
+        # Simple log distribution
+        varied_damping = \
+            np.exp(randvar[1] * self.std_damping) * damping
+
+        return varied_mod_reduc, varied_damping
+
+    @property
+    def std_damping(self):
+        return self._std_damping
+
+    @property
+    def std_mod_reduc(self):
+        return self._std_mod_reduc
+
+
+def iter_varied_profiles(profile, count, var_thickness=None,
+                         var_velocity=None,
+                         var_soiltypes=None):
+    for i in range(count):
+        if var_thickness is None:
+            varied = copy.deepcopy(profile)
+        else:
+            varied = var_thickness(profile)
+
+        if var_velocity is not None:
+            var_velocity(varied)
+
+        if var_soiltypes is not None:
+            for st in varied.iter_soil_types():
+                st_varied = var_soiltypes(st)
+                # Copy over the varied properties
+                for attr in ['mod_reduc', 'damping']:
+                    if getattr(st, attr) is not None:
+                        getattr(st, attr).values[:] = \
+                            getattr(st_varied, attr).values

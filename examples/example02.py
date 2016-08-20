@@ -1,3 +1,22 @@
+#!/usr/bin/env python
+# encoding: utf-8
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+#
+# Copyright (C) Albert Kottke, 2013-2016
+
 """Compute transfer functions for within and outcrop conditions."""
 
 import sys
@@ -5,8 +24,6 @@ import sys
 import matplotlib.pyplot as plt
 import numpy as np
 
-sys.path.append('..')
-sys.path.append('../../pyrvt')
 import pysra
 
 count = 10
@@ -34,7 +51,7 @@ profile = pysra.site.Profile([
         ),
     ])
 
-profile.update_depths()
+profile.update_layers()
 
 toro_thickness = pysra.variation.ToroThicknessVariation()
 toro_velocity = pysra.variation.ToroVelocityVariation.generic_model('USGS B')
@@ -61,5 +78,4 @@ ax.set_ylim(55, 0)
 ax.grid()
 
 fig.tight_layout()
-
-fig.savefig('example02')
+fig.savefig(__file__.replace('.py', '.png'), dpi=150)
