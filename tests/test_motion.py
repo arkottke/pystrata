@@ -30,7 +30,7 @@ from pysra import motion
 def tsm():
     '''Setup the default time series for testing.'''
     return motion.TimeSeriesMotion.load_at2_file(
-            os.path.join(os.path.dirname(__file__), 'data', 'NIS090.AT2'))
+        os.path.join(os.path.dirname(__file__), 'data', 'NIS090.AT2'))
 
 
 def test_ts_load_at2_file(tsm):
