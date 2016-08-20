@@ -29,7 +29,7 @@ test_requirements = [
 ]
 
 setup(
-    name='pysra',
+    name='pySRA',
     version='0.0.1.dev0',
     description="Site response analyses implemented in Python.",
     long_description=readme + '\n\n' + history,
