@@ -17,10 +17,11 @@
 #
 # Copyright (C) Albert Kottke, 2013-2016
 
+import collections
+
 import numpy as np
 
 from scipy.interpolate import interp1d
-from six.moves import UserList
 
 from .motion import WaveField, GRAVITY
 
@@ -450,11 +451,11 @@ class Location(object):
         )
 
 
-class Profile(UserList):
+class Profile(collections.UserList):
     """Docstring for Profile """
 
     def __init__(self, layers=None, wt_depth=0):
-        UserList.__init__(self, layers)
+        collections.UserList.__init__(self, layers)
         self.wt_depth = wt_depth
         if layers:
             self.update_layers()
