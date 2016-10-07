@@ -139,54 +139,6 @@ class NonlinearProperty(object):
                 self._interpolater = interp1d(x, y, 'cubic')
 
 
-class DarendeliNonlinearProperty(NonlinearProperty):
-    def __init__(self, plas_index, ocr, mean_stress, freq=1, num_cycles=10,
-                 strains=np.logspace(-4, 0.5, num=20), param='mod_reduc'):
-        strains = np.asarray(strains)
-
-        name = "Darendeli (PI={:.0f}, OCR={:.1f}, s'_v={:.1f} atm)".format(
-            plas_index, ocr, mean_stress)
-        # Compute the reference strain based on the PI, OCR, and mean stress
-        strain_ref = ((0.0352 + 0.0010 * plas_index * ocr ** 0.3246) *
-                      mean_stress ** 0.3483)
-        curvature = 0.9190
-        mod_reduc = 1 / (1 + (strains / strain_ref) ** curvature)
-
-        if param == 'damping':
-            # Empirical minimum damping
-            damping_min = ((0.8005 + 0.0129 * plas_index * ocr ** -0.1069) *
-                           mean_stress ** -0.2889 *
-                           (1 + 0.2919 * np.log(freq)))
-            # Masing damping based on shear-modulus reduction
-            damping_masing_a1 = (
-                (100./np.pi) *
-                (4 * (strains - strain_ref *
-                      np.log((strains + strain_ref) / strain_ref)) /
-                 (strains ** 2 / (strains + strain_ref)) - 2.)
-            )
-            # Correction between perfect hyperbolic strain model and modified
-            # model.
-            c1 = -1.1143 * curvature ** 2 + 1.8618 * curvature + 0.2523
-            c2 = 0.0805 * curvature ** 2 - 0.0710 * curvature - 0.0095
-            c3 = -0.0005 * curvature ** 2 + 0.0002 * curvature + 0.0003
-            damping_masing = (c1 * damping_masing_a1 +
-                              c2 * damping_masing_a1 ** 2 +
-                              c3 * damping_masing_a1 ** 3)
-            # Masing correction factor
-            masing_corr = 0.6329 - 0.00566 * np.log(num_cycles)
-            # Compute the damping in percent
-            damping = (damping_min +
-                       damping_masing * masing_corr * mod_reduc ** 0.1)
-            # Convert to decimal values
-            values = damping / 100.
-        else:
-            values = mod_reduc
-
-        super(DarendeliNonlinearProperty, self).__init__(
-                name, strains, values, param
-        )
-
-
 class SoilType(object):
     """Soiltype that combines nonlinear behavior and material properties.
 
@@ -236,6 +188,92 @@ class SoilType(object):
     def __eq__(self, other):
         return all(getattr(self, attr) == getattr(other, attr)
                    for attr in ['name', 'unit_wt', 'mod_reduc', 'damping'])
+
+
+class DarendeliSoilType(SoilType):
+    def __init__(self, name='', unit_wt=0., plas_index=0, ocr=1, mean_stress=1, freq=1, num_cycles=10,
+                 strains=np.logspace(-4, 0.5, num=20)):
+        super().__init__(name, unit_wt)
+
+        self._plas_index = plas_index
+        self._ocr = ocr
+        self._mean_stress = mean_stress
+        self._freq = freq
+        self._num_cycles = num_cycles
+
+        strains = np.asarray(strains)
+        strain_ref = self._calc_strain_ref()
+        curvature = self._calc_curvature()
+
+        # Modified hyperbolic shear modulus reduction
+        mod_reduc = 1 / (1 + (strains / strain_ref) ** curvature)
+        self.mod_reduc = NonlinearProperty(self._nlp_name(), strains, mod_reduc, 'mod_reduc')
+
+        # Minimum damping ratio
+        damping_min = self._calc_damping_min()
+
+        # Masing damping based on shear -modulus reduction
+        damping_masing_a1 = (
+            (100. / np.pi) *
+            (4 * (strains - strain_ref *
+                  np.log((strains + strain_ref) / strain_ref)) /
+             (strains ** 2 / (strains + strain_ref)) - 2.)
+        )
+        # Correction between perfect hyperbolic strain model and modified
+        # model.
+        c1 = -1.1143 * curvature ** 2 + 1.8618 * curvature + 0.2523
+        c2 = 0.0805 * curvature ** 2 - 0.0710 * curvature - 0.0095
+        c3 = -0.0005 * curvature ** 2 + 0.0002 * curvature + 0.0003
+        damping_masing = (c1 * damping_masing_a1 +
+                          c2 * damping_masing_a1 ** 2 +
+                          c3 * damping_masing_a1 ** 3)
+
+        # Masing correction factor
+        masing_corr = 0.6329 - 0.00566 * np.log(num_cycles)
+        # Compute the damping in percent
+        damping = (damping_min +
+                   damping_masing * masing_corr * mod_reduc ** 0.1)
+        # Convert to decimal values
+        self.damping = NonlinearProperty(self._nlp_name(), strains, damping / 100., 'damping')
+
+
+    def _calc_damping_min(self):
+        return ((0.8005 + 0.0129 * self._plas_index * self._ocr ** -0.1069) *
+                self._mean_stress ** -0.2889 *
+                (1 + 0.2919 * np.log(self._freq)))
+
+    def _calc_strain_ref(self):
+        return ((0.0352 + 0.0010 * self._plas_index * self._ocr ** 0.3246) *
+                self._mean_stress ** 0.3483)
+
+    def _calc_curvature(self):
+        return 0.9190
+
+    def _nlp_name(self):
+        return "Darendeli (PI={:.0f}, OCR={:.1f}, σₘ'={:.1f} atm)".format(
+            self._plas_index, self._ocr, self._mean_stress)
+
+
+class MenqSoilType(DarendeliSoilType):
+    def __init__(self, name='', unit_wt=0., uniformity_coeff=10, diam_mean=5, mean_stress=1, num_cycles=10,
+                 strains=np.logspace(-4, 0.5, num=20)):
+        super().__init__(name, unit_wt, mean_stress=mean_stress, num_cycles=num_cycles, strains=strains)
+        self._uniformity_coeff = uniformity_coeff
+        self._diam_mean = diam_mean
+
+
+    def _calc_damping_min(self):
+        return (0.55 * self._uniformity_coeff ** 0.1 * self._diam_mean ** -0.3 * self._mean_stress ** -0.08)
+
+    def _calc_strain_ref(self):
+        return (0.12 * self._uniformity_coeff ** -0.6 * self._mean_stress ** (0.5 * self._uniformity_coeff ** -0.15))
+
+    def _calc_curvature(self):
+        return (0.86 * 0.1 * np.log10(self._mean_stress))
+
+    def _nlp_name(self):
+        return "Menq (Cᵤ={:.1f}, D₅₀={:.1f}, σₘ'={:.1f} atm)".format(
+            self._uniformity_coeff, self._diam_mean, self._mean_stress)
 
 
 # TODO: for nonlinear site response this class wouldn't be used. Better way

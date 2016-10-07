@@ -9,12 +9,8 @@ motion = pysra.motion.SourceTheoryRvtMotion(6.5, 20, 'wna')
 motion.calc_fourier_amps()
 profile = pysra.site.Profile([
     pysra.site.Layer(
-        pysra.site.SoilType(
-            'Soil', 18.,
-            pysra.site.DarendeliNonlinearProperty(
-                0, 1, 0.50, param='mod_reduc'),
-            pysra.site.DarendeliNonlinearProperty(
-                0, 1, 0.50, param='damping')
+        pysra.site.DarendeliSoilType(
+            'Soil', 18., plas_index=0, ocr=1, mean_stress=0.50
         ),
         30, 400
     ),
