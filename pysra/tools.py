@@ -15,7 +15,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
-# Copyright (C) Albert Kottke, 2013-2015
+# Copyright (C) Albert Kottke, 2013-2016
 
 import collections
 import os
@@ -32,12 +32,14 @@ def to_str(s):
     """Parse a string and strip the extra characters."""
     return str(s).strip()
 
+
 def to_float(s):
     """Try to parse a float."""
     try:
         return float(s)
     except ValueError:
         return np.nan
+
 
 def parse_fixed_width(types, lines):
     """Parse a fixed width line."""
@@ -89,7 +91,7 @@ def _parse_soil_profile(block, units, curves, **kwargs):
             parse_fixed_width(
                 [(5, int), (5, int), (15, to_float)] + 4 * [(10, to_float)],
                 block
-        )
+            )
 
         st = site.SoilType(
             soil_idx,
@@ -182,11 +184,24 @@ def _parse_run_control(block):
         strain_ratio, max_iterations, tolerance=10.
     )
 
+
+def _parse_output_accel(block):
+    raise NotImplementedError
+
+
+def _parse_output_stress(block):
+    raise NotImplementedError
+
+
+def _parse_output_spectra(block):
+    raise NotImplementedError
+
+
 def load_shake_inp(fname):
     with open(fname) as fp:
         lines = fp.readlines()
 
-    header = lines.pop(0)
+    lines.pop(0)
     units = lines.pop(0)
 
     # Parse the option blocks

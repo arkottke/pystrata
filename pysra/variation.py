@@ -15,14 +15,14 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
-# Copyright (C) Albert Kottke, 2013-2015
+# Copyright (C) Albert Kottke, 2013-2016
 
 import copy
 
 import numpy as np
 from scipy.stats import truncnorm, norm
 
-from pysra import site
+from . import site
 
 # Limit of number of standard deviation for number generation
 STD_LIM = 2
@@ -170,7 +170,8 @@ class ToroThicknessVariation(object):
         """
 
         profile_varied = site.Profile()
-        for thickness, depth_mid in self.iter_thickness(profile[-2].depth_base):
+        for (thickness, depth_mid) in \
+                self.iter_thickness(profile[-2].depth_base):
             # Locate the proper layer and add it to the model
             for l in profile:
                 if l.depth < depth_mid <= l.depth_base:
@@ -467,7 +468,8 @@ class SoilTypeVariation(object):
 
         # Clip the values to the specified min/max
         varied_mod_reduc = np.clip(
-            varied_mod_reduc, self.limits_mod_reduc[0], self.limits_mod_reduc[1]
+            varied_mod_reduc, self.limits_mod_reduc[0],
+            self.limits_mod_reduc[1]
         )
         varied_damping = np.clip(
             varied_damping, self.limits_damping[0], self.limits_damping[1]
@@ -607,7 +609,7 @@ def iter_varied_profiles(profile, count, var_thickness=None,
 
         if var_soiltypes is not None:
             for st in varied.iter_soil_types():
-                st_varied = var_soiltypes(st_varied)
+                st_varied = var_soiltypes(st)
                 # Copy over the varied properties
                 for attr in ['mod_reduc', 'damping']:
                     if getattr(st, attr) is not None:

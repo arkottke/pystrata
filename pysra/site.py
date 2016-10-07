@@ -15,16 +15,15 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
-# Copyright (C) Albert Kottke, 2013-2015
+# Copyright (C) Albert Kottke, 2013-2016
 
 import collections
 
 import numpy as np
 
 from scipy.interpolate import interp1d
-from six.moves import UserList
 
-import pysra
+from .motion import WaveField, GRAVITY
 
 
 class NonlinearProperty(object):
@@ -169,7 +168,7 @@ class SoilType(object):
     @property
     def density(self):
         """Density of the soil in kg/m³."""
-        return self.unit_wt / pysra.GRAVITY
+        return self.unit_wt / GRAVITY
 
     @property
     def damping_min(self):
@@ -459,8 +458,8 @@ class Location(object):
         self._layer = layer
         self._depth_within = depth_within
 
-        if not isinstance(wave_field, pysra.motion.WaveField):
-            wave_field = pysra.motion.WaveField[wave_field]
+        if not isinstance(wave_field, WaveField):
+            wave_field = WaveField[wave_field]
         self._wave_field = wave_field
 
     @property
@@ -490,11 +489,11 @@ class Location(object):
         )
 
 
-class Profile(UserList):
+class Profile(collections.UserList):
     """Docstring for Profile """
 
     def __init__(self, layers=None, wt_depth=0):
-        UserList.__init__(self, layers)
+        collections.UserList.__init__(self, layers)
         self.wt_depth = wt_depth
         if layers:
             self.update_layers()
@@ -542,7 +541,7 @@ class Profile(UserList):
         -------
 
         """
-        return pysra.GRAVITY * max(depth - self.wt_depth, 0)
+        return GRAVITY * max(depth - self.wt_depth, 0)
 
     def calc_site_attenuation(self):
         return sum(l.incr_site_atten for l in self)
@@ -567,8 +566,8 @@ class Profile(UserList):
         Location
             Corresponding :class:`Location` object.
         """
-        if not isinstance(wave_field, pysra.motion.WaveField):
-            wave_field = pysra.motion.WaveField[wave_field]
+        if not isinstance(wave_field, WaveField):
+            wave_field = WaveField[wave_field]
 
         if index is None and depth is not None:
             for i, l in enumerate(self[:-1]):

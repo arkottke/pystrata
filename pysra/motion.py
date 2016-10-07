@@ -15,7 +15,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
-# Copyright (C) Albert Kottke, 2013-2015
+# Copyright (C) Albert Kottke, 2013-2016
 
 import enum
 
@@ -23,7 +23,9 @@ import numpy as np
 
 import pyrvt
 
-from . import GRAVITY
+# Gravity in m/sec²
+# Source: http://physics.nist.gov/cgi-bin/cuu/Value?gn
+GRAVITY = 9.80665
 
 
 class WaveField(enum.Enum):

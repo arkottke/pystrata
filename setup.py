@@ -15,7 +15,6 @@ with open('HISTORY.rst') as history_file:
 
 requirements = [
     'matplotlib',
-    'nose',
     'numpy',
     'pyrvt',
     'scipy',

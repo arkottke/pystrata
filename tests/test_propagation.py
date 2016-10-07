@@ -1,8 +1,27 @@
+#!/usr/bin/env python
+# encoding: utf-8
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+#
+# Copyright (C) Albert Kottke, 2013-2016
+
 import os
+import string
 
 import numpy as np
 import openpyxl
-import pytest
 
 import pysra
 
@@ -24,34 +43,27 @@ def read_deepsoil_results(name):
         ),
         data_only=True, read_only=True
     )
-    ws = wb['Layer1']
-    soil = dict()
+    records = [[cell.value for cell in row] for row in wb['Layer1'].rows]
+    names = ','.join(string.ascii_uppercase[:len(records[0])])
+    records = np.rec.fromrecords(records, names=names)
+
+    def extract_cols(records, cols, first, last, names):
+        return {name: records[col][first:last].astype(float)
+                for col, name in zip(cols, names)}
+
+    d = dict()
     # Read the time series
-    soil['time_series'] = read_cluster(
-        ws, 'ABCDE',
-        ['time', 'accel', 'strain', 'stress', 'arias_int'],
-        2, 11801
+    d['time_series'] = extract_cols(
+        records, 'ABCDE', 1, 11800,
+        ['time', 'accel', 'strain', 'stress', 'arias_int']
     )
     # Read the response spectrum
-    soil['resp_spec'] = read_cluster(
-        ws, 'GH',
-        ['period', 'psa'],
-        2, 114
-    )
+    d['resp_spec'] = extract_cols(records, 'GH', 1, 114, ['period', 'psa'])
     # Read the Fourier amplitude
-    soil['fourier_spec'] = read_cluster(
-        ws, 'JKL',
-        ['freq', 'ampl', 'ratio'],
-        2, 16385
-    )
+    d['fourier_spec'] = extract_cols(records, 'JKL', 1, 16384,
+                                     ['freq', 'ampl', 'ratio'])
 
-    ws = wb['Input Motion']
-    rock = dict()
-    rock['time_series'] = read_cluster(ws, 'AB', ['time', 'accel'], 2, 11800)
-    rock['resp_spec'] = read_cluster(ws, 'DE', ['period', 'psa'], 2, 114)
-    rock['fourier_spec'] = read_cluster(ws, 'GH', ['freq', 'ampl'], 2, 16385)
-
-    return {'soil': soil, 'rock': rock}
+    return d
 
 
 def load_ts():
@@ -123,7 +135,7 @@ class Comparison:
         cls.outputs(cls.calc)
 
     def test_times(self):
-        ref = self.ref['soil']['time_series']['time']
+        ref = self.ref['time_series']['time']
         n = len(ref)
         np.testing.assert_allclose(
             self.outputs[0].refs[:n],
@@ -132,7 +144,7 @@ class Comparison:
         )
 
     def test_accels(self):
-        ref = self.ref['soil']['time_series']['time']
+        ref = self.ref['time_series']['time']
         n = len(ref)
         np.testing.assert_allclose(
             self.outputs[0].refs[:n],
@@ -141,7 +153,7 @@ class Comparison:
         )
 
     def test_arias_ints(self):
-        ref = self.ref['soil']['time_series']['arias_int']
+        ref = self.ref['time_series']['arias_int']
         n = len(ref)
         np.testing.assert_allclose(
             self.outputs[1].values[:n],
@@ -150,7 +162,7 @@ class Comparison:
         )
 
     def test_strains(self):
-        ref = self.ref['soil']['time_series']['strain']
+        ref = self.ref['time_series']['strain']
         n = len(ref)
         np.testing.assert_allclose(
             self.outputs[2].values[:n],
@@ -159,7 +171,7 @@ class Comparison:
         )
 
     def test_stresses(self):
-        ref = self.ref['soil']['time_series']['stress']
+        ref = self.ref['time_series']['stress']
         n = len(ref)
         np.testing.assert_allclose(
             self.outputs[3].values[:n],
@@ -170,21 +182,21 @@ class Comparison:
     def test_periods(self):
         np.testing.assert_allclose(
             self.outputs[4].periods,
-            self.ref['soil']['resp_spec']['period'],
+            self.ref['resp_spec']['period'],
             rtol=self.rtol, atol=self.atol,
         )
 
     def test_osc_freqs(self):
         np.testing.assert_allclose(
             1 / self.outputs[4].refs,
-            self.ref['soil']['resp_spec']['period'],
+            self.ref['resp_spec']['period'],
             rtol=self.rtol, atol=self.atol,
         )
 
     def test_spec_accels(self):
         np.testing.assert_allclose(
             self.outputs[4].values,
-            self.ref['soil']['resp_spec']['psa'],
+            self.ref['resp_spec']['psa'],
             rtol=self.rtol, atol=self.atol,
         )
 

@@ -56,7 +56,7 @@ test-all:
 	tox
 
 examples:
-	find examples -iname 'example*.py' -exec python {} +
+	find examples -name 'example*.py' -exec python {} \;
 
 coverage:
 	coverage run --source pysra setup.py test
