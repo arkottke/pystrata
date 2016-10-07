@@ -24,11 +24,8 @@ import numpy as np
 
 import pysra
 
-soil_type = pysra.site.SoilType(
-    'Soil', 18.,
-    pysra.site.DarendeliNonlinearProperty(0, 1, 0.5, param='mod_reduc'),
-    pysra.site.DarendeliNonlinearProperty(0, 1, 0.5, param='damping')
-)
+soil_type = pysra.site.DarendeliSoilType(
+    'Soil', 18., plas_index=0, ocr=1, mean_stress=0.5)
 n = 30
 correlation = 0
 
