@@ -1,4 +1,4 @@
-.PHONY: clean-pyc clean-build docs clean
+.PHONY: clean-pyc clean-build docs clean examples
 define BROWSER_PYSCRIPT
 import os, webbrowser, sys
 try:
