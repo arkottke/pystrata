@@ -6,17 +6,16 @@
 Welcome to pysra's documentation!
 =================================
 
-Release v\ |version|. (:ref:`Installation <install>`)
+Release v\ |version| 
 
 Contents:
 
 .. toctree::
    :maxdepth: 2
-
+    
    install
    usage
    api
-
 
 Indices and tables
 ==================

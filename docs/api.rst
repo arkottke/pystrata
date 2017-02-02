@@ -1,32 +1,27 @@
-.. _api:
+.. _api_ref:
 
-Developer Interface
-===================
+
+API reference
+=============
+
+
+.. _site_api:
 
 Site
 ----
 
-.. automodule:: pysra.site
-    :members:
-    :special-members:
+.. currentmodule:: pysra.site
 
-Propagation
------------
+.. autosummary::
+    :toctree: generated/
 
-.. automodule:: pysra.propagation
-    :members:
-    :special-members:
+    Profile
+    Layer
+    SoilType
+    NonlinearProperty
+    DarendeliNonlinearProperty
+    Location
+    IterativeValue
 
-Variation
----------
 
-.. automodule:: pysra.variation
-    :members:
-    :special-members:
-
-Motion
-------
-
-.. automodule:: pysra.motion
-    :members:
-    :special-members:
+    
