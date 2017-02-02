@@ -17,29 +17,43 @@
 #
 # Copyright (C) Albert Kottke, 2013-2016
 
-import os
+import numpy as np
 
 from numpy.testing import assert_allclose
-import pytest
 
-from pysra import motion
-
-
-@pytest.fixture
-def ts():
-    return motion.TimeSeriesMotion.load_at2_file(
-        os.path.join(os.path.dirname(__file__), 'data', 'NIS090.AT2'))
+import pysra
 
 
-def test_ts_load_at2_file(ts):
-    assert ts.accels.size == 4096
-    assert_allclose(ts.time_step, 0.01)
-    assert_allclose(ts.accels[0], 0.233833E-06)
-    assert_allclose(ts.accels[-1], 0.496963E-04)
+def test_add_refs():
+    output = pysra.output.Output()
+    refs = [1.1, 2, 3]
+    output._add_refs(refs)
+    assert_allclose(refs, output.refs)
 
 
-def test_ts_freqs(ts):
-    freqs = ts.freqs
-    assert ts.freqs.size == ts.fourier_amps.size
-    assert_allclose(freqs[0], 0)
-    assert_allclose(freqs[-1], 50.)
+def test_add_refs_same():
+    output = pysra.output.Output()
+    # Force float arrays
+    a = [1.1, 2, 3]
+    b = [1.1, 2, 3]
+
+    output._add_refs(a)
+    output._add_refs(b)
+
+    assert np.ndim(output.refs) == 1
+    assert_allclose(output.refs, a)
+
+
+def test_add_refs_diff():
+    output = pysra.output.Output()
+    # Force float arrays
+    a = [1.1, 2, 3]
+    b = [1.1, 2, 3, 4, 5]
+
+    output._add_refs(a)
+    output._add_refs(b)
+
+    assert np.ndim(output.refs) == 2
+    assert len(output.refs) == len(b)
+    assert_allclose(output.refs[:, 0], a + 2 * [np.nan])
+    assert_allclose(output.refs[:, 1], b)

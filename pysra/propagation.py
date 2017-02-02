@@ -15,12 +15,12 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
-# Copyright (C) Albert Kottke, 2013-2015
+# Copyright (C) Albert Kottke, 2013-2016
 
 import numpy as np
 
-from . import GRAVITY
 from .site import Location
+from .motion import WaveField, GRAVITY
 
 
 class LinearElasticCalculator(object):
@@ -29,9 +29,23 @@ class LinearElasticCalculator(object):
         self._waves_b = np.array([])
         self._wave_nums = np.array([])
 
-        self._input_location = None
+        self._loc_input = None
+        self._motion = None
+        self._profile = None
 
-    def __call__(self, motion, profile, input_location):
+    @property
+    def motion(self):
+        return self._motion
+
+    @property
+    def profile(self):
+        return self._profile
+
+    @property
+    def loc_input(self):
+        return self._loc_input
+
+    def __call__(self, motion, profile, loc_input):
         """Perform the wave propagation.
 
         Parameters
@@ -42,9 +56,13 @@ class LinearElasticCalculator(object):
         profile: :class:`~.base.site.Profile`
             Site profile.
 
-        input_location: :class:`~.base.site.Location`
+        loc_input: :class:`~.base.site.Location`
             Location of the input motion.
         """
+        self._motion = motion
+        self._profile = profile
+        self._loc_input = loc_input
+
         # Set intial properties
         for l in profile:
             if l.strain is None:
@@ -91,6 +109,12 @@ class LinearElasticCalculator(object):
                 0.5 * waves_b[i] * (1 + cimped) * np.exp(-cterm)
             )
 
+        # fixme: Better way to handle this?
+        # Set wave amplitudes to 1 at frequencies near 0
+        mask = np.isclose(angular_freqs, 0)
+        waves_a[-1, mask] = 1.
+        waves_b[-1, mask] = 1.
+
         self._waves_a = waves_a
         self._waves_b = waves_b
         self._wave_nums = wave_nums
@@ -110,29 +134,55 @@ class LinearElasticCalculator(object):
         """
         cterm = 1j * self._wave_nums[l.index] * l.depth_within
 
-        if l.wave_field == 'within':
+        if l.wave_field == WaveField.within:
             return (self._waves_a[l.index] * np.exp(cterm) +
                     self._waves_b[l.index] * np.exp(-cterm))
-        elif l.wave_field == 'outcrop':
+        elif l.wave_field == WaveField.outcrop:
             return 2 * self._waves_a[l.index] * np.exp(cterm)
-        elif l.wave_field == 'incoming_only':
+        elif l.wave_field == WaveField.incoming_only:
             return self._waves_a[l.index] * np.exp(cterm)
         else:
             raise NotImplementedError
 
-    def calc_accel_tf(self, location_in, location_out):
-        """Compute the acceleration transfer function."""
-        return (self.wave_at_location(location_out) /
-                self.wave_at_location(location_in))
+    def calc_accel_tf(self, lin, lout):
+        """Compute the acceleration transfer function.
 
-    def calc_stress_tf(self, location_in, location_out):
-        """Compute the stress transfer function."""
-        trans_func = self.calc_strain_tf(location_in, location_out)
-        trans_func *= location_out.layer.comp_shear_mod
-        return trans_func
+        Parameters
+        ----------
+        lin : :class:`~site.Location`
+            Location of input
+        lout : :class:`~site.Location`
+            Location of output. Note that this would typically be midheight
+            of the layer.
 
-    def calc_strain_tf(self, location_in, location_out):
-        """Compute the strain transfer function from `location_out` to
+        """
+        tf = self.wave_at_location(lout) / self.wave_at_location(lin)
+        return tf
+
+    def calc_stress_tf(self, lin, lout, damped):
+        """Compute the stress transfer function.
+
+        Parameters
+        ----------
+        lin : :class:`~site.Location`
+            Location of input
+        lout : :class:`~site.Location`
+            Location of output. Note that this would typically be midheight
+            of the layer.
+
+        """
+        tf = self.calc_strain_tf(lin, lout)
+        if damped:
+            # Scale by complex shear modulus to include the influence of
+            # damping
+            tf *= lout.layer.comp_shear_mod
+        else:
+            tf *= lout.layer.shear_mod.value
+
+        return tf
+
+    def calc_strain_tf(self, lin, lout):
+        """Compute the strain transfer function from `lout` to
         `location_in`.
 
         The strain transfer function from the acceleration at layer `n`
@@ -140,9 +190,9 @@ class LinearElasticCalculator(object):
 
         Parameters
         ----------
-        location_in : :class:`~site.Location`
+        lin : :class:`~site.Location`
             Location of input
-        location_out : :class:`~site.Location`
+        lout : :class:`~site.Location`
             Location of output. Note that this would typically be midheight
             of the layer.
 
@@ -152,32 +202,29 @@ class LinearElasticCalculator(object):
             Transfer function to be applied to an acceleration FAS.
         """
         # FIXME: Correct discussion for using acceleration FAS
-
-        # Strain(angFreq, z=h_m/2)   i k*_m [ A_m exp(i k*_m h_m / 2) - B_m exp(-i k*_m h_m / 2)]
-        # ------------------------ = ------------------------------------------------------------
-        #    accel_n(angFreq)                       -angFreq^2 (2 * A_n)
-        # The problem with this formula is that at low frequencies the division is
-        # prone to errors -- in particular when angFreq = 0.
-        # To solve this problem, strain is computed from the velocity FAS.  The associated
-        # transfer function to compute the strain is then defined as:
-        # Strain(angFreq, z=h_m/2)   -i [ A_m exp(i k*_m h_m / 2) - B_m exp(-i k*_m h_m / 2)]
-        # ------------------------ = ------------------------------------------------------------
-        #      vel_n(angFreq)                       v*_s (2 * A_n)
-        assert location_out.wave_field == 'within'
+        # Strain(angFreq, z=h_m/2)
+        # ------------------------ =
+        #    accel_n(angFreq)
+        #
+        #          i k*_m [ A_m exp(i k*_m h_m / 2) - B_m exp(-i k*_m h_m / 2)]
+        #          ------------------------------------------------------------
+        #                         -angFreq^2 (2 * A_n)
+        #
+        assert lout.wave_field == WaveField.within
         # The numerator cannot be computed using wave_at_location() because
         # it is A - B.
-        cterm = (1j * self._wave_nums[location_out.index, :] *
-                 location_out.depth_within)
-        numer = (-1j * (self._waves_a[location_out.index, :] * np.exp(cterm) -
-                        self._waves_b[location_out.index, :] * np.exp(-cterm)))
-        denom = self.wave_at_location(location_in)
+        cterm = 1j * self._wave_nums[lout.index, :] * lout.depth_within
+        numer = (1j * self._wave_nums[lout.index, :] *
+                 (self._waves_a[lout.index, :] * np.exp(cterm) -
+                  self._waves_b[lout.index, :] * np.exp(-cterm)))
+        denom = -self.motion.angular_freqs ** 2 * self.wave_at_location(lin)
+        # Scale into units from gravity
+        tf = GRAVITY * numer / denom
+        # Set frequencies close to zero to zero
+        mask = np.isclose(self.motion.angular_freqs, 0)
+        tf[mask] = 0
 
-        # Strain is inversely proportional to the complex shear-wave velocity
-        layer_out = location_out.layer
-        ratio = GRAVITY / layer_out.comp_shear_vel
-        trans_func = ratio * (numer / denom)
-
-        return trans_func
+        return tf
 
 
 class EquivalentLinearCalculation(LinearElasticCalculator):
@@ -204,7 +251,7 @@ class EquivalentLinearCalculation(LinearElasticCalculator):
         self._tolerance = tolerance
         self._max_iterations = max_iterations
 
-    def __call__(self, motion, profile, input_location):
+    def __call__(self, motion, profile, loc_input):
         """Perform the wave propagation.
 
         Parameters
@@ -215,9 +262,13 @@ class EquivalentLinearCalculation(LinearElasticCalculator):
         profile: :class:`~.base.site.Profile`
             Site profile.
 
-        input_location: :class:`~.base.site.Location`
+        loc_input: :class:`~.base.site.Location`
             Location of the input motion.
         """
+        self._motion = motion
+        self._profile = profile
+        self._loc_input = loc_input
+
         # Estimate the strain based on the PGV and shear-wave velocity
         for l in profile:
             l.strain = motion.pgv / l.initial_shear_vel
@@ -230,18 +281,14 @@ class EquivalentLinearCalculation(LinearElasticCalculator):
                 l.strain = (
                     self.strain_ratio * motion.calc_peak(
                         self.calc_strain_tf(
-                            input_location,
+                            loc_input,
                             Location(i, l, 'within', l.thickness / 2))
                     )
                 )
-
-            max_error = max(
-                max(l.shear_mod.relative_error, l.damping.relative_error)
-                for l in profile)
-
+            # Maximum error (damping and shear modulus) over all layers
+            max_error = max(l.max_error for l in profile)
             if max_error < self.tolerance:
                 break
-
             iteration += 1
 
     @property

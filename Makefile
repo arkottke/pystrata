@@ -1,4 +1,4 @@
-.PHONY: clean-pyc clean-build docs clean
+.PHONY: clean-pyc clean-build docs clean examples
 define BROWSER_PYSCRIPT
 import os, webbrowser, sys
 try:
@@ -56,7 +56,7 @@ test-all:
 	tox
 
 examples:
-	find examples -iname 'example*.py' -exec python {} +
+	find examples -name 'example*.py' -exec python {} \;
 
 coverage:
 	coverage run --source pysra setup.py test

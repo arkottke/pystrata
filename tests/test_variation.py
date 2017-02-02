@@ -15,7 +15,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
-# Copyright (C) Albert Kottke, 2013-2015
+# Copyright (C) Albert Kottke, 2013-2016
 
 import numpy as np
 
@@ -23,6 +23,11 @@ from numpy.testing import assert_allclose
 from scipy.stats import pearsonr
 
 from pysra import site, variation
+
+
+def test_randnorm():
+    assert_allclose(1, np.std(variation.randnorm(size=100000)),
+                    rtol=0.005)
 
 
 class TestSoilTypeVariation:
@@ -92,7 +97,7 @@ class TestDarendeliVariation:
             np.std(self.mod_reducs, axis=0),
             # Values from Table 11.1 of Darendeli (2001).
             [0.01836, 0.05699, 0.04818],
-            rtol=0.10
+            rtol=0.2
         )
 
     def test_sample_std_damping(self):
@@ -100,7 +105,7 @@ class TestDarendeliVariation:
             np.std(self.dampings, axis=0),
             # Values from Table 11.1 of Darendeli (2001).
             [0.0070766, 0.0099402, 0.0355137],
-            rtol=0.10
+            rtol=0.2
         )
 
     def test_correlation(self):
@@ -127,12 +132,11 @@ class TestSpidVariation:
 
     def test_sample_std_mod_reduc(self):
         assert_allclose(
-            np.std(np.log(self.mod_reducs)), self.svar.std_mod_reduc,
-            rtol=0.10)
+            np.std(np.log(self.mod_reducs)), self.svar.std_mod_reduc, rtol=0.2)
 
     def test_sample_std_damping(self):
         assert_allclose(
-            np.std(np.log(self.dampings)), self.svar.std_damping, rtol=0.10)
+            np.std(np.log(self.dampings)), self.svar.std_damping, rtol=0.2)
 
     def test_correlation(self):
         assert_allclose(
