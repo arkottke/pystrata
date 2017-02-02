@@ -1,5 +1,6 @@
 jinja2
 matplotlib
+mock
 numpy
 pyprind
 sphinx

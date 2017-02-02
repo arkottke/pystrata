@@ -1,7 +1,0 @@
-matplotlib
-nose
-numpy
-pyrvt
-scipy
-six
-typing
