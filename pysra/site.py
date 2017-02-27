@@ -268,7 +268,7 @@ class MenqSoilType(DarendeliSoilType):
         return (0.12 * self._uniformity_coeff ** -0.6 * self._mean_stress ** (0.5 * self._uniformity_coeff ** -0.15))
 
     def _calc_curvature(self):
-        return (0.86 * 0.1 * np.log10(self._mean_stress))
+        return (0.86 + 0.1 * np.log10(self._mean_stress))
 
     def _nlp_name(self):
         return "Menq (Cᵤ={:.1f}, D₅₀={:.1f}, σₘ'={:.1f} atm)".format(
