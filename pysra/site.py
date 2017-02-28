@@ -232,6 +232,8 @@ class DarendeliSoilType(SoilType):
         # Compute the damping in percent
         damping = (damping_min +
                    damping_masing * masing_corr * mod_reduc ** 0.1)
+        # Prevent the damping from reducing as it can at large strains
+        damping = np.maximum.accumulate(damping)
         # Convert to decimal values
         self.damping = NonlinearProperty(self._nlp_name(), strains, damping / 100., 'damping')
 
@@ -259,7 +261,6 @@ class MenqSoilType(DarendeliSoilType):
         super().__init__(name, unit_wt, mean_stress=mean_stress, num_cycles=num_cycles, strains=strains)
         self._uniformity_coeff = uniformity_coeff
         self._diam_mean = diam_mean
-
 
     def _calc_damping_min(self):
         return (0.55 * self._uniformity_coeff ** 0.1 * self._diam_mean ** -0.3 * self._mean_stress ** -0.08)
