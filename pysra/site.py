@@ -25,6 +25,7 @@ from scipy.interpolate import interp1d
 
 from .motion import WaveField, GRAVITY
 
+COMP_MODULUS_MODEL = 'dormieux'
 
 class NonlinearProperty(object):
     """Class for nonlinear property with a method for log-linear interpolation.
@@ -357,7 +358,7 @@ class Layer(object):
 
     @property
     def initial_shear_mod(self):
-        """Initial (small-strain) shear modulus from Kramer (1996) [kN/m²]."""
+        """Initial (small-strain) shear modulus [kN/m²]."""
         return self.density * self.initial_shear_vel ** 2
 
     @property
@@ -369,8 +370,27 @@ class Layer(object):
     def comp_shear_mod(self):
         """Strain-compatible complex shear modulus [kN/m²].
 
-        Frequency independent formulation."""
-        return self.shear_mod.value * (1 + 2j * self.damping.value)
+        """       
+        damping = self.damping.value
+        if COMP_MODULUS_MODEL == 'seed':
+            # Frequency independent model (Seed et al., 1970)
+            # Correct dissipated energy
+            # Incorrect shear modulus: G * \sqrt{1 + 4 \beta^2 }
+            comp_factor = 1 + 2j * damping
+        elif COMP_MODULUS_MODEL == 'kramer':
+            # Simplifed shear modulus (Kramer, 1996)
+            # Correct dissipated energy
+            # Incorrect shear modulus: G * \sqrt{1 + 2 \beta^2 + \beta^4 }
+            comp_factor = 1 - damping ** 2 + 2j * damping
+        elif COMP_MODULUS_MODEL == 'dormieux':
+            # Dormieux and Canou (1990)
+            # Correct dissipated energy
+            # Correct shear modulus: 
+            comp_factor = np.sqrt(1 - 4 * damping ** 2) + 2j * damping
+        else:
+            raise NotImplementedError
+        comp_shear_mod = self.shear_mod.value * comp_factor
+        return comp_shear_mod
 
     @property
     def comp_shear_vel(self):
