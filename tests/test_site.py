@@ -53,6 +53,7 @@ def test_nlp_update(nlp):
 
     assert_allclose(nlp(1.), 1.)
 
+
 @pytest.fixture
 def soil_type_darendeli():
     return site.DarendeliSoilType(
