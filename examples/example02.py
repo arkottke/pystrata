@@ -19,8 +19,6 @@
 
 """Compute transfer functions for within and outcrop conditions."""
 
-import sys
-
 import matplotlib.pyplot as plt
 import numpy as np
 

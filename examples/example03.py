@@ -80,9 +80,12 @@ outputs(calc)
 # Transfer function
 accel_tf = outputs[0]
 fig, ax = plt.subplots()
-ax.plot(accel_tf.freqs, accel_tf.values.real, 'b-', label='Real')
-ax.plot(accel_tf.freqs, accel_tf.values.imag, 'r-', label='Imaginary')
-ax.plot(accel_tf.freqs, abs(accel_tf.values), 'g-', label='Absolute')
+ax.plot(accel_tf.freqs, accel_tf.values.real,
+        '-', color='C0', label='Real')
+ax.plot(accel_tf.freqs, accel_tf.values.imag,
+        '-', color='C1', label='Imaginary')
+ax.plot(accel_tf.freqs, abs(accel_tf.values),
+        '-', color='C2', label='Absolute')
 ax.set_xlabel('Frequency (Hz)')
 ax.set_xscale('log')
 ax.set_ylabel('Accel. Transfer Function')
@@ -97,8 +100,8 @@ ars_input = outputs[1]
 ars_surface = outputs[2]
 fig, ax = plt.subplots()
 for name, ars, color in zip(['Input', 'Surface'],
-                              [ars_input, ars_surface],
-                              ['blue', 'red']):
+                            [ars_input, ars_surface],
+                            ['C0', 'C1']):
     ax.plot(ars.freqs, ars.values, '-', color=color, label=name)
 ax.set_xlabel('Frequency (Hz)')
 ax.set_xscale('log')

@@ -27,6 +27,7 @@ from .motion import WaveField, GRAVITY
 
 COMP_MODULUS_MODEL = 'dormieux'
 
+
 class NonlinearProperty(object):
     """Class for nonlinear property with a method for log-linear interpolation.
 
@@ -191,8 +192,8 @@ class SoilType(object):
 
 
 class DarendeliSoilType(SoilType):
-    def __init__(self, name='', unit_wt=0., plas_index=0, ocr=1, mean_stress=1, freq=1, num_cycles=10,
-                 strains=np.logspace(-4, 0.5, num=20)):
+    def __init__(self, name='', unit_wt=0., plas_index=0, ocr=1, mean_stress=1,
+                 freq=1, num_cycles=10, strains=np.logspace(-4, 0.5, num=20)):
         super().__init__(name, unit_wt)
 
         self._plas_index = plas_index
@@ -207,7 +208,8 @@ class DarendeliSoilType(SoilType):
 
         # Modified hyperbolic shear modulus reduction
         mod_reduc = 1 / (1 + (strains / strain_ref) ** curvature)
-        self.mod_reduc = NonlinearProperty(self._nlp_name(), strains, mod_reduc, 'mod_reduc')
+        self.mod_reduc = NonlinearProperty(
+            self._nlp_name(), strains, mod_reduc, 'mod_reduc')
 
         # Minimum damping ratio
         damping_min = self._calc_damping_min()
@@ -236,8 +238,8 @@ class DarendeliSoilType(SoilType):
         # Prevent the damping from reducing as it can at large strains
         damping = np.maximum.accumulate(damping)
         # Convert to decimal values
-        self.damping = NonlinearProperty(self._nlp_name(), strains, damping / 100., 'damping')
-
+        self.damping = NonlinearProperty(
+            self._nlp_name(), strains, damping / 100., 'damping')
 
     def _calc_damping_min(self):
         return ((0.8005 + 0.0129 * self._plas_index * self._ocr ** -0.1069) *
@@ -257,17 +259,22 @@ class DarendeliSoilType(SoilType):
 
 
 class MenqSoilType(DarendeliSoilType):
-    def __init__(self, name='', unit_wt=0., uniformity_coeff=10, diam_mean=5, mean_stress=1, num_cycles=10,
+    def __init__(self, name='', unit_wt=0., uniformity_coeff=10, diam_mean=5,
+                 mean_stress=1, num_cycles=10,
                  strains=np.logspace(-4, 0.5, num=20)):
-        super().__init__(name, unit_wt, mean_stress=mean_stress, num_cycles=num_cycles, strains=strains)
+        super().__init__(name, unit_wt, mean_stress=mean_stress,
+                         num_cycles=num_cycles, strains=strains)
         self._uniformity_coeff = uniformity_coeff
         self._diam_mean = diam_mean
 
     def _calc_damping_min(self):
-        return (0.55 * self._uniformity_coeff ** 0.1 * self._diam_mean ** -0.3 * self._mean_stress ** -0.08)
+        return (0.55 * self._uniformity_coeff ** 0.1 *
+                self._diam_mean ** -0.3 *
+                self._mean_stress ** -0.08)
 
     def _calc_strain_ref(self):
-        return (0.12 * self._uniformity_coeff ** -0.6 * self._mean_stress ** (0.5 * self._uniformity_coeff ** -0.15))
+        return (0.12 * self._uniformity_coeff ** -0.6 *
+                self._mean_stress ** (0.5 * self._uniformity_coeff ** -0.15))
 
     def _calc_curvature(self):
         return (0.86 + 0.1 * np.log10(self._mean_stress))
@@ -370,7 +377,7 @@ class Layer(object):
     def comp_shear_mod(self):
         """Strain-compatible complex shear modulus [kN/m²].
 
-        """       
+        """
         damping = self.damping.value
         if COMP_MODULUS_MODEL == 'seed':
             # Frequency independent model (Seed et al., 1970)
@@ -385,7 +392,7 @@ class Layer(object):
         elif COMP_MODULUS_MODEL == 'dormieux':
             # Dormieux and Canou (1990)
             # Correct dissipated energy
-            # Correct shear modulus: 
+            # Correct shear modulus:
             comp_factor = np.sqrt(1 - 4 * damping ** 2) + 2j * damping
         else:
             raise NotImplementedError
