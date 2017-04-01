@@ -101,13 +101,13 @@ class LinearElasticCalculator(object):
             cterm = 1j * wave_nums[i, :] * l.thickness
 
             waves_a[i + 1, :] = (
-                0.5 * waves_a[i] * (1 + cimped) * np.exp(cterm) +
-                0.5 * waves_b[i] * (1 - cimped) * np.exp(-cterm)
-            )
+                0.5 * waves_a[i] *
+                (1 + cimped) * np.exp(cterm) + 0.5 * waves_b[i] *
+                (1 - cimped) * np.exp(-cterm))
             waves_b[i + 1, :] = (
-                0.5 * waves_a[i] * (1 - cimped) * np.exp(cterm) +
-                0.5 * waves_b[i] * (1 + cimped) * np.exp(-cterm)
-            )
+                0.5 * waves_a[i] *
+                (1 - cimped) * np.exp(cterm) + 0.5 * waves_b[i] *
+                (1 + cimped) * np.exp(-cterm))
 
         # fixme: Better way to handle this?
         # Set wave amplitudes to 1 at frequencies near 0
@@ -230,6 +230,7 @@ class LinearElasticCalculator(object):
 class EquivalentLinearCalculation(LinearElasticCalculator):
     """Equivalent-linear site response calculator.
     """
+
     def __init__(self, strain_ratio=0.65, tolerance=0.01, max_iterations=15):
         """Initialize the class.
 
@@ -278,13 +279,9 @@ class EquivalentLinearCalculation(LinearElasticCalculator):
             self._calc_waves(motion.angular_freqs, profile)
 
             for i, l in enumerate(profile[:-1]):
-                l.strain = (
-                    self.strain_ratio * motion.calc_peak(
-                        self.calc_strain_tf(
-                            loc_input,
-                            Location(i, l, 'within', l.thickness / 2))
-                    )
-                )
+                l.strain = (self.strain_ratio * motion.calc_peak(
+                    self.calc_strain_tf(
+                        loc_input, Location(i, l, 'within', l.thickness / 2))))
             # Maximum error (damping and shear modulus) over all layers
             max_error = max(l.max_error for l in profile)
             if max_error < self.tolerance:

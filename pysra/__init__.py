@@ -25,13 +25,7 @@ from . import output
 from . import site
 from . import variation
 
-__all__ = [
-    'motion',
-    'propagation',
-    'output',
-    'site',
-    'variation'
-]
+__all__ = ['motion', 'propagation', 'output', 'site', 'variation']
 
 __author__ = 'Albert Kottke'
 __copyright__ = 'Copyright 2016 Albert Kottke'

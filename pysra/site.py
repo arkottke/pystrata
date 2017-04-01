@@ -242,7 +242,7 @@ class DarendeliSoilType(SoilType):
         curvature = self._calc_curvature()
 
         # Modified hyperbolic shear modulus reduction
-        mod_reduc = 1 / (1 + (strains / strain_ref)**curvature)
+        mod_reduc = 1 / (1 + (strains / strain_ref) ** curvature)
         self.mod_reduc = NonlinearProperty(self._nlp_name(), strains,
                                            mod_reduc, 'mod_reduc')
 
@@ -253,19 +253,20 @@ class DarendeliSoilType(SoilType):
         damping_masing_a1 = (
             (100. / np.pi) * (4 * (strains - strain_ref * np.log(
                 (strains + strain_ref) / strain_ref)) /
-                              (strains**2 / (strains + strain_ref)) - 2.))
+                              (strains ** 2 / (strains + strain_ref)) - 2.))
         # Correction between perfect hyperbolic strain model and modified
         # model.
-        c1 = -1.1143 * curvature**2 + 1.8618 * curvature + 0.2523
-        c2 = 0.0805 * curvature**2 - 0.0710 * curvature - 0.0095
-        c3 = -0.0005 * curvature**2 + 0.0002 * curvature + 0.0003
-        damping_masing = (c1 * damping_masing_a1 + c2 * damping_masing_a1**2 +
-                          c3 * damping_masing_a1**3)
+        c1 = -1.1143 * curvature ** 2 + 1.8618 * curvature + 0.2523
+        c2 = 0.0805 * curvature ** 2 - 0.0710 * curvature - 0.0095
+        c3 = -0.0005 * curvature ** 2 + 0.0002 * curvature + 0.0003
+        damping_masing = (c1 * damping_masing_a1 + c2 * damping_masing_a1 ** 2
+                          + c3 * damping_masing_a1 ** 3)
 
         # Masing correction factor
         masing_corr = 0.6329 - 0.00566 * np.log(num_cycles)
         # Compute the damping in percent
-        damping = (damping_min + damping_masing * masing_corr * mod_reduc**0.1)
+        damping = (
+            damping_min + damping_masing * masing_corr * mod_reduc ** 0.1)
         # Prevent the damping from reducing as it can at large strains
         damping = np.maximum.accumulate(damping)
         # Convert to decimal values
@@ -273,13 +274,13 @@ class DarendeliSoilType(SoilType):
                                          damping / 100., 'damping')
 
     def _calc_damping_min(self):
-        return ((0.8005 + 0.0129 * self._plas_index * self._ocr**-0.1069) *
-                (self._mean_stress * KPA_TO_ATM)**-0.2889 *
-                (1 + 0.2919 * np.log(self._freq)))
+        return ((0.8005 + 0.0129 * self._plas_index * self._ocr ** -0.1069) *
+                (self._mean_stress * KPA_TO_ATM)
+                ** -0.2889 * (1 + 0.2919 * np.log(self._freq)))
 
     def _calc_strain_ref(self):
-        return ((0.0352 + 0.0010 * self._plas_index * self._ocr**0.3246) *
-                (self._mean_stress * KPA_TO_ATM)**0.3483)
+        return ((0.0352 + 0.0010 * self._plas_index * self._ocr ** 0.3246) *
+                (self._mean_stress * KPA_TO_ATM) ** 0.3483)
 
     def _calc_curvature(self):
         return 0.9190
@@ -329,13 +330,13 @@ class MenqSoilType(DarendeliSoilType):
         self._diam_mean = diam_mean
 
     def _calc_damping_min(self):
-        return (0.55 * self._uniformity_coeff**0.1 * self._diam_mean**-0.3 *
-                (self._mean_stress * KPA_TO_ATM)**-0.08)
+        return (0.55 * self._uniformity_coeff ** 0.1 * self._diam_mean
+                ** -0.3 * (self._mean_stress * KPA_TO_ATM) ** -0.08)
 
     def _calc_strain_ref(self):
-        return (0.12 * self._uniformity_coeff**-0.6 *
-                (self._mean_stress * KPA_TO_ATM)**
-                (0.5 * self._uniformity_coeff**-0.15))
+        return (0.12 * self._uniformity_coeff
+                ** -0.6 * (self._mean_stress * KPA_TO_ATM)
+                ** (0.5 * self._uniformity_coeff ** -0.15))
 
     def _calc_curvature(self):
         return (0.86 + 0.1 * np.log10(self._mean_stress * KPA_TO_ATM))
@@ -422,10 +423,10 @@ class KishidaSoilType(SoilType):
                                           x_2, x_2_mean, x_3, x_3_mean)
         dampings = self._calc_damping(mod_reducs, x_2, x_2_mean, x_3, x_3_mean)
 
-        self.mod_reduc = NonlinearProperty(
-            self._nlp_name(), strains, mod_reducs, 'mod_reduc')
-        self.damping = NonlinearProperty(
-            self._nlp_name(), strains, dampings, 'damping')
+        self.mod_reduc = NonlinearProperty(self._nlp_name(), strains,
+                                           mod_reducs, 'mod_reduc')
+        self.damping = NonlinearProperty(self._nlp_name(), strains, dampings,
+                                         'damping')
 
     def _calc_strain_ref(self, x_3, x_3_mean):
         """Compute the reference strain using Equation (6)."""
@@ -440,31 +441,16 @@ class KishidaSoilType(SoilType):
         ones = np.ones_like(strains)
         # Predictor
         x_4 = np.log(self._lab_consol_ratio) * ones
-        x = np.c_[
-            ones,
-            x_1,
-            x_2,
-            x_3,
-            x_4,
-            (x_1 - x_1_mean) * (x_2 - x_2_mean),
-            (x_1 - x_1_mean) * (x_3 - x_3_mean),
-            (x_2 - x_2_mean) * (x_3 - x_3_mean),
-            (x_1 - x_1_mean) * (x_2 - x_2_mean) * (x_3 - x_3_mean)
-        ]
+        x = np.c_[ones, x_1, x_2, x_3, x_4, (x_1 - x_1_mean) * (
+            x_2 - x_2_mean), (x_1 - x_1_mean) * (x_3 - x_3_mean), (
+                x_2 - x_2_mean) * (x_3 - x_3_mean), (x_1 - x_1_mean) * (
+                    x_2 - x_2_mean) * (x_3 - x_3_mean)]
         # Coefficients
         denom = np.log(1 / strain_ref + strains / strain_ref)
-        b = np.c_[
-            5.11 * ones,
-            -0.729 * ones,
-            (1 - 0.37 * x_3_mean * (1 + (
-                (np.log(strain_ref) - x_1_mean) / denom))),
-            -0.693 * ones,
-            0.8 - 0.4 * x_3,
-            0.37 * x_3_mean / denom,
-            0.0 * ones,
-            -0.37 * (1 + (np.log(strain_ref) - x_1_mean) / denom),
-            0.37 / denom,
-        ]
+        b = np.c_[5.11 * ones, -0.729 * ones, (1 - 0.37 * x_3_mean * (1 + ((
+            np.log(strain_ref) - x_1_mean) / denom))), -0.693 * ones, 0.8 - 0.4
+                  * x_3, 0.37 * x_3_mean / denom, 0.0 * ones, -0.37 * (1 + (
+                      np.log(strain_ref) - x_1_mean) / denom), 0.37 / denom, ]
         ln_shear_mod = (b * x).sum(axis=1)
         shear_mod = np.exp(ln_shear_mod)
         mod_reduc = shear_mod / shear_mod[0]
@@ -477,14 +463,8 @@ class KishidaSoilType(SoilType):
         x_1 = np.log(np.log(1 / mod_reducs) + 0.103)
 
         ones = np.ones_like(mod_reducs)
-        x = np.c_[
-            ones,
-            x_1,
-            x_2,
-            x_3,
-            (x_1 - x_1_mean) * (x_2 - x_2_mean),
-            (x_2 - x_2_mean) * (x_3 - x_3_mean)
-        ]
+        x = np.c_[ones, x_1, x_2, x_3, (x_1 - x_1_mean) * (x_2 - x_2_mean), (
+            x_2 - x_2_mean) * (x_3 - x_3_mean)]
         c = np.c_[2.86, 0.571, -0.103, -0.141, 0.0419, -0.240]
 
         ln_damping = (c * x).sum(axis=1)
@@ -585,7 +565,7 @@ class Layer(object):
     @property
     def initial_shear_mod(self):
         """Initial (small-strain) shear modulus [kN/m²]."""
-        return self.density * self.initial_shear_vel**2
+        return self.density * self.initial_shear_vel ** 2
 
     @property
     def initial_shear_vel(self):
@@ -607,12 +587,12 @@ class Layer(object):
             # Simplifed shear modulus (Kramer, 1996)
             # Correct dissipated energy
             # Incorrect shear modulus: G * \sqrt{1 + 2 \beta^2 + \beta^4 }
-            comp_factor = 1 - damping**2 + 2j * damping
+            comp_factor = 1 - damping ** 2 + 2j * damping
         elif COMP_MODULUS_MODEL == 'dormieux':
             # Dormieux and Canou (1990)
             # Correct dissipated energy
             # Correct shear modulus:
-            comp_factor = np.sqrt(1 - 4 * damping**2) + 2j * damping
+            comp_factor = np.sqrt(1 - 4 * damping ** 2) + 2j * damping
         else:
             raise NotImplementedError
         comp_shear_mod = self.shear_mod.value * comp_factor
@@ -666,8 +646,8 @@ class Layer(object):
         assert depth_within <= self.thickness
         vert_stress = self._vert_stress + depth_within * self.unit_wt
         if effective:
-            pore_pressure = self._profile.pore_pressure(
-                self.depth + depth_within)
+            pore_pressure = self._profile.pore_pressure(self.depth +
+                                                        depth_within)
             vert_stress -= pore_pressure
         return vert_stress
 

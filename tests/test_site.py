@@ -62,18 +62,18 @@ def test_nlp_update(nlp):
 def soil_type_darendeli():
     mean_stress = 0.25 / site.KPA_TO_ATM
     return site.DarendeliSoilType(
-        plas_index=30, ocr=1.0, mean_stress=mean_stress, freq=1, num_cycles=10,
-        strains=[1E-5, 2.2E-3, 1E-0],
-    )
+        plas_index=30,
+        ocr=1.0,
+        mean_stress=mean_stress,
+        freq=1,
+        num_cycles=10,
+        strains=[1E-5, 2.2E-3, 1E-0], )
 
 
-@pytest.mark.parametrize(
-    'attr,expected',
-    [
-        ('mod_reduc', [1.0, 0.936, 0.050]),
-        ('damping', [0.01778, 0.02476, 0.21542]),
-    ]
-)
+@pytest.mark.parametrize('attr,expected', [
+    ('mod_reduc', [1.0, 0.936, 0.050]),
+    ('damping', [0.01778, 0.02476, 0.21542]),
+])
 def test_darendeli(soil_type_darendeli, attr, expected):
     # Reference values taken from Tables 10.13 and 10.14 of the Darendeli
     # dissertation.
@@ -116,8 +116,9 @@ def test_soil_type_iterative():
     assert_allclose(layer.damping.value, 5.0)
 
 
-with open(os.path.join(
-        os.path.dirname(__file__), 'data', 'kishida_2009.json')) as fp:
+with open(
+        os.path.join(os.path.dirname(__file__), 'data',
+                     'kishida_2009.json')) as fp:
     kishida_cases = json.load(fp)
 
 
@@ -126,44 +127,31 @@ def format_kishida_case_id(case):
     return fmt.format(**case)
 
 
-@pytest.mark.parametrize(
-    'case',
-    kishida_cases,
-    ids=format_kishida_case_id
-)
+@pytest.mark.parametrize('case', kishida_cases, ids=format_kishida_case_id)
 def test_kishida_unit_wt(case):
     st = site.KishidaSoilType(
-        'test', unit_wt=None,
+        'test',
+        unit_wt=None,
         mean_stress=case['mean_stress'],
         organic_content=case['organic_content'],
-        strains=case['strains']
-    )
+        strains=case['strains'])
     assert_allclose(
         st.unit_wt, scipy.constants.g * case['density'], rtol=0.005)
 
 
-@pytest.mark.parametrize(
-    'case',
-    kishida_cases,
-    ids=format_kishida_case_id
-)
-@pytest.mark.parametrize(
-    'curve,attr,key',
-    [
-        ('mod_reduc', 'strains', 'strains'),
-        ('mod_reduc', 'values', 'mod_reducs'),
-        ('damping', 'strains', 'strains'),
-        ('damping', 'values', 'dampings'),
-    ]
-)
+@pytest.mark.parametrize('case', kishida_cases, ids=format_kishida_case_id)
+@pytest.mark.parametrize('curve,attr,key', [
+    ('mod_reduc', 'strains', 'strains'),
+    ('mod_reduc', 'values', 'mod_reducs'),
+    ('damping', 'strains', 'strains'),
+    ('damping', 'values', 'dampings'),
+])
 def test_kishida_nlc(case, curve, attr, key):
     st = site.KishidaSoilType(
-        'test', unit_wt=None,
+        'test',
+        unit_wt=None,
         mean_stress=case['mean_stress'],
         organic_content=case['organic_content'],
-        strains=case['strains']
-    )
+        strains=case['strains'])
     assert_allclose(
-        getattr(getattr(st, curve), attr), case[key],
-        rtol=0.005, atol=0.0005
-    )
+        getattr(getattr(st, curve), attr), case[key], rtol=0.005, atol=0.0005)

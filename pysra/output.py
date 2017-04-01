@@ -59,7 +59,7 @@ def append_arrays(many, single):
     if diff < 0:
         single = np.pad(single, (0, -diff), 'constant', constant_values=np.nan)
     elif diff > 0:
-        many = np.pad(many, ((0, diff),), 'constant', constant_values=np.nan)
+        many = np.pad(many, ((0, diff), ), 'constant', constant_values=np.nan)
     else:
         # No padding needed
         pass
@@ -312,11 +312,9 @@ class ResponseSpectrumRatioOutput(RatioBasedOutput):
         loc_in, loc_out = self._get_locations(calc)
         in_ars = calc.motion.calc_osc_accels(
             self.freqs, self.osc_damping,
-            calc.calc_accel_tf(calc.loc_input, loc_in)
-        )
+            calc.calc_accel_tf(calc.loc_input, loc_in))
         out_ars = calc.motion.calc_osc_accels(
             self.freqs, self.osc_damping,
-            calc.calc_accel_tf(calc.loc_input, loc_out)
-        )
+            calc.calc_accel_tf(calc.loc_input, loc_out))
         ratio = out_ars / in_ars
         self._add_values(ratio)
