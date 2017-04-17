@@ -58,22 +58,21 @@ class TestDarendeli:
     @classmethod
     def setup_class(cls):
         kwds = dict(
-            plas_index=30, ocr=1.0, mean_stress=0.25, freq=1, num_cycles=10,
-            strains=[1E-5, 2.2E-3, 1E-0],
-        )
+            plas_index=30,
+            ocr=1.0,
+            mean_stress=0.25,
+            freq=1,
+            num_cycles=10,
+            strains=[1E-5, 2.2E-3, 1E-0], )
         cls.mod_reduc = site.DarendeliNonlinearProperty(
             **kwds, param='mod_reduc')
-        cls.damping = site.DarendeliNonlinearProperty(
-            **kwds, param='damping')
+        cls.damping = site.DarendeliNonlinearProperty(**kwds, param='damping')
         return cls
 
-    @pytest.mark.parametrize(
-        'attr,expected',
-        [
-            ('mod_reduc', [1.0, 0.936, 0.050]),
-            ('damping', [0.01778, 0.02476, 0.21542]),
-        ]
-    )
+    @pytest.mark.parametrize('attr,expected', [
+        ('mod_reduc', [1.0, 0.936, 0.050]),
+        ('damping', [0.01778, 0.02476, 0.21542]),
+    ])
     def test_values(self, attr, expected):
         # Reference values taken from Tables 10.13 and 10.14 of the Darendeli
         # dissertation.

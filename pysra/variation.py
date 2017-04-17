@@ -454,8 +454,8 @@ class SoilTypeVariation(object):
             if np.all(abs(randvar) < STD_LIM):
                 break
 
-        varied_mod_reduc, varied_damping = self._get_varied(
-            randvar, mod_reduc, damping)
+        varied_mod_reduc, varied_damping = self._get_varied(randvar, mod_reduc,
+                                                            damping)
 
         # Clip the values to the specified min/max
         varied_mod_reduc = np.clip(varied_mod_reduc, self.limits_mod_reduc[0],

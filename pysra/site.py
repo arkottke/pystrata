@@ -276,12 +276,12 @@ class MenqSoilType(DarendeliSoilType):
         self._diam_mean = diam_mean
 
     def _calc_damping_min(self):
-        return (0.55 * self._uniformity_coeff**0.1 * self._diam_mean**-0.3 *
-                self._mean_stress**-0.08)
+        return (0.55 * self._uniformity_coeff**0.1 * self._diam_mean
+                **-0.3 * self._mean_stress**-0.08)
 
     def _calc_strain_ref(self):
-        return (0.12 * self._uniformity_coeff**-0.6 * self._mean_stress**
-                (0.5 * self._uniformity_coeff**-0.15))
+        return (0.12 * self._uniformity_coeff**-0.6 * self._mean_stress
+                **(0.5 * self._uniformity_coeff**-0.15))
 
     def _calc_curvature(self):
         return (0.86 * 0.1 * np.log10(self._mean_stress))
@@ -469,8 +469,8 @@ class Layer(object):
         assert depth_within <= self.thickness
         vert_stress = self._vert_stress + depth_within * self.unit_wt
         if effective:
-            pore_pressure = self._profile.pore_pressure(
-                self.depth + depth_within)
+            pore_pressure = self._profile.pore_pressure(self.depth +
+                                                        depth_within)
             vert_stress -= pore_pressure
         return vert_stress
 

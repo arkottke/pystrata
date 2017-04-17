@@ -1,10 +1,7 @@
-#!/usr/bin/env python3
-# encoding: utf-8
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
 
-try:
-    from setuptools import setup
-except ImportError:
-    from distutils.core import setup
+from setuptools import setup, find_packages
 
 with open('README.rst') as readme_file:
     readme = readme_file.read()
@@ -12,38 +9,33 @@ with open('README.rst') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-requirements = [
-    'matplotlib',
-    'numpy',
-    'pyrvt',
-    'scipy',
-    'setuptools',
-    'typing',
-]
-
-requirements_test = []
-
 setup(
     name='pySRA',
     version='0.1.0',
     description='Site Response Analysis with Python',
+    long_description=readme + '\n\n' + history,
     author='Albert Kottke',
     author_email='albert.kottke@gmail.com',
     url='http://github.com/arkottke/pysra',
-    license='MIT',
-    entry_points=dict(),
-    packages=['pysra'],
-    package_data=dict(pysra=['data/*']),
-    install_requires=requirements,
+    packages=find_packages(),
+    install_requires=[
+        'matplotlib',
+        'numpy',
+        'pyrvt',
+        'scipy',
+        'setuptools',
+        'typing',
+    ],
     keywords='site response',
+    license='MIT',
     classifiers=[
         'Development Status :: 4 - Beta',
-        'Environment :: Console',
-        'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
+        'License :: OSI Approved :: MIT License',
         'Natural Language :: English',
         'Operating System :: OS Independent',
-        'Programming Language :: Python :: 3',
+        'Programming Language :: Python',
+        'Programming Language :: Python :: 3.6',
         'Topic :: Scientific/Engineering',
+        'Intended Audience :: Science/Research',
     ],
-    test_suite='tests',
-    tests_requirements=requirements_test, )
+    test_suite='tests', )

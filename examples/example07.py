@@ -18,8 +18,6 @@
 # Copyright (C) Albert Kottke, 2013-2016
 """Compute transfer functions for within and outcrop conditions."""
 
-import matplotlib
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 

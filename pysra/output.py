@@ -336,8 +336,8 @@ class ResponseSpectrumRatioOutput(RatioBasedOutput):
         Output.__call__(self, calc, name)
         loc_in, loc_out = self._get_locations(calc)
         in_ars = calc.motion.calc_osc_accels(self.freqs, self.osc_damping,
-                                             calc.calc_accel_tf(
-                                                 calc.loc_input, loc_in))
+                                             calc.calc_accel_tf(calc.loc_input,
+                                                                loc_in))
         out_ars = calc.motion.calc_osc_accels(self.freqs, self.osc_damping,
                                               calc.calc_accel_tf(
                                                   calc.loc_input, loc_out))
