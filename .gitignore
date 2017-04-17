@@ -180,3 +180,6 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+
+# Example images
+example*-*.png
