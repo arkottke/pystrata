@@ -56,7 +56,7 @@ def iter_geopsy_profiles(fname):
 motion = pysra.motion.SourceTheoryRvtMotion(6.5, 20, 'wna')
 motion.calc_fourier_amps()
 
-calc = pysra.propagation.EquivalentLinearCalculation(strain_ratio=0.65)
+calc = pysra.propagation.EquivalentLinearCalculator(strain_ratio=0.65)
 
 site_amp = pysra.output.ResponseSpectrumRatioOutput(
     np.logspace(-1, 2, 181),

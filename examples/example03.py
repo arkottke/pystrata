@@ -57,7 +57,7 @@ outputs = pysra.output.OutputCollection(
                                             'outcrop', index=0), 0.05), )
 
 # Compute the response
-calc = pysra.propagation.EquivalentLinearCalculation(strain_ratio=0.65)
+calc = pysra.propagation.EquivalentLinearCalculator(strain_ratio=0.65)
 calc(motion, profile, profile.location('outcrop', index=-1))
 
 # Compute the outputs
