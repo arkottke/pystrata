@@ -62,7 +62,7 @@ class NonlinearProperty(object):
 
         self._update()
 
-    def __call__(self, strain):
+    def __call__(self, strains):
         """Return the nonlinear property at a specific strain.
 
         If the strain is within the range of the provided strains, then the
@@ -76,23 +76,16 @@ class NonlinearProperty(object):
 
         Parameters
         ----------
-        strain: float
+        strains: float or array_like
             Shear strain of interest [decimal].
 
         Returns
         -------
-        float
-            The nonlinear property at the requested strain.
+        float or array_like
+            The nonlinear property at the requested strain(s).
         """
-
-        if strain < self.strains[0]:
-            value = self.values[0]
-        elif strain > self.strains[-1]:
-            value = self.values[-1]
-        else:
-            value = self._interpolater(np.log(strain))
-
-        return value
+        values = self._interpolater(np.log(strains))
+        return values
 
     @property
     def strains(self):
@@ -133,9 +126,15 @@ class NonlinearProperty(object):
             y = self.values
 
             if x.size < 4:
-                self._interpolater = interp1d(x, y, 'linear')
+                self._interpolater = interp1d(
+                    x, y, 'linear', bounds_error=False,
+                    fill_value=(y[0], y[-1])
+                )
             else:
-                self._interpolater = interp1d(x, y, 'cubic')
+                self._interpolater = interp1d(
+                    x, y, 'cubic', bounds_error=False,
+                    fill_value=(y[0], y[-1])
+                )
 
 
 class SoilType(object):
@@ -157,13 +156,9 @@ class SoilType(object):
 
     def __init__(self, name='', unit_wt=0., mod_reduc=None, damping=None):
         self.name = name
-        self._unit_wt = unit_wt
+        self.unit_wt = unit_wt
         self.mod_reduc = mod_reduc
         self.damping = damping
-
-    @property
-    def unit_wt(self):
-        return self._unit_wt
 
     @property
     def density(self):
@@ -299,11 +294,19 @@ class IterativeValue(object):
     def relative_error(self):
         """The relative error, in percent, between the two iterations.
         """
-        if self.previous:
-            err = 100. * (self.previous - self.value) / self.value
+        if self.previous is not None:
+            # FIXME
+            # Use the maximum strain value -- this is important for error calculation
+            # with frequency dependent properties
+            # prev = np.max(self.previous)
+            # value = np.max(self.value)
+            err = 100. * np.max((self.previous - self.value) / self.value)
         else:
             err = 0
         return err
+
+    def reset(self):
+        self._previous = None
 
 
 class Layer(object):
@@ -317,9 +320,10 @@ class Layer(object):
         self._thickness = thickness
         self._initial_shear_vel = shear_vel
 
-        self._shear_mod = IterativeValue(self.initial_shear_mod)
-        self._damping = IterativeValue(self.soil_type.damping_min)
-        self._strain = IterativeValue(None)
+        self._damping = None
+        self._shear_mod = None
+        self._strain = None
+        self.reset()
 
         self._depth = 0
         self._vert_stress = 0
@@ -383,6 +387,11 @@ class Layer(object):
             self.damping.relative_error,
         )
 
+    def reset(self):
+        self._shear_mod = IterativeValue(self.initial_shear_mod)
+        self._damping = IterativeValue(self.soil_type.damping_min)
+        self._strain = IterativeValue(None)
+
     @property
     def shear_mod(self):
         """Strain-compatible shear modulus [kN//m²]."""
@@ -395,8 +404,28 @@ class Layer(object):
 
     @property
     def strain(self):
-        # FIXME simplify so that a float is always returned?
         return self._strain
+
+    @strain.setter
+    def strain(self, strain):
+        if self.soil_type.is_nonlinear:
+            self._strain.value = strain
+        else:
+            self._strain = strain
+
+        # Update the shear modulus and damping
+        try:
+            mod_reduc = self.soil_type.mod_reduc(strain)
+        except TypeError:
+            mod_reduc = 1.
+
+        self._shear_mod.value = self.initial_shear_mod * mod_reduc
+
+        try:
+            self._damping.value = self.soil_type.damping(strain)
+        except TypeError:
+            # No iteration provided by damping
+            self._damping.value = self.soil_type.damping
 
     @property
     def soil_type(self):
@@ -424,26 +453,6 @@ class Layer(object):
                 self.depth + depth_within)
             vert_stress -= pore_pressure
         return vert_stress
-
-    @strain.setter
-    def strain(self, strain):
-        if self.soil_type.is_nonlinear:
-            self._strain.value = strain
-        else:
-            self._strain = strain
-
-        # Update the shear modulus and damping
-        try:
-            mod_reduc = self.soil_type.mod_reduc(strain)
-        except TypeError:
-            mod_reduc = 1.
-        self._shear_mod.value = self.initial_shear_mod * mod_reduc
-
-        try:
-            self._damping.value = self.soil_type.damping(strain)
-        except TypeError:
-            # No iteration provided by damping
-            self._damping.value = self.soil_type.damping
 
     @property
     def incr_site_atten(self):
