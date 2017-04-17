@@ -16,7 +16,6 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
 # Copyright (C) Albert Kottke, 2013-2016
-
 """Compute transfer functions for within and outcrop conditions."""
 
 import matplotlib
@@ -31,16 +30,8 @@ motion.calc_fourier_amps()
 profile = pysra.site.Profile([
     pysra.site.Layer(
         pysra.site.DarendeliSoilType(
-            'Soil', 18., plas_index=0, ocr=1, mean_stress=0.50
-        ),
-        30, 400
-    ),
-    pysra.site.Layer(
-        pysra.site.SoilType(
-            'Rock', 24., None, 0.01
-        ),
-        0, 1200
-    ),
+            'Soil', 18., plas_index=0, ocr=1, mean_stress=0.50), 30, 400),
+    pysra.site.Layer(pysra.site.SoilType('Rock', 24., None, 0.01), 0, 1200),
 ])
 
 osc_freqs = np.logspace(-1, 2, 181)
@@ -53,8 +44,7 @@ outputs = pysra.output.OutputCollection(
         # the layer within the profile 0 for top, and -1 for the last.
         pysra.output.OutputLocation('outcrop', index=-1),
         # Surface (outcrop)
-        pysra.output.OutputLocation('outcrop', index=0),
-    ),
+        pysra.output.OutputLocation('outcrop', index=0), ),
     # Input (outcrop).
     pysra.output.ResponseSpectrumOutput(
         osc_freqs,
@@ -62,15 +52,11 @@ outputs = pysra.output.OutputCollection(
         #  be specified by the depth within the profile.
         pysra.output.OutputLocation(
             pysra.motion.WaveField.outcrop, depth=profile[-1].depth),
-        0.05
-    ),
+        0.05),
     # Surface (outcrop).
-    pysra.output.ResponseSpectrumOutput(
-        osc_freqs,
-        pysra.output.OutputLocation('outcrop', index=0),
-        0.05
-    ),
-)
+    pysra.output.ResponseSpectrumOutput(osc_freqs,
+                                        pysra.output.OutputLocation(
+                                            'outcrop', index=0), 0.05), )
 
 # Compute the response
 calc_le = pysra.propagation.LinearElasticCalculator()

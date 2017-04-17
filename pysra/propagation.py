@@ -104,13 +104,13 @@ class LinearElasticCalculator(object):
             cterm = 1j * wave_nums[i, :] * l.thickness
 
             waves_a[i + 1, :] = (
-                0.5 * waves_a[i] * (1 + cimped) * np.exp(cterm) +
-                0.5 * waves_b[i] * (1 - cimped) * np.exp(-cterm)
-            )
+                0.5 * waves_a[i] *
+                (1 + cimped) * np.exp(cterm) + 0.5 * waves_b[i] *
+                (1 - cimped) * np.exp(-cterm))
             waves_b[i + 1, :] = (
-                0.5 * waves_a[i] * (1 - cimped) * np.exp(cterm) +
-                0.5 * waves_b[i] * (1 + cimped) * np.exp(-cterm)
-            )
+                0.5 * waves_a[i] *
+                (1 - cimped) * np.exp(cterm) + 0.5 * waves_b[i] *
+                (1 + cimped) * np.exp(-cterm))
 
         # fixme: Better way to handle this?
         # Set wave amplitudes to 1 at frequencies near 0
@@ -220,7 +220,7 @@ class LinearElasticCalculator(object):
         numer = (1j * self._wave_nums[lout.index, :] *
                  (self._waves_a[lout.index, :] * np.exp(cterm) -
                   self._waves_b[lout.index, :] * np.exp(-cterm)))
-        denom = -self.motion.angular_freqs ** 2 * self.wave_at_location(lin)
+        denom = -self.motion.angular_freqs**2 * self.wave_at_location(lin)
         # Scale into units from gravity
         tf = GRAVITY * numer / denom
         # Set frequencies close to zero to zero
@@ -281,7 +281,8 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
         while iteration < self.max_iterations:
             self._calc_waves(motion.angular_freqs, profile)
             for index, layer in enumerate(profile[:-1]):
-                loc_layer = Location(index, layer, 'within', layer.thickness / 2)
+                loc_layer = Location(index, layer, 'within',
+                                     layer.thickness / 2)
                 layer.strain = self._calc_strain(loc_input, loc_layer, motion)
             # Maximum error (damping and shear modulus) over all layers
             max_error = max(l.max_error for l in profile)
@@ -337,10 +338,8 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         strain_eff = 100. * self.strain_ratio * motion.calc_peak(strain_tf)
 
         # FIXME: add equation numbers
-        freq_avg = (
-            np.trapz(freqs * strain_fas, x=freqs) /
-            np.trapz(strain_fas, x=freqs)
-        )
+        freq_avg = (np.trapz(freqs * strain_fas, x=freqs) / np.trapz(
+            strain_fas, x=freqs))
 
         # Find the average strain at frequencies less than the average
         # frequency
@@ -366,9 +365,6 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
 
         # FIXME: this is a modification of the published method that ensures a
         # smooth transition in the strain
-        strains = np.minimum(
-            1,
-            np.exp(-a * freqs) / np.power(freqs, b)
-        )
+        strains = np.minimum(1, np.exp(-a * freqs) / np.power(freqs, b))
 
         return strains

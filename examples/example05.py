@@ -16,7 +16,6 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
 # Copyright (C) Albert Kottke, 2013-2016
-
 """Use Geopsy output format to define the velocity profile"""
 
 import os
@@ -62,9 +61,7 @@ calc = pysra.propagation.EquivalentLinearCalculation(strain_ratio=0.65)
 site_amp = pysra.output.ResponseSpectrumRatioOutput(
     np.logspace(-1, 2, 181),
     pysra.output.OutputLocation('outcrop', index=-1),
-    pysra.output.OutputLocation('outcrop', index=0),
-    0.05
-)
+    pysra.output.OutputLocation('outcrop', index=0), 0.05)
 
 fname_profiles = os.path.join(
     os.path.dirname(__file__), 'data', 'best100_GM_linux.txt')
@@ -73,11 +70,9 @@ for geopsy_profile in iter_geopsy_profiles(fname_profiles):
     profile = pysra.site.Profile([
         pysra.site.Layer(
             pysra.site.SoilType(
-                'soil-%d' % i,
-                l['density'] / pysra.site.GRAVITY,
-                damping=0.05),
-            l['thickness'], l['vel_shear']
-        ) for i, l in enumerate(geopsy_profile['layers'])
+                'soil-%d' % i, l['density'] / pysra.site.GRAVITY,
+                damping=0.05), l['thickness'], l['vel_shear'])
+        for i, l in enumerate(geopsy_profile['layers'])
     ])
     # Use 1% damping for the half-space
     profile[-1].soil_type.damping = 0.01

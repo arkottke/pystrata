@@ -59,7 +59,7 @@ def append_arrays(many, single):
     if diff < 0:
         single = np.pad(single, (0, -diff), 'constant', constant_values=np.nan)
     elif diff > 0:
-        many = np.pad(many, ((0, diff),), 'constant', constant_values=np.nan)
+        many = np.pad(many, ((0, diff), ), 'constant', constant_values=np.nan)
     else:
         # No padding needed
         pass
@@ -99,7 +99,8 @@ class Output(object):
         shared_ref = len(self.refs.shape) == 1
         for i, name in enumerate(self.names):
             refs = self.refs if shared_ref else self.refs[:, i]
-            values = self.values if len(self.values.shape) == 1 else self.values[:, i]
+            values = self.values if len(
+                self.values.shape) == 1 else self.values[:, i]
             yield name, refs, values
 
     def _add_refs(self, refs):
@@ -208,7 +209,7 @@ class AriasIntensityTSOutput(AccelerationTSOutput):
 
     def _modify_values(self, calc, location, values):
         time_step = calc.motion.time_step
-        values = scipy.integrate.cumtrapz(values ** 2, dx=time_step)
+        values = scipy.integrate.cumtrapz(values**2, dx=time_step)
         values *= GRAVITY * np.pi / 2
         return values
 
@@ -334,13 +335,11 @@ class ResponseSpectrumRatioOutput(RatioBasedOutput):
     def __call__(self, calc, name=None):
         Output.__call__(self, calc, name)
         loc_in, loc_out = self._get_locations(calc)
-        in_ars = calc.motion.calc_osc_accels(
-            self.freqs, self.osc_damping,
-            calc.calc_accel_tf(calc.loc_input, loc_in)
-        )
-        out_ars = calc.motion.calc_osc_accels(
-            self.freqs, self.osc_damping,
-            calc.calc_accel_tf(calc.loc_input, loc_out)
-        )
+        in_ars = calc.motion.calc_osc_accels(self.freqs, self.osc_damping,
+                                             calc.calc_accel_tf(
+                                                 calc.loc_input, loc_in))
+        out_ars = calc.motion.calc_osc_accels(self.freqs, self.osc_damping,
+                                              calc.calc_accel_tf(
+                                                  calc.loc_input, loc_out))
         ratio = out_ars / in_ars
         self._add_values(ratio)

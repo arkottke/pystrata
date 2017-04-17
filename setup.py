@@ -6,7 +6,6 @@ try:
 except ImportError:
     from distutils.core import setup
 
-
 with open('README.rst') as readme_file:
     readme = readme_file.read()
 
@@ -22,9 +21,7 @@ requirements = [
     'typing',
 ]
 
-requirements_test = [
-
-]
+requirements_test = []
 
 setup(
     name='pySRA',
@@ -34,12 +31,9 @@ setup(
     author_email='albert.kottke@gmail.com',
     url='http://github.com/arkottke/pysra',
     license='MIT',
-    entry_points=dict(
-    ),
+    entry_points=dict(),
     packages=['pysra'],
-    package_data=dict(
-        pysra=['data/*']
-    ),
+    package_data=dict(pysra=['data/*']),
     install_requires=requirements,
     keywords='site response',
     classifiers=[
@@ -52,5 +46,4 @@ setup(
         'Topic :: Scientific/Engineering',
     ],
     test_suite='tests',
-    tests_requirements=requirements_test,
-)
+    tests_requirements=requirements_test, )

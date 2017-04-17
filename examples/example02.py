@@ -16,7 +16,6 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
 # Copyright (C) Albert Kottke, 2013-2016
-
 """Compute transfer functions for within and outcrop conditions."""
 
 import sys
@@ -31,25 +30,10 @@ count = 10
 motion = pysra.motion.Motion(np.logspace(-1, 2, 301))
 
 profile = pysra.site.Profile([
-        pysra.site.Layer(
-            pysra.site.SoilType(
-                'Soil-1', 18., None, 0.05
-            ),
-            30, 400
-        ),
-        pysra.site.Layer(
-            pysra.site.SoilType(
-                'Soil-2', 19., None, 0.05
-            ),
-            20, 600
-        ),
-        pysra.site.Layer(
-            pysra.site.SoilType(
-                'Rock', 24., None, 0.01
-            ),
-            0, 1200
-        ),
-    ])
+    pysra.site.Layer(pysra.site.SoilType('Soil-1', 18., None, 0.05), 30, 400),
+    pysra.site.Layer(pysra.site.SoilType('Soil-2', 19., None, 0.05), 20, 600),
+    pysra.site.Layer(pysra.site.SoilType('Rock', 24., None, 0.01), 0, 1200),
+])
 
 profile.update_layers()
 

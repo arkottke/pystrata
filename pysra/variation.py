@@ -35,13 +35,11 @@ STD_LIM = 2
 # https://en.wikipedia.org/wiki/Truncated_normal_distribution#Moments
 #
 # If STD_LIM is changed, then this should be adjusted.
-STD_SCALE = 1 / np.sqrt((
-    1 +
-    (-STD_LIM * norm.pdf(-STD_LIM) -
-     STD_LIM * norm.pdf(STD_LIM)) /
-    (norm.cdf(STD_LIM) - norm.cdf(-STD_LIM)) -
-    ((norm.pdf(-STD_LIM) - norm.pdf(STD_LIM)) /
-     (norm.cdf(STD_LIM) - norm.cdf(-STD_LIM)) ** 2)))
+STD_SCALE = 1 / np.sqrt(
+    (1 + (-STD_LIM * norm.pdf(-STD_LIM) - STD_LIM * norm.pdf(STD_LIM)) /
+     (norm.cdf(STD_LIM) - norm.cdf(-STD_LIM)) - (
+         (norm.pdf(-STD_LIM) - norm.pdf(STD_LIM)) /
+         (norm.cdf(STD_LIM) - norm.cdf(-STD_LIM))**2)))
 
 
 def randnorm(size=1):
@@ -139,9 +137,8 @@ class ToroThicknessVariation(object):
 
             # Convert between x and depth using the inverse of \Lambda(t)
             depth = np.power(
-                (self.c_2 * total) / self.c_3 + total / self.c_3 +
-                np.power(self.c_1, self.c_2 + 1),
-                1 / (self.c_2 + 1)) - self.c_1
+                (self.c_2 * total) / self.c_3 + total / self.c_3 + np.power(
+                    self.c_1, self.c_2 + 1), 1 / (self.c_2 + 1)) - self.c_1
 
             thickness = depth - depth_prev
 
@@ -176,17 +173,15 @@ class ToroThicknessVariation(object):
             for l in profile:
                 if l.depth < depth_mid <= l.depth_base:
                     profile_varied.append(
-                        site.Layer(l.soil_type, thickness, l.initial_shear_vel)
-                    )
+                        site.Layer(l.soil_type, thickness,
+                                   l.initial_shear_vel))
                     break
             else:
                 raise LookupError
 
         # Add the half-space
         l = profile[-1]
-        profile_varied.append(
-            site.Layer(l.soil_type, 0, l.initial_shear_vel)
-        )
+        profile_varied.append(site.Layer(l.soil_type, 0, l.initial_shear_vel))
 
         profile_varied.update_layers()
 
@@ -312,11 +307,8 @@ class ToroVelocityVariation(object):
             t = profile[i + 1].depth_mid - profile[i].depth_mid
 
             if h <= 200.:
-                corr_d = (
-                    self.rho_200 * np.power(
-                        (h + self.rho_0) / (200 + self.rho_0),
-                        self.b)
-                )
+                corr_d = (self.rho_200 * np.power(
+                    (h + self.rho_0) / (200 + self.rho_0), self.b))
             else:
                 corr_d = self.rho_200
 
@@ -326,7 +318,7 @@ class ToroVelocityVariation(object):
             corr = (1 - corr_d) * corr_t + corr_d
 
             # Correlated random variable
-            var_cur = corr * var_prev + randnorm() * np.sqrt(1 - corr ** 2)
+            var_cur = corr * var_prev + randnorm() * np.sqrt(1 - corr**2)
             yield var_cur
             var_prev = var_cur
 
@@ -358,9 +350,7 @@ class ToroVelocityVariation(object):
                 site.Layer(
                     l.soil_type,
                     l.thickness,
-                    shear_vel_varied,
-                )
-            )
+                    shear_vel_varied, ))
 
         profile_varied.update_layers()
 
@@ -434,8 +424,10 @@ class ToroVelocityVariation(object):
 
 
 class SoilTypeVariation(object):
-    def __init__(self, correlation,
-                 limits_mod_reduc=[0, 1], limits_damping=[0, 0.15]):
+    def __init__(self,
+                 correlation,
+                 limits_mod_reduc=[0, 1],
+                 limits_damping=[0, 0.15]):
         self._correlation = correlation
         self._limits_mod_reduc = list(limits_mod_reduc)
         self._limits_damping = list(limits_damping)
@@ -457,9 +449,8 @@ class SoilTypeVariation(object):
         # todo: More elegant solution?
         while True:
             randvar = np.random.multivariate_normal(
-                [0, 0],
-                [[STD_SCALE ** 2, self.correlation * STD_SCALE ** 2],
-                 [self.correlation * STD_SCALE ** 2, STD_SCALE ** 2]])
+                [0, 0], [[STD_SCALE**2, self.correlation * STD_SCALE**2],
+                         [self.correlation * STD_SCALE**2, STD_SCALE**2]])
             if np.all(abs(randvar) < STD_LIM):
                 break
 
@@ -467,13 +458,10 @@ class SoilTypeVariation(object):
             randvar, mod_reduc, damping)
 
         # Clip the values to the specified min/max
-        varied_mod_reduc = np.clip(
-            varied_mod_reduc, self.limits_mod_reduc[0],
-            self.limits_mod_reduc[1]
-        )
-        varied_damping = np.clip(
-            varied_damping, self.limits_damping[0], self.limits_damping[1]
-        )
+        varied_mod_reduc = np.clip(varied_mod_reduc, self.limits_mod_reduc[0],
+                                   self.limits_mod_reduc[1])
+        varied_damping = np.clip(varied_damping, self.limits_damping[0],
+                                 self.limits_damping[1])
 
         # Set the values
         realization = copy.deepcopy(soil_type)
@@ -530,9 +518,9 @@ class DarendeliVariation(SoilTypeVariation):
             Standard deviation.
         """
         mod_reduc = np.asarray(mod_reduc).astype(float)
-        std = (np.exp(-4.23) +
-               np.sqrt(0.25 / np.exp(3.62) -
-                       (mod_reduc - 0.5) ** 2 / np.exp(3.62)))
+        std = (
+            np.exp(-4.23) +
+            np.sqrt(0.25 / np.exp(3.62) - (mod_reduc - 0.5)**2 / np.exp(3.62)))
         return std
 
     @staticmethod
@@ -560,11 +548,13 @@ class SpidVariation(SoilTypeVariation):
     """Variation defined by the EPRI SPID (2013) and documented in
     PNNL (2014)."""
 
-    def __init__(self, correlation,
-                 limits_mod_reduc=[0, 1], limits_damping=[0, 0.15],
-                 std_mod_reduc=0.15, std_damping=0.30):
-        super().__init__(
-            correlation, limits_mod_reduc, limits_damping)
+    def __init__(self,
+                 correlation,
+                 limits_mod_reduc=[0, 1],
+                 limits_damping=[0, 0.15],
+                 std_mod_reduc=0.15,
+                 std_damping=0.30):
+        super().__init__(correlation, limits_mod_reduc, limits_damping)
         self._std_mod_reduc = std_mod_reduc
         self._std_damping = std_damping
 
@@ -595,7 +585,9 @@ class SpidVariation(SoilTypeVariation):
         return self._std_mod_reduc
 
 
-def iter_varied_profiles(profile, count, var_thickness=None,
+def iter_varied_profiles(profile,
+                         count,
+                         var_thickness=None,
                          var_velocity=None,
                          var_soiltypes=None):
     for i in range(count):

@@ -67,10 +67,7 @@ def _parse_curves(block, **kwargs):
                 site.NonlinearProperty(
                     name,
                     parse_fixed_width(length * [(10, float)], block),
-                    parse_fixed_width(length * [(10, float)], block),
-                    param
-                )
-            )
+                    parse_fixed_width(length * [(10, float)], block), param))
 
     length = int(block[0][:5])
     soil_types = parse_fixed_width((length + 1) * [(5, int)], block)[1:]
@@ -97,17 +94,14 @@ def _parse_soil_profile(block, units, curves, **kwargs):
             soil_idx,
             unit_wt,
             curves[(soil_idx, 'mod_reduc')],
-            curves[(soil_idx, 'damping')],
-        )
+            curves[(soil_idx, 'damping')], )
         try:
             # Try to find previously added soil type
             st = soil_types[soil_types.index(st)]
         except ValueError:
             soil_types.append(st)
 
-        layers.append(site.Layer(
-            st, thickness, shear_vel
-        ))
+        layers.append(site.Layer(st, thickness, shear_vel))
 
     if units == 'english':
         # Convert from English to metric
@@ -127,15 +121,11 @@ def _parse_soil_profile(block, units, curves, **kwargs):
 
 def _parse_motion(block, **kwargs):
     """Parse motin specification block."""
-    _, fa_length, time_step, name, fmt = parse_fixed_width(
-        [(5, int), (5, int), (10, float), (30, to_str), (30, to_str)],
-        block
-    )
+    _, fa_length, time_step, name, fmt = parse_fixed_width([(5, int), (
+        5, int), (10, float), (30, to_str), (30, to_str)], block)
 
     scale, pga, _, header_lines, _ = parse_fixed_width(
-        3 * [(10, to_float)] + 2 * [(5, int)],
-        block
-    )
+        3 * [(10, to_float)] + 2 * [(5, int)], block)
 
     m = re.search(r'(\d+)\w(\d+)\.\d+', fmt)
     count_per_line = int(m.group(1))
@@ -145,8 +135,7 @@ def _parse_motion(block, **kwargs):
     accels = np.genfromtxt(
         fname,
         delimiter=(count_per_line * [width]),
-        skip_header=header_lines,
-    )
+        skip_header=header_lines, )
 
     if np.isfinite(scale):
         pass
@@ -163,26 +152,20 @@ def _parse_motion(block, **kwargs):
 
 def _parse_input_loc(block, profile, **kwargs):
     """Parse input location block."""
-    layer, wave_field = parse_fixed_width(
-        2 * [(5, int)], block
-    )
+    layer, wave_field = parse_fixed_width(2 * [(5, int)], block)
 
     return profile.location(
         motion.WaveField[wave_field],
-        index=(layer - 1),
-    )
+        index=(layer - 1), )
 
 
 def _parse_run_control(block):
     """Parse run control block."""
     _, max_iterations, strain_ratio, _, _ = parse_fixed_width(
-        2 * [(5, int)] + [(10, float)] + 2 * [(5, int)],
-        block
-    )
+        2 * [(5, int)] + [(10, float)] + 2 * [(5, int)], block)
 
     return propagation.EquivalentLinearCalculation(
-        strain_ratio, max_iterations, tolerance=10.
-    )
+        strain_ratio, max_iterations, tolerance=10.)
 
 
 def _parse_output_accel(block):
