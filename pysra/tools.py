@@ -121,8 +121,8 @@ def _parse_soil_profile(block, units, curves, **kwargs):
 
 def _parse_motion(block, **kwargs):
     """Parse motin specification block."""
-    _, fa_length, time_step, name, fmt = parse_fixed_width([(5, int), (
-        5, int), (10, float), (30, to_str), (30, to_str)], block)
+    _, fa_length, time_step, name, fmt = parse_fixed_width(
+        [(5, int), (5, int), (10, float), (30, to_str), (30, to_str)], block)
 
     scale, pga, _, header_lines, _ = parse_fixed_width(
         3 * [(10, to_float)] + 2 * [(5, int)], block)

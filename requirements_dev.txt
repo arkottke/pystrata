@@ -5,9 +5,11 @@ coveralls
 cryptography
 flake8
 jinja2
+pre-commit
 pyprind
 pytest-cov
 pytest-flake8
 pytest-runner
 watchdog
 wheel
+yapf

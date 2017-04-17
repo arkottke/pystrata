@@ -223,3 +223,46 @@ class TestExample04EL(Comparison):
             pysra.site.SoilType('Rock', 25., mod_reduc=None, damping=0.02), 0,
             760),
     ])
+
+
+#
+#
+# def compare_ts_results(calc, name):
+#     ref_soil, ref_inp = (name)
+#
+#     # Compare the time series
+#     # Only compare the number of values in the DeepSoil results,
+#     # which doesn't include the zero padding added by the FFT.
+#     n = len(ref_soil['time_series']['accel'])
+#     loc_surface = pysra.output.OutputLocation('outcrop', index=0)
+#     loc_midheight = pysra.output.OutputLocation(
+#         'within', depth=(calc.profile[0].thickness / 2))
+#     for key, output in [
+#         ('accel',),
+#         ('arias_int',
+#          pysra.output.AriasIntensityTSOutput(loc_surface)),
+#         ('strain', pysra.output.StrainTSOutput(loc_midheight)),
+#         ('stress', pysra.output.StressTSOutput(loc_midheight, damped=False)),
+#     ]:
+#         output(calc)
+#         import matplotlib.pyplot as plt
+#         fig, ax = plt.subplots()
+#         ax.plot(
+#             ref_soil['time_series']['time'],
+#             ref_soil['time_series'][key], 'b-'
+#         )
+#         ax.plot(output.refs, output.values, 'r--')
+#         ax.set_xlim(10, 40)
+#         fig.tight_layout()
+#         fig.savefig('test')
+#
+#
+#
+# def test_linear(ts):
+#     calc =
+#     calc(ts, profile, profile.location('outcrop', index=-1))
+#     compare_ts_results(calc, '')
+#
+#
+# def test_equiv_linear():
+#     pass

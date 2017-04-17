@@ -17,7 +17,11 @@
 #
 # Copyright (C) Albert Kottke, 2013-2016
 
+import os
+import json
+
 import pytest
+import scipy.constants
 
 from numpy.testing import assert_allclose
 
@@ -54,28 +58,27 @@ def test_nlp_update(nlp):
     assert_allclose(nlp(1.), 1.)
 
 
-class TestDarendeli:
-    @classmethod
-    def setup_class(cls):
-        cls.st = site.DarendeliSoilType(
-            plas_index=30,
-            ocr=1.0,
-            mean_stress=0.25,
-            freq=1,
-            num_cycles=10,
-            strains=[1E-5, 2.2E-3, 1E-0],
-        )
-        return cls
+@pytest.fixture
+def soil_type_darendeli():
+    mean_stress = 0.25 / site.KPA_TO_ATM
+    return site.DarendeliSoilType(
+        plas_index=30,
+        ocr=1.0,
+        mean_stress=mean_stress,
+        freq=1,
+        num_cycles=10,
+        strains=[1E-5, 2.2E-3, 1E-0], )
 
-    @pytest.mark.parametrize('attr,expected', [
-        ('mod_reduc', [1.0, 0.936, 0.050]),
-        ('damping', [0.01778, 0.02476, 0.21542]),
-    ])
-    def test_values(self, attr, expected):
-        # Reference values taken from Tables 10.13 and 10.14 of the Darendeli
-        # dissertation.
-        actual = getattr(self.st, attr).values.tolist()
-        assert_allclose(actual, expected, rtol=0.01)
+
+@pytest.mark.parametrize('attr,expected', [
+    ('mod_reduc', [1.0, 0.936, 0.050]),
+    ('damping', [0.01778, 0.02476, 0.21542]),
+])
+def test_darendeli(soil_type_darendeli, attr, expected):
+    # Reference values taken from Tables 10.13 and 10.14 of the Darendeli
+    # dissertation.
+    actual = getattr(soil_type_darendeli, attr).values.tolist()
+    assert_allclose(actual, expected, rtol=0.01)
 
 
 def test_iterative_value():
@@ -90,11 +93,11 @@ def test_iterative_value():
 def test_soil_type_linear():
     """Test the soil type update process on a linear material."""
     damping = 1.0
-    l = site.Layer(site.SoilType('', 18.0, None, damping), 2., 500.)
-    l.strain = 0.1
+    layer = site.Layer(site.SoilType('', 18.0, None, damping), 2., 500.)
+    layer.strain = 0.1
 
-    assert_allclose(l.shear_mod.value, l.initial_shear_mod)
-    assert_allclose(l.damping.value, damping)
+    assert_allclose(layer.shear_mod.value, layer.initial_shear_mod)
+    assert_allclose(layer.damping.value, damping)
 
 
 def test_soil_type_iterative():
@@ -103,11 +106,52 @@ def test_soil_type_iterative():
     damping = site.NonlinearProperty('', [0.01, 1.], [0, 10])
 
     st = site.SoilType('', 18.0, mod_reduc, damping)
-    l = site.Layer(st, 2., 500.)
+    layer = site.Layer(st, 2., 500.)
 
     strain = 0.1
-    l.strain = strain
+    layer.strain = strain
 
-    assert_allclose(l.strain.value, strain)
-    assert_allclose(l.shear_mod.value, 0.5 * l.initial_shear_mod)
-    assert_allclose(l.damping.value, 5.0)
+    assert_allclose(layer.strain.value, strain)
+    assert_allclose(layer.shear_mod.value, 0.5 * layer.initial_shear_mod)
+    assert_allclose(layer.damping.value, 5.0)
+
+
+with open(
+        os.path.join(os.path.dirname(__file__), 'data',
+                     'kishida_2009.json')) as fp:
+    kishida_cases = json.load(fp)
+
+
+def format_kishida_case_id(case):
+    fmt = "({mean_stress:.1f} kN/m², OC={organic_content:.0f} %)"
+    return fmt.format(**case)
+
+
+@pytest.mark.parametrize('case', kishida_cases, ids=format_kishida_case_id)
+def test_kishida_unit_wt(case):
+    st = site.KishidaSoilType(
+        'test',
+        unit_wt=None,
+        mean_stress=case['mean_stress'],
+        organic_content=case['organic_content'],
+        strains=case['strains'])
+    assert_allclose(
+        st.unit_wt, scipy.constants.g * case['density'], rtol=0.005)
+
+
+@pytest.mark.parametrize('case', kishida_cases, ids=format_kishida_case_id)
+@pytest.mark.parametrize('curve,attr,key', [
+    ('mod_reduc', 'strains', 'strains'),
+    ('mod_reduc', 'values', 'mod_reducs'),
+    ('damping', 'strains', 'strains'),
+    ('damping', 'values', 'dampings'),
+])
+def test_kishida_nlc(case, curve, attr, key):
+    st = site.KishidaSoilType(
+        'test',
+        unit_wt=None,
+        mean_stress=case['mean_stress'],
+        organic_content=case['organic_content'],
+        strains=case['strains'])
+    assert_allclose(
+        getattr(getattr(st, curve), attr), case[key], rtol=0.005, atol=0.0005)

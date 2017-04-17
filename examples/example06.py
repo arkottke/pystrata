@@ -20,8 +20,13 @@
 
 from dask import delayed
 
+import matplotlib.pyplot as plt
+
+<<<<<<< HEAD
+=======
 import pysra
 
+>>>>>>> 4d71de0126fd2979338192782a55642ad41b2c46
 profile = pysra.site.Profile([
     pysra.site.Layer(
         pysra.site.SoilType('Soil-1', 18.,

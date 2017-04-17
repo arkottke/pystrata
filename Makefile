@@ -47,7 +47,7 @@ clean-test:
 	rm -fr htmlcov/
 
 lint:
-	flake8 pysra tests
+	flake8 pysra tests examples
 
 test:
 	py.test --flake8 --cov-report html --cov pysra tests/

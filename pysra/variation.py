@@ -39,7 +39,7 @@ STD_SCALE = 1 / np.sqrt(
     (1 + (-STD_LIM * norm.pdf(-STD_LIM) - STD_LIM * norm.pdf(STD_LIM)) /
      (norm.cdf(STD_LIM) - norm.cdf(-STD_LIM)) - (
          (norm.pdf(-STD_LIM) - norm.pdf(STD_LIM)) /
-         (norm.cdf(STD_LIM) - norm.cdf(-STD_LIM))**2)))
+         (norm.cdf(STD_LIM) - norm.cdf(-STD_LIM)) ** 2)))
 
 
 def randnorm(size=1):
@@ -449,8 +449,8 @@ class SoilTypeVariation(object):
         # todo: More elegant solution?
         while True:
             randvar = np.random.multivariate_normal(
-                [0, 0], [[STD_SCALE**2, self.correlation * STD_SCALE**2],
-                         [self.correlation * STD_SCALE**2, STD_SCALE**2]])
+                [0, 0], [[STD_SCALE ** 2, self.correlation * STD_SCALE ** 2],
+                         [self.correlation * STD_SCALE ** 2, STD_SCALE ** 2]])
             if np.all(abs(randvar) < STD_LIM):
                 break
 

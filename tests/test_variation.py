@@ -52,18 +52,16 @@ class TestDarendeliVariation:
             unit_wt=16,
             plas_index=0,
             ocr=1,
-            mean_stress=1,
+            mean_stress=1 / site.KPA_TO_ATM,
             freq=1,
             num_cycles=10,
-            strains=[1E-5, 2.2E-3, 1E0],
-        )
+            strains=[1E-5, 2.2E-3, 1E0], )
         cls.dvar = variation.DarendeliVariation(
             -0.7,
             limits_mod_reduc=[-np.inf, np.inf],
             limits_damping=[-np.inf, np.inf])
         n = 1000
         realizations = [cls.dvar(cls.st) for _ in range(n)]
-
         cls.mod_reducs = np.array([r.mod_reduc.values for r in realizations])
         cls.dampings = np.array([r.damping.values for r in realizations])
 
