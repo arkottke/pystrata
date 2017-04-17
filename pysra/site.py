@@ -165,7 +165,7 @@ class SoilType(object):
 
     def __init__(self, name='', unit_wt=0., mod_reduc=None, damping=None):
         self.name = name
-        self.unit_wt = unit_wt
+        self._unit_wt = unit_wt
         self.mod_reduc = mod_reduc
         self.damping = damping
 
@@ -181,6 +181,10 @@ class SoilType(object):
             return self.damping.values[0]
         except AttributeError:
             return self.damping
+
+    @property
+    def unit_wt(self):
+        return self._unit_wt
 
     @property
     def is_nonlinear(self):
