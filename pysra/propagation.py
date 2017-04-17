@@ -327,7 +327,25 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
 
 class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
     """Class for performing equivalent-linear elastic site response with
-    frequency-dependent modulii and damping."""
+    frequency-dependent modulus and damping."""
+
+    def __init__(self, strain_ratio=1.0, tolerance=0.01, max_iterations=15):
+        """Initialize the class.
+
+        Parameters
+        ----------
+        strain_ratio: float, default=1.00
+            Ratio between the maximum strain and effective strain used to
+            compute strain compatible properties.
+
+        tolerance: float, default=0.01
+            Tolerance in the iterative properties, which would cause the
+            iterative process to terminate.
+
+        max_iterations: int, default=15
+            Maximum number of iterations to perform.
+        """
+        super().__init__(strain_ratio, tolerance, max_iterations)
 
     def _calc_strain(self, loc_input, loc_layer, motion, *args):
         freqs = np.array(motion.freqs)
@@ -352,19 +370,12 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         # effective strain
         strain_fas /= strain_avg
 
-        # Find the smallest strain in the curves. Should average over that range
-        # strains = []
-        # st = loc_layer.layer.soil_type
-        # for nlp in [st.mod_reduc, st.damping]:
-        #     strains.append(min(nlp.strains))
-        # smallest_strain = min(strains)
-
         # Fit the smoothed model at frequencies greater than the average
+        # FIXME: only fit over strain range of curves?
         A = np.c_[-freqs[mask], -np.log(freqs[mask])]
         a, b = np.linalg.lstsq(A, np.log(strain_fas[mask]))[0]
-
         # FIXME: this is a modification of the published method that ensures a
         # smooth transition in the strain
         strains = np.minimum(1, np.exp(-a * freqs) / np.power(freqs, b))
-
+        strains *= strain_eff
         return strains
