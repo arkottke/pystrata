@@ -321,7 +321,10 @@ class IterativeValue(object):
             # with frequency dependent properties
             # prev = np.max(self.previous)
             # value = np.max(self.value)
-            err = 100. * np.max((self.previous - self.value) / self.value)
+            try:
+                err = 100. * np.max((self.previous - self.value) / self.value)
+            except ZeroDivisionError:
+                err = np.inf
         else:
             err = 0
         return err

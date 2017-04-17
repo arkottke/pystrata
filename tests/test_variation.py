@@ -47,25 +47,16 @@ class TestSoilTypeVariation:
 class TestDarendeliVariation:
     @classmethod
     def setup_class(cls):
-        cls.st = site.SoilType(
+        cls.st = site.DarendeliSoilType(
             'Test',
             unit_wt=16,
-            mod_reduc=site.DarendeliNonlinearProperty(
-                0,
-                1,
-                1,
-                freq=1,
-                num_cycles=10,
-                strains=[1E-5, 2.2E-3, 1E0],
-                param='mod_reduc'),
-            damping=site.DarendeliNonlinearProperty(
-                0,
-                1,
-                1,
-                freq=1,
-                num_cycles=10,
-                strains=[1E-5, 2.2E-3, 1E0],
-                param='damping'))
+            plas_index=0,
+            ocr=1,
+            mean_stress=1,
+            freq=1,
+            num_cycles=10,
+            strains=[1E-5, 2.2E-3, 1E0],
+        )
         cls.dvar = variation.DarendeliVariation(
             -0.7,
             limits_mod_reduc=[-np.inf, np.inf],

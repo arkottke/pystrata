@@ -57,16 +57,14 @@ def test_nlp_update(nlp):
 class TestDarendeli:
     @classmethod
     def setup_class(cls):
-        kwds = dict(
+        cls.st = site.DarendeliSoilType(
             plas_index=30,
             ocr=1.0,
             mean_stress=0.25,
             freq=1,
             num_cycles=10,
-            strains=[1E-5, 2.2E-3, 1E-0], )
-        cls.mod_reduc = site.DarendeliNonlinearProperty(
-            **kwds, param='mod_reduc')
-        cls.damping = site.DarendeliNonlinearProperty(**kwds, param='damping')
+            strains=[1E-5, 2.2E-3, 1E-0],
+        )
         return cls
 
     @pytest.mark.parametrize('attr,expected', [
@@ -76,7 +74,7 @@ class TestDarendeli:
     def test_values(self, attr, expected):
         # Reference values taken from Tables 10.13 and 10.14 of the Darendeli
         # dissertation.
-        actual = getattr(self, attr).values.tolist()
+        actual = getattr(self.st, attr).values.tolist()
         assert_allclose(actual, expected, rtol=0.01)
 
 
