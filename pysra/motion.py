@@ -20,13 +20,10 @@
 import enum
 
 import numpy as np
+# Gravity in m/sec²
+from scipy.constants import g as GRAVITY
 
 import pyrvt
-
-# Gravity in m/sec²
-# Source: http://physics.nist.gov/cgi-bin/cuu/Value?gn
-GRAVITY = 9.80665
-
 
 class WaveField(enum.Enum):
     outcrop = 0
