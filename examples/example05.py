@@ -82,7 +82,7 @@ for geopsy_profile in iter_geopsy_profiles(fname_profiles):
     site_amp(calc)
 
 fig, ax = plt.subplots()
-ax.plot(site_amp.freqs, site_amp.values, 'b-', alpha=0.6)
+ax.plot(site_amp.freqs, site_amp.values, color='C0', alpha=0.4)
 
 ax.set_xlabel('Frequency (Hz)')
 ax.set_xscale('log')

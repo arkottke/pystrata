@@ -23,7 +23,7 @@ import numpy as np
 
 import pysra
 
-motion = pysra.motion.SourceTheoryRvtMotion(6, 50, 'wna')
+motion = pysra.motion.SourceTheoryRvtMotion(6, 30, 'wna')
 motion.calc_fourier_amps()
 profile = pysra.site.Profile([
     pysra.site.Layer(
