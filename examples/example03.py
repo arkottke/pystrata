@@ -16,6 +16,7 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
 # Copyright (C) Albert Kottke, 2013-2016
+
 """Compute transfer functions for within and outcrop conditions."""
 
 import matplotlib.pyplot as plt
@@ -52,14 +53,11 @@ outputs = pysra.output.OutputCollection(
             pysra.motion.WaveField.outcrop, depth=profile[-1].depth),
         0.05),
     # Surface (outcrop).
-<<<<<<< HEAD
-    pysra.output.ResponseSpectrumOutput(osc_freqs,
-                                        pysra.output.OutputLocation(
-                                            'outcrop', index=0), 0.05), )
-=======
     pysra.output.ResponseSpectrumOutput(
-        osc_freqs, pysra.output.OutputLocation('outcrop', index=0), 0.05), )
->>>>>>> 4d71de0126fd2979338192782a55642ad41b2c46
+        osc_freqs,
+        pysra.output.OutputLocation('outcrop', index=0),
+        0.05),
+)
 
 # Compute the response
 calc = pysra.propagation.EquivalentLinearCalculator(strain_ratio=0.65)
@@ -71,11 +69,9 @@ outputs(calc)
 # Transfer function
 accel_tf = outputs[0]
 fig, ax = plt.subplots()
-ax.plot(accel_tf.freqs, accel_tf.values.real, '-', color='C0', label='Real')
-ax.plot(
-    accel_tf.freqs, accel_tf.values.imag, '-', color='C1', label='Imaginary')
-ax.plot(
-    accel_tf.freqs, abs(accel_tf.values), '-', color='C2', label='Absolute')
+ax.plot(accel_tf.freqs, accel_tf.values.real, label='Real')
+ax.plot(accel_tf.freqs, accel_tf.values.imag, label='Imaginary')
+ax.plot(accel_tf.freqs, abs(accel_tf.values), label='Absolute')
 ax.set_xlabel('Frequency (Hz)')
 ax.set_xscale('log')
 ax.set_ylabel('Accel. Transfer Function')
@@ -89,13 +85,9 @@ fig.savefig(__file__.replace('.py', '-tf.png'), dpi=150)
 ars_input = outputs[1]
 ars_surface = outputs[2]
 fig, ax = plt.subplots()
-for name, ars, color in zip(['Input', 'Surface'], [ars_input, ars_surface],
-<<<<<<< HEAD
-                            ['blue', 'red']):
-=======
-                            ['C0', 'C1']):
->>>>>>> 4d71de0126fd2979338192782a55642ad41b2c46
-    ax.plot(ars.freqs, ars.values, '-', color=color, label=name)
+for label, ars in zip(['Input', 'Surface'], [ars_input, ars_surface]):
+    ax.plot(ars.freqs, ars.values, '-', label=label)
+
 ax.set_xlabel('Frequency (Hz)')
 ax.set_xscale('log')
 ax.set_xlim(0.1, 100)

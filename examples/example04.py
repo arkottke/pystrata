@@ -16,6 +16,7 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
 # Copyright (C) Albert Kottke, 2013-2016
+
 """Randomize nonlinear properties."""
 
 import matplotlib.pyplot as plt
@@ -41,8 +42,8 @@ for i, (variation, name) in enumerate(
         axarr[j, i].plot(
             getattr(soil_type, prop).strains,
             np.transpose([getattr(r, prop).values for r in realizations]),
-            'b-',
             linewidth=0.5,
+            color='C0',
             alpha=0.8)
         if j == 0:
             axarr[j, i].set_title(name)

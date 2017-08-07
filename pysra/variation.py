@@ -426,7 +426,7 @@ class ToroVelocityVariation(object):
 class SoilTypeVariation(object):
     def __init__(self,
                  correlation,
-                 limits_mod_reduc=[0, 1],
+                 limits_mod_reduc=[0.05, 1],
                  limits_damping=[0, 0.15]):
         self._correlation = correlation
         self._limits_mod_reduc = list(limits_mod_reduc)
