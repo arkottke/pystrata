@@ -676,6 +676,11 @@ class Layer(object):
         self._profile.update_layers(self, self._profile.index(self) + 1)
 
     @property
+    def travel_time(self):
+        """Travel time through the layer."""
+        return self.thickness / self.shear_vel
+
+    @property
     def unit_wt(self):
         return self.soil_type.unit_wt
 
@@ -732,7 +737,7 @@ class Location(object):
 
 
 class Profile(collections.UserList):
-    """Docstring for Profile """
+    """Soil profile with an infinite halfspace at the base."""
 
     def __init__(self, layers=None, wt_depth=0):
         collections.UserList.__init__(self, layers)
@@ -782,11 +787,11 @@ class Profile(collections.UserList):
 
         Returns
         -------
-
+        pore_pressure
         """
         return GRAVITY * max(depth - self.wt_depth, 0)
 
-    def calc_site_attenuation(self):
+    def site_attenuation(self):
         return sum(l.incr_site_atten for l in self)
 
     def location(self, wave_field, depth=None, index=None):
@@ -830,3 +835,65 @@ class Profile(collections.UserList):
             raise NotImplementedError
 
         return Location(i, layer, wave_field, depth_within)
+
+    def time_average_vel(self, depth):
+        """Calculate the time-average velocity.
+
+        Parameters
+        ----------
+        depth: float
+            Depth over which the average velocity is computed.
+
+        Returns
+        -------
+        avg_vel: float
+            Time averaged velocity.
+        """
+        depths = [l.depth for l in self]
+        # Final layer is infinite and is treated separately
+        travel_times = [0] + [l.travel_time for l in self[:-1]]
+        # If needed, add the final layer to the required depth
+        if depths[-1] < depth:
+            depths.append(depth)
+            travel_times.append(
+                (depth - self[-1].depth) / self[-1].shear_vel)
+
+        total_travel_times = np.cumsum(travel_times)
+        # Interpolate the travel time to the depth of interest
+        avg_shear_vel = depth / np.interp(depth, depths, total_travel_times)
+        return avg_shear_vel
+
+    def simplified_rayliegh_vel(self):
+        """Simplified Rayliegh velocity of the site.
+
+        This follows the simplifications proposed by Urzua et al. (2017)
+
+        Returns
+        -------
+        rayleigh_vel : float
+            Equivalent shear-wave velocity.
+        """
+        # FIXME: What if last layer has no thickness?
+        thicks = np.array([l.thickness for l in self])
+        depths_mid = np.array([l.depth_mid for l in self])
+        shear_vels = np.array([l.shear_vel for l in self])
+
+        mode_incr = depths_mid * thicks / shear_vels ** 2
+        # Mode shape is computed as the sumation from the base of
+        # the profile. Need to append a 0 for the roll performed in the next
+        # step
+        shape = np.r_[np.cumsum(mode_incr[::-1])[::-1], 0]
+
+        freq_fund = np.sqrt(
+            4 * np.sum(thicks * depths_mid ** 2 / shear_vels ** 2) /
+            np.sum(
+                thicks *
+                # Roll is used to offset the mode_shape so that the sum
+                # can be calculated for two adjacent layers
+                np.sum(np.c_[shape, np.roll(shape, -1)],
+                       axis=1)[:-1] ** 2
+            )
+        )
+        period_fun = 2 * np.pi / freq_fund
+        rayleigh_vel = 4 * thicks.sum() / period_fun
+        return rayleigh_vel
