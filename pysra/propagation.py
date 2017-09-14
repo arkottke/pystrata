@@ -304,7 +304,7 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
 
     @classmethod
     def calc_strain_ratio(cls, mag):
-        """Compute the effective strain ratio using Idriss and Sun (1991).
+        """Compute the effective strain ratio using Idriss and Sun (1992).
 
         Parameters
         ----------
@@ -313,8 +313,16 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
 
         Returns
         -------
-        float
+        strain_ratio : float
             Effective strain ratio
+
+        References
+        ----------
+        .. [1] Idriss, I. M., & Sun, J. I. (1992). SHAKE91: A computer program
+            for conducting equivalent linear seismic response analyses of
+            horizontally layered soil deposits. Center for Geotechnical
+            Modeling, Department of Civil and Environmental Engineering,
+            University of California, Davis, CA.
         """
         return (mag - 1) / 10
 
@@ -327,7 +335,14 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
 
 class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
     """Class for performing equivalent-linear elastic site response with
-    frequency-dependent modulii and damping."""
+    frequency-dependent modulii and damping.
+
+    References
+    ----------
+    .. [1] Kausel, E., & Assimaki, D. (2002). Seismic simulation of inelastic
+        soils via frequency-dependent moduli and damping. Journal of
+        Engineering Mechanics, 128(1), 34-47.
+    """
 
     def _calc_strain(self, loc_input, loc_layer, motion, *args):
         freqs = np.array(motion.freqs)
@@ -337,34 +352,35 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         # ratio
         strain_eff = 100. * self.strain_ratio * motion.calc_peak(strain_tf)
 
-        # FIXME: add equation numbers
-        freq_avg = (np.trapz(freqs * strain_fas, x=freqs) / np.trapz(
-            strain_fas, x=freqs))
+        # Equation (8)
+        freq_avg = (np.trapz(freqs * strain_fas, x=freqs) /
+                    np.trapz(strain_fas, x=freqs))
 
         # Find the average strain at frequencies less than the average
         # frequency
-        mask = (freqs > freq_avg)
-        strain_avg = np.trapz(strain_fas[~mask], x=freqs[~mask]) / freq_avg
+        # Equation (8)
+        mask = (freqs < freq_avg)
+        strain_avg = np.trapz(strain_fas[mask], x=freqs[mask]) / freq_avg
 
-        # Normalize the frequency the average values
+        # Normalize the frequency and strain by the average values
         freqs /= freq_avg
-        # Scale the strain_fas such that the average provides is equal to the
-        # effective strain
         strain_fas /= strain_avg
-
-        # Find the smallest strain in the curves. Should average over that range
-        # strains = []
-        # st = loc_layer.layer.soil_type
-        # for nlp in [st.mod_reduc, st.damping]:
-        #     strains.append(min(nlp.strains))
-        # smallest_strain = min(strains)
+        mask = (freqs < 1)
 
         # Fit the smoothed model at frequencies greater than the average
-        A = np.c_[-freqs[mask], -np.log(freqs[mask])]
-        a, b = np.linalg.lstsq(A, np.log(strain_fas[mask]))[0]
+        # Equation (10)
+        A = np.c_[-freqs[~mask], -np.log(freqs[~mask])]
+        a, b = np.linalg.lstsq(A, np.log(strain_fas[~mask]))[0]
+        strains = np.exp(-a * freqs) / np.power(freqs, b)
 
-        # FIXME: this is a modification of the published method that ensures a
-        # smooth transition in the strain
-        strains = np.minimum(1, np.exp(-a * freqs) / np.power(freqs, b))
+        # Find the strain at freq_avg, and normalize by this reference
+        # value. This step is required because at the normalized strain the
+        # fit model doesn't equal 1, this causes a discontinuity in the
+        # strains.
+        ref = np.interp(1., freqs, strains)
+        strains[mask] = ref
+        strains /= ref
 
+        # Scale the frequency dependence by the effective strain
+        strains *= strain_eff
         return strains
