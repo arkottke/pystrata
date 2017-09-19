@@ -155,3 +155,51 @@ def test_kishida_nlc(case, curve, attr, key):
         strains=case['strains'])
     assert_allclose(
         getattr(getattr(st, curve), attr), case[key], rtol=0.005, atol=0.0005)
+
+
+@pytest.mark.parametrize(
+    'depth,expected',
+    [
+        (10, 300),
+        (20, 400),
+        (30, 490.909)
+    ]
+)
+def test_time_average_vel(depth, expected):
+    st = site.SoilType(unit_wt=17)
+    p = site.Profile([
+        site.Layer(st, 10, 300),
+        site.Layer(st, 10, 600),
+        site.Layer(st, None, 900),
+    ])
+    assert_allclose(
+        p.time_average_vel(depth),
+        expected,
+        atol=0.001
+    )
+
+
+def test_simplified_rayleigh_vel():
+    # Example from Urzua et al. (2017). Table 1 in Appendix A
+    layers = [
+        (8, 828, 105),
+        (5, 726, 133),
+        (7, 1039, 120),
+        (8, 825, 120),
+        (5, 951, 137),
+        (65, 1270, 125),
+        (24, 1065, 127),
+        (16, 1205, 119),
+        (9, 1071, 138),
+        (7, 1633, 135),
+        (21, 1223, 138),
+        (25, 2777, 140),
+    ]
+    p = site.Profile([site.Layer(site.SoilType(unit_wt=unit_wt), thick, vs)
+                      for thick, vs, unit_wt in layers])
+
+    assert_allclose(
+        p.simplified_rayliegh_vel(),
+        1349.076,
+        atol=0.001,
+    )

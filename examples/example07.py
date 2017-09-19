@@ -67,7 +67,7 @@ calc_eql(motion, profile, profile.location('outcrop', index=-1))
 outputs(calc_eql, 'EQL')
 
 calc_fdm = pysra.propagation.FrequencyDependentEqlCalculator(
-    strain_ratio=1.0, max_iterations=3)
+    strain_ratio=0.65, max_iterations=3)
 calc_fdm(motion, profile, profile.location('outcrop', index=-1))
 outputs(calc_fdm, 'FDM')
 
