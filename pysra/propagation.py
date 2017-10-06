@@ -283,12 +283,20 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
             for index, layer in enumerate(profile[:-1]):
                 loc_layer = Location(index, layer, 'within',
                                      layer.thickness / 2)
+                # Compute the representative strain(s) within the layer. FDM
+                #  will provide a vector of strains.
                 layer.strain = self._calc_strain(loc_input, loc_layer, motion)
             # Maximum error (damping and shear modulus) over all layers
             max_error = max(l.max_error for l in profile)
             if max_error < self.tolerance:
                 break
             iteration += 1
+
+        # Compute the maximum strain within the profile.
+        for index, layer in enumerate(profile[:-1]):
+            loc_layer = Location(index, layer, 'within', layer.thickness / 2)
+            layer.strain_max = self._calc_strain_max(
+                loc_input, loc_layer, motion)
 
     @property
     def strain_ratio(self):
@@ -327,10 +335,14 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
         return (mag - 1) / 10
 
     def _calc_strain(self, loc_input, loc_layer, motion, *args):
+        """Compute the strain used for iterations of material properties."""
+        strain_max = self._calc_strain_max(loc_input, loc_layer, motion, *args)
+        return self.strain_ratio * strain_max
+
+    def _calc_strain_max(self, loc_input, loc_layer, motion, *args):
         """Compute the effective strain at the center of a layer."""
-        strain = 100 * self.strain_ratio * motion.calc_peak(
+        return 100 * motion.calc_peak(
             self.calc_strain_tf(loc_input, loc_layer))
-        return strain
 
 
 class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
@@ -387,8 +399,6 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         a, b = np.linalg.lstsq(A, np.log(strain_fas[mask]))[0]
         # FIXME: this is a modification of the published method that ensures a
         # smooth transition in the strain
-        strains = np.minimum(1, np.exp(-a * freqs) / np.power(freqs, b))
+        strains_max = np.minimum(1, np.exp(-a * freqs) / np.power(freqs, b))
 
-        # Scale the frequency dependence by the effective strain
-        strains *= strain_eff
-        return strains
+        return self.strain_ratio * strains_max
