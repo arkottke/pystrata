@@ -256,7 +256,7 @@ class StressTSOutput(TimeSeriesOutput):
     def _get_trans_func(self, calc, location):
         tf = calc.calc_stress_tf(calc.loc_input, location, self.damped)
         # Correct by effective stress at depth
-        tf /= location.vert_stress(effective=True)
+        tf /= location.stress_vert(effective=True)
         return tf
 
 

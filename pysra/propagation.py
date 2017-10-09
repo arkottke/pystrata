@@ -180,7 +180,7 @@ class LinearElasticCalculator(object):
             # damping
             tf *= lout.layer.comp_shear_mod
         else:
-            tf *= lout.layer.shear_mod.value
+            tf *= lout.layer.shear_mod
 
         return tf
 

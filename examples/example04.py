@@ -25,7 +25,7 @@ import numpy as np
 import pysra
 
 soil_type = pysra.site.DarendeliSoilType(
-    'Soil', 18., plas_index=0, ocr=1, mean_stress=0.5)
+    'Soil', 18., plas_index=0, ocr=1, stress_mean=0.5)
 n = 30
 correlation = 0
 

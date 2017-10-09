@@ -60,11 +60,11 @@ def test_nlp_update(nlp):
 
 @pytest.fixture
 def soil_type_darendeli():
-    mean_stress = 0.25 / site.KPA_TO_ATM
+    stress_mean = 0.25 / site.KPA_TO_ATM
     return site.DarendeliSoilType(
         plas_index=30,
         ocr=1.0,
-        mean_stress=mean_stress,
+        stress_mean=stress_mean,
         freq=1,
         num_cycles=10,
         strains=[1E-5, 2.2E-3, 1E-0], )
@@ -96,8 +96,8 @@ def test_soil_type_linear():
     layer = site.Layer(site.SoilType('', 18.0, None, damping), 2., 500.)
     layer.strain = 0.1
 
-    assert_allclose(layer.shear_mod.value, layer.initial_shear_mod)
-    assert_allclose(layer.damping.value, damping)
+    assert_allclose(layer.shear_mod, layer.initial_shear_mod)
+    assert_allclose(layer.damping, damping)
 
 
 def test_soil_type_iterative():
@@ -111,9 +111,9 @@ def test_soil_type_iterative():
     strain = 0.1
     layer.strain = strain
 
-    assert_allclose(layer.strain.value, strain)
-    assert_allclose(layer.shear_mod.value, 0.5 * layer.initial_shear_mod)
-    assert_allclose(layer.damping.value, 5.0)
+    assert_allclose(layer.strain, strain)
+    assert_allclose(layer.shear_mod, 0.5 * layer.initial_shear_mod)
+    assert_allclose(layer.damping, 5.0)
 
 
 with open(
@@ -123,7 +123,7 @@ with open(
 
 
 def format_kishida_case_id(case):
-    fmt = "({mean_stress:.1f} kN/m², OC={organic_content:.0f} %)"
+    fmt = "({stress_mean:.1f} kN/m², OC={organic_content:.0f} %)"
     return fmt.format(**case)
 
 
@@ -132,7 +132,7 @@ def test_kishida_unit_wt(case):
     st = site.KishidaSoilType(
         'test',
         unit_wt=None,
-        mean_stress=case['mean_stress'],
+        stress_vert=case['stress_vert'],
         organic_content=case['organic_content'],
         strains=case['strains'])
     assert_allclose(
@@ -150,11 +150,13 @@ def test_kishida_nlc(case, curve, attr, key):
     st = site.KishidaSoilType(
         'test',
         unit_wt=None,
-        mean_stress=case['mean_stress'],
+        stress_vert=case['stress_vert'],
         organic_content=case['organic_content'],
         strains=case['strains'])
+    # Decimal damping used inside PYSRA
+    scale = 100 if key == 'dampings' else 1
     assert_allclose(
-        getattr(getattr(st, curve), attr), case[key], rtol=0.005, atol=0.0005)
+        scale * getattr(getattr(st, curve), attr), case[key], rtol=0.005, atol=0.0005)
 
 
 @pytest.mark.parametrize(

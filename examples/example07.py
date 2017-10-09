@@ -28,7 +28,7 @@ motion.calc_fourier_amps()
 profile = pysra.site.Profile([
     pysra.site.Layer(
         pysra.site.DarendeliSoilType(
-            'Soil', 18., plas_index=0, ocr=1, mean_stress=0.50), 30, 400),
+            'Soil', 18., plas_index=0, ocr=1, stress_mean=0.50), 30, 400),
     pysra.site.Layer(pysra.site.SoilType('Rock', 24., None, 0.01), 0, 1200),
 ])
 

@@ -248,7 +248,7 @@ class DarendeliSoilType(ModifiedHyperbolicSoilType):
         plasticity index [percent]
     ocr: float, default=1
         overconsolidation ratio
-    mean_stress: float, default=101.3
+    stress_mean: float, default=101.3
         mean effective stress [kN/m²]
     freq: float, default=1
         excitation frequency [Hz]
@@ -262,14 +262,14 @@ class DarendeliSoilType(ModifiedHyperbolicSoilType):
                  unit_wt=0.,
                  plas_index=0,
                  ocr=1,
-                 mean_stress=101.3,
+                 stress_mean=101.3,
                  freq=1,
                  num_cycles=10,
                  strains=None):
 
         self._plas_index = plas_index
         self._ocr = ocr
-        self._mean_stress = mean_stress
+        self._stress_mean = stress_mean
         self._freq = freq
 
         strain_ref = self._calc_strain_ref()
@@ -281,19 +281,19 @@ class DarendeliSoilType(ModifiedHyperbolicSoilType):
 
     def _calc_damping_min(self):
         return ((0.8005 + 0.0129 * self._plas_index * self._ocr ** -0.1069) *
-                (self._mean_stress * KPA_TO_ATM)
+                (self._stress_mean * KPA_TO_ATM)
                 ** -0.2889 * (1 + 0.2919 * np.log(self._freq)))
 
     def _calc_strain_ref(self):
         return ((0.0352 + 0.0010 * self._plas_index * self._ocr ** 0.3246) *
-                (self._mean_stress * KPA_TO_ATM) ** 0.3483)
+                (self._stress_mean * KPA_TO_ATM) ** 0.3483)
 
     def _calc_curvature(self):
         return 0.9190
 
     def _create_name(self):
         fmt = "Darendeli (PI={:.0f}, OCR={:.1f}, σₘ'={:.1f} kN/m²)"
-        return fmt.format(self._plas_index, self._ocr, self._mean_stress)
+        return fmt.format(self._plas_index, self._ocr, self._stress_mean)
 
 
 class MenqSoilType(ModifiedHyperbolicSoilType):
@@ -308,7 +308,7 @@ class MenqSoilType(ModifiedHyperbolicSoilType):
         uniformity coeffecient (Cᵤ)
     diam_mean: float, default=5
         mean diameter (D₅₀) [mm]
-    mean_stress: float, default=101.3
+    stress_mean: float, default=101.3
         mean effective stress [kN/m²]
     num_cycles: float, default=10
         number of cycles of loading
@@ -320,13 +320,13 @@ class MenqSoilType(ModifiedHyperbolicSoilType):
                  unit_wt=0.,
                  uniformity_coeff=10,
                  diam_mean=5,
-                 mean_stress=1,
+                 stress_mean=101.3,
                  num_cycles=10,
                  strains=None):
 
         self._uniformity_coeff = uniformity_coeff
         self._diam_mean = diam_mean
-        self._mean_stress = mean_stress
+        self._stress_mean = stress_mean
         self._num_cycles = num_cycles
 
         strain_ref = self._calc_strain_ref()
@@ -338,19 +338,19 @@ class MenqSoilType(ModifiedHyperbolicSoilType):
 
     def _calc_damping_min(self):
         return (0.55 * self._uniformity_coeff**0.1 *
-                self._diam_mean**-0.3 * self._mean_stress**-0.08)
+                self._diam_mean**-0.3 * self._stress_mean**-0.08)
 
     def _calc_strain_ref(self):
         return (0.12 * self._uniformity_coeff**-0.6 *
-                self._mean_stress ** (0.5 * self._uniformity_coeff**-0.15))
+                self._stress_mean ** (0.5 * self._uniformity_coeff**-0.15))
 
     def _calc_curvature(self):
-        return (0.86 + 0.1 * np.log10(self._mean_stress * KPA_TO_ATM))
+        return (0.86 + 0.1 * np.log10(self._stress_mean * KPA_TO_ATM))
 
-    def _nlp_name(self):
+    def _create_name(self):
         fmt = "Menq (Cᵤ={:.1f}, D₅₀={:.1f} mm, σₘ'={:.1f} kN/m²)"
         return fmt.format(self._uniformity_coeff, self._diam_mean,
-                          self._mean_stress)
+                          self._stress_mean)
 
 
 class FixedValues:
@@ -373,8 +373,8 @@ class KishidaSoilType(SoilType):
     unit_wt:  float or None, default=None
         unit weight of the material [kN/m³]. If *None*, then unit weight is
         computed by the empirical model.
-    mean_stress: float
-        mean effective stress [kN/m²]
+    stress_vert: float
+        vertical effective stress [kN/m²]
     organic_content: float
         organic_content [percent]
     lab_consol_ratio: float, default=1
@@ -390,13 +390,13 @@ class KishidaSoilType(SoilType):
     def __init__(self,
                  name='',
                  unit_wt=None,
-                 mean_stress=101.3,
+                 stress_vert=101.3,
                  organic_content=10,
                  lab_consol_ratio=1,
                  strains=None):
         super().__init__(name, unit_wt)
 
-        self._mean_stress = float(mean_stress)
+        self._stress_vert = float(stress_vert)
         self._organic_content = float(organic_content)
         self._lab_consol_ratio = float(lab_consol_ratio)
 
@@ -413,7 +413,7 @@ class KishidaSoilType(SoilType):
         x_3 = 2. / (1 + np.exp(self._organic_content / 23))
         strain_ref = self._calc_strain_ref(x_3, x_3_mean)
         x_1 = np.log(strains + strain_ref)
-        x_2 = np.log(self._mean_stress)
+        x_2 = np.log(self._stress_vert)
 
         if unit_wt is None:
             self._unit_wt = self._calc_unit_wt(x_2, x_3)
@@ -429,10 +429,11 @@ class KishidaSoilType(SoilType):
                                           x_2, x_2_mean, x_3, x_3_mean)
         dampings = self._calc_damping(mod_reducs, x_2, x_2_mean, x_3, x_3_mean)
 
-        self.mod_reduc = NonlinearProperty(self._nlp_name(), strains,
-                                           mod_reducs, 'mod_reduc')
-        self.damping = NonlinearProperty(self._nlp_name(), strains, dampings,
-                                         'damping')
+        name = self._create_name()
+        self.mod_reduc = NonlinearProperty(
+            name, strains, mod_reducs, 'mod_reduc')
+        self.damping = NonlinearProperty(
+            name, strains, dampings, 'damping')
 
     def _calc_strain_ref(self, x_3, x_3_mean):
         """Compute the reference strain using Equation (6)."""
@@ -474,7 +475,7 @@ class KishidaSoilType(SoilType):
         c = np.c_[2.86, 0.571, -0.103, -0.141, 0.0419, -0.240]
 
         ln_damping = (c * x).sum(axis=1)
-        return np.exp(ln_damping)
+        return np.exp(ln_damping) / 100.
 
     def _calc_unit_wt(self, x_1, x_2):
         x = np.r_[1, x_1, x_2]
@@ -484,9 +485,9 @@ class KishidaSoilType(SoilType):
         unit_wt = np.exp(ln_density) * scipy.constants.g
         return unit_wt
 
-    def _nlp_name(self):
-        return "Kishida (σₘ'={:.1f} kN/m², OC={:.0f} %)".format(
-            self._mean_stress, self._organic_content)
+    def _create_name(self):
+        return "Kishida (σᵥ'={:.1f} kN/m², OC={:.0f} %)".format(
+            self._stress_vert, self._organic_content)
 
 
 # TODO: for nonlinear site response this class wouldn't be used. Better way
