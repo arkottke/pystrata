@@ -48,11 +48,10 @@ class TestDarendeliVariation:
     @classmethod
     def setup_class(cls):
         cls.st = site.DarendeliSoilType(
-            'Test',
             unit_wt=16,
             plas_index=0,
             ocr=1,
-            mean_stress=1 / site.KPA_TO_ATM,
+            stress_mean=1 / site.KPA_TO_ATM,
             freq=1,
             num_cycles=10,
             strains=[1E-5, 2.2E-3, 1E0], )

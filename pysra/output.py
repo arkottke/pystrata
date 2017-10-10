@@ -34,6 +34,10 @@ class OutputCollection(collections.UserList):
         for o in self.data:
             o(calc, name=name)
 
+    def reset(self):
+        for o in self.data:
+            o.reset()
+
 
 def append_arrays(many, single):
     """Append an array to another padding with NaNs for constant length.
@@ -67,6 +71,8 @@ def append_arrays(many, single):
 
 
 class Output(object):
+    _const_ref = False
+
     def __init__(self, refs=None):
         self._refs = refs if refs is None else np.asarray(refs)
         self._values = None
@@ -94,6 +100,12 @@ class Output(object):
     @property
     def names(self):
         return self._names
+
+    def reset(self):
+        self._values = None
+        self._names = []
+        if not self._const_ref:
+            self._refs = None
 
     def iter_results(self):
         shared_ref = len(self.refs.shape) == 1
@@ -244,11 +256,12 @@ class StressTSOutput(TimeSeriesOutput):
     def _get_trans_func(self, calc, location):
         tf = calc.calc_stress_tf(calc.loc_input, location, self.damped)
         # Correct by effective stress at depth
-        tf /= location.vert_stress(effective=True)
+        tf /= location.stress_vert(effective=True)
         return tf
 
 
 class ResponseSpectrumOutput(LocationBasedOutput):
+    _const_ref = True
     xlabel = 'Frequency (Hz)'
     # fixme: Include damping?
     ylabel = 'Spectral Accel. (g)'
@@ -316,6 +329,8 @@ class AccelTransferFunctionOutput(RatioBasedOutput):
 
 
 class ResponseSpectrumRatioOutput(RatioBasedOutput):
+    _const_ref = True
+
     def __init__(self, freqs, location_in, location_out, osc_damping):
         super().__init__(freqs, location_in, location_out)
         self._osc_damping = osc_damping
@@ -343,3 +358,43 @@ class ResponseSpectrumRatioOutput(RatioBasedOutput):
                                                   calc.loc_input, loc_out))
         ratio = out_ars / in_ars
         self._add_values(ratio)
+
+
+class ProfileBasedOutput(Output):
+    def __init__(self):
+        super().__init__()
+
+    def __call__(self, calc, name=None):
+        Output.__call__(self, calc, name)
+        depths = [0] + [l.depth_mid for l in calc.profile[:-1]]
+        self._add_refs(depths)
+
+
+class MaxStrainProfile(ProfileBasedOutput):
+    def __init__(self):
+        super().__init__()
+
+    def __call__(self, calc, name=None):
+        ProfileBasedOutput.__call__(self, calc, name)
+        values = [0] + [l.strain for l in calc.profile[:-1]]
+        self._add_values(values)
+
+
+class CyclicStressRatioProfile(ProfileBasedOutput):
+    # From Idriss and Boulanger (2008, pg. 70):
+    # The 0.65 is a constant used to represent the reference stress
+    # level. While being somewhat arbitrary it was selected in the
+    # beginning of the development of liquefaction procedures in 1966
+    # and has been in use ever since.
+    _stress_level = 0.65
+
+    def __init__(self):
+        super().__init__()
+
+    def __call__(self, calc, name=None):
+        ProfileBasedOutput.__call__(self, calc, name)
+        values = [l.stress_shear_max / l.stress_vert(l.thickness / 2, True)
+                        for l in calc.profile[:-1]]
+        # Repeat the first value for the surface
+        values = self._stress_level * np.array([values[0]] + values)
+        self._add_values(values)
