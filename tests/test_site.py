@@ -156,7 +156,11 @@ def test_kishida_nlc(case, curve, attr, key):
     # Decimal damping used inside PYSRA
     scale = 100 if key == 'dampings' else 1
     assert_allclose(
-        scale * getattr(getattr(st, curve), attr), case[key], rtol=0.005, atol=0.0005)
+        scale * getattr(getattr(st, curve), attr),
+        case[key],
+        rtol=0.005,
+        atol=0.0005
+    )
 
 
 @pytest.mark.parametrize(
