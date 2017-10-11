@@ -20,5 +20,5 @@ deploy:
       PQ==
   on:
     distributions: sdist bdist_wheel
-    repo: arkottke/pyrvt
+    repo: arkottke/pysra
     tags: true
