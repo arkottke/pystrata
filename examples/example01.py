@@ -20,7 +20,6 @@
 """Compute transfer functions for within and outcrop conditions."""
 
 import collections
-import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -33,32 +32,16 @@ profiles = [
     # Initial
     pysra.site.Profile([
         pysra.site.Layer(
-            pysra.site.SoilType(
-                'Soil', 18., None, 0.05
-            ),
-            30, 400
-        ),
+            pysra.site.SoilType('Soil', 18., None, 0.05), 30, 400),
         pysra.site.Layer(
-            pysra.site.SoilType(
-                'Rock', 24., None, 0.01
-            ),
-            0, 1200
-        ),
+            pysra.site.SoilType('Rock', 24., None, 0.01), 0, 1200),
     ]),
     # Reduced properties
     pysra.site.Profile([
         pysra.site.Layer(
-            pysra.site.SoilType(
-                'Soil', 18., None, 0.08
-            ),
-            30, 300
-        ),
+            pysra.site.SoilType('Soil', 18., None, 0.08), 30, 300),
         pysra.site.Layer(
-            pysra.site.SoilType(
-                'Rock', 24., None, 0.01
-            ),
-            0, 1200
-        ),
+            pysra.site.SoilType('Rock', 24., None, 0.01), 0, 1200),
     ])
 ]
 
@@ -68,8 +51,7 @@ wave_fields = [
 ]
 
 calc = pysra.propagation.LinearElasticCalculator()
-
-rsrs = collections.OrderedDict()
+records = []
 for wave_field in wave_fields:
     trans_funcs = []
     for p in profiles:
@@ -78,13 +60,14 @@ for wave_field in wave_fields:
 
         calc(motion, p.data, bedrock)
         trans_funcs.append(calc.calc_accel_tf(bedrock, surface))
-
-    rsrs[wave_field] = np.abs(trans_funcs[1]) / np.abs(trans_funcs[0])
+    records.append(
+        (wave_field, np.abs(trans_funcs[1]) / np.abs(trans_funcs[0]))
+    )
 
 fig, ax = plt.subplots()
 
-for (label, rsr), color in zip(rsrs.items(), ['red', 'blue']):
-    ax.plot(motion.freqs, rsr, '-', color=color, label=label)
+for label, rsr in records:
+    ax.plot(motion.freqs, rsr, '-', label=label)
 
 ax.set_xlabel('Frequency (Hz)')
 ax.set_xscale('log')

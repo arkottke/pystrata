@@ -19,31 +19,57 @@
 
 
 import os
+
+import numpy as np
 import pytest
 
-from numpy.testing import assert_almost_equal, assert_equal
+from numpy.testing import assert_allclose, assert_equal
 
 from pysra import motion
 
 
 @pytest.fixture
 def tsm():
-    '''Setup the default time series for testing.'''
+    """Create a default time series for testing."""
     return motion.TimeSeriesMotion.load_at2_file(
         os.path.join(os.path.dirname(__file__), 'data', 'NIS090.AT2'))
 
 
 def test_ts_load_at2_file(tsm):
+    """Test loading of an AT2 file."""
     assert_equal(tsm.accels.size, 4096)
-    assert_almost_equal(tsm.time_step, 0.01)
+    assert_allclose(tsm.time_step, 0.01)
+    assert_allclose(tsm.accels[0], 0.233833E-06)
+    assert_allclose(tsm.accels[-1], 0.496963E-04)
 
-    assert_almost_equal(tsm.accels[0], 0.233833E-06)
-    assert_almost_equal(tsm.accels[-1], 0.496963E-04)
+
+def test_ts_times(tsm):
+    """Test times."""
+    assert_allclose(
+        [tsm.times[0], tsm.times[1], tsm.times[-1]],
+        [0, tsm.time_step, tsm.time_step * (len(tsm.accels) - 1)],
+    )
 
 
 def test_ts_freqs(tsm):
+    """Test calculation of a time series frequencies."""
     freqs = tsm.freqs
-    assert_almost_equal(freqs[0], 0)
-    assert_almost_equal(freqs[-1], 50.)
-
     assert_equal(tsm.freqs.size, tsm.fourier_amps.size)
+    assert_allclose(freqs[0], 0)
+    assert_allclose(freqs[-1], 50.)
+
+
+def test_ts_fft(tsm):
+    """Test FFT with no transfer function."""
+    assert_allclose(
+        tsm.accels,
+        tsm.calc_time_series(),
+    )
+
+
+def test_ts_fft_with_tf(tsm):
+    """Test FFT with a transfer function."""
+    assert_allclose(
+        tsm.accels,
+        tsm.calc_time_series(2 * np.ones_like(tsm.freqs)) / 2,
+    )

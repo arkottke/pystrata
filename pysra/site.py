@@ -21,9 +21,14 @@ import collections
 
 import numpy as np
 
+import scipy.constants
 from scipy.interpolate import interp1d
 
 from .motion import WaveField, GRAVITY
+
+COMP_MODULUS_MODEL = 'dormieux'
+
+KPA_TO_ATM = scipy.constants.kilo / scipy.constants.atm
 
 
 class NonlinearProperty(object):
@@ -62,7 +67,7 @@ class NonlinearProperty(object):
 
         self._update()
 
-    def __call__(self, strain):
+    def __call__(self, strains):
         """Return the nonlinear property at a specific strain.
 
         If the strain is within the range of the provided strains, then the
@@ -76,23 +81,16 @@ class NonlinearProperty(object):
 
         Parameters
         ----------
-        strain: float
+        strains: float or array_like
             Shear strain of interest [decimal].
 
         Returns
         -------
-        float
-            The nonlinear property at the requested strain.
+        float or array_like
+            The nonlinear property at the requested strain(s).
         """
-
-        if strain < self.strains[0]:
-            value = self.values[0]
-        elif strain > self.strains[-1]:
-            value = self.values[-1]
-        else:
-            value = self._interpolater(np.log(strain))
-
-        return value
+        values = self._interpolater(np.log(strains))
+        return values
 
     @property
     def strains(self):
@@ -133,57 +131,19 @@ class NonlinearProperty(object):
             y = self.values
 
             if x.size < 4:
-                self._interpolater = interp1d(x, y, 'linear')
+                self._interpolater = interp1d(
+                    x,
+                    y,
+                    'linear',
+                    bounds_error=False,
+                    fill_value=(y[0], y[-1]))
             else:
-                self._interpolater = interp1d(x, y, 'cubic')
-
-
-class DarendeliNonlinearProperty(NonlinearProperty):
-    def __init__(self, plas_index, ocr, mean_stress, freq=1, num_cycles=10,
-                 strains=np.logspace(-4, 0.5, num=20), param='mod_reduc'):
-        strains = np.asarray(strains)
-
-        name = "Darendeli (PI={:.0f}, OCR={:.1f}, s'_v={:.1f} atm)".format(
-            plas_index, ocr, mean_stress)
-        # Compute the reference strain based on the PI, OCR, and mean stress
-        strain_ref = ((0.0352 + 0.0010 * plas_index * ocr ** 0.3246) *
-                      mean_stress ** 0.3483)
-        curvature = 0.9190
-        mod_reduc = 1 / (1 + (strains / strain_ref) ** curvature)
-
-        if param == 'damping':
-            # Empirical minimum damping
-            damping_min = ((0.8005 + 0.0129 * plas_index * ocr ** -0.1069) *
-                           mean_stress ** -0.2889 *
-                           (1 + 0.2919 * np.log(freq)))
-            # Masing damping based on shear-modulus reduction
-            damping_masing_a1 = (
-                (100./np.pi) *
-                (4 * (strains - strain_ref *
-                      np.log((strains + strain_ref) / strain_ref)) /
-                 (strains ** 2 / (strains + strain_ref)) - 2.)
-            )
-            # Correction between perfect hyperbolic strain model and modified
-            # model.
-            c1 = -1.1143 * curvature ** 2 + 1.8618 * curvature + 0.2523
-            c2 = 0.0805 * curvature ** 2 - 0.0710 * curvature - 0.0095
-            c3 = -0.0005 * curvature ** 2 + 0.0002 * curvature + 0.0003
-            damping_masing = (c1 * damping_masing_a1 +
-                              c2 * damping_masing_a1 ** 2 +
-                              c3 * damping_masing_a1 ** 3)
-            # Masing correction factor
-            masing_corr = 0.6329 - 0.00566 * np.log(num_cycles)
-            # Compute the damping in percent
-            damping = (damping_min +
-                       damping_masing * masing_corr * mod_reduc ** 0.1)
-            # Convert to decimal values
-            values = damping / 100.
-        else:
-            values = mod_reduc
-
-        super(DarendeliNonlinearProperty, self).__init__(
-                name, strains, values, param
-        )
+                self._interpolater = interp1d(
+                    x,
+                    y,
+                    'cubic',
+                    bounds_error=False,
+                    fill_value=(y[0], y[-1]))
 
 
 class SoilType(object):
@@ -193,7 +153,7 @@ class SoilType(object):
     ----------
     name: str, optional
         used for identification
-    unit_wt  float
+    unit_wt:  float
         unit weight of the material in [kN/m³]
     mod_reduc: :class:`NonlinearProperty` or None
         shear-modulus reduction curves. If None, linear behavior with no
@@ -210,10 +170,6 @@ class SoilType(object):
         self.damping = damping
 
     @property
-    def unit_wt(self):
-        return self._unit_wt
-
-    @property
     def density(self):
         """Density of the soil in kg/m³."""
         return self.unit_wt / GRAVITY
@@ -227,14 +183,311 @@ class SoilType(object):
             return self.damping
 
     @property
+    def unit_wt(self):
+        return self._unit_wt
+
+    @property
     def is_nonlinear(self):
         """If nonlinear properties are specified."""
-        return any(isinstance(p, NonlinearProperty)
-                   for p in [self.mod_reduc, self.damping])
+        return any(
+            isinstance(p, NonlinearProperty)
+            for p in [self.mod_reduc, self.damping])
 
     def __eq__(self, other):
-        return all(getattr(self, attr) == getattr(other, attr)
-                   for attr in ['name', 'unit_wt', 'mod_reduc', 'damping'])
+        return all(
+            getattr(self, attr) == getattr(other, attr)
+            for attr in ['name', 'unit_wt', 'mod_reduc', 'damping'])
+
+
+class ModifiedHyperbolicSoilType(SoilType):
+    def __init__(self, name, unit_wt, strain_ref, curvature, damping_min,
+                 num_cycles=10, strains=None):
+        super().__init__(name, unit_wt)
+        self._num_cycles = num_cycles
+
+        strains = (
+            np.asarray(strains) if strains else np.logspace(-4, 0.5, num=20)
+        )
+        # Modified hyperbolic shear modulus reduction
+        mod_reduc = 1 / (1 + (strains / strain_ref)**curvature)
+        self.mod_reduc = NonlinearProperty(name, strains,
+                                           mod_reduc, 'mod_reduc')
+
+        # Masing damping based on shear -modulus reduction
+        damping_masing_a1 = (
+            (100. / np.pi) * (4 * (strains - strain_ref * np.log(
+                (strains + strain_ref) / strain_ref)) /
+                              (strains**2 / (strains + strain_ref)) - 2.))
+        # Correction between perfect hyperbolic strain model and modified
+        # model.
+        c1 = -1.1143 * curvature**2 + 1.8618 * curvature + 0.2523
+        c2 = 0.0805 * curvature**2 - 0.0710 * curvature - 0.0095
+        c3 = -0.0005 * curvature**2 + 0.0002 * curvature + 0.0003
+        damping_masing = (c1 * damping_masing_a1 + c2 * damping_masing_a1**2 +
+                          c3 * damping_masing_a1**3)
+
+        # Masing correction factor
+        masing_corr = 0.6329 - 0.00566 * np.log(num_cycles)
+        # Compute the damping in percent
+        damping = (damping_min + damping_masing * masing_corr * mod_reduc**0.1)
+        # Prevent the damping from reducing as it can at large strains
+        damping = np.maximum.accumulate(damping)
+        # Convert to decimal values
+        self.damping = NonlinearProperty(name, strains,
+                                         damping / 100., 'damping')
+
+class DarendeliSoilType(ModifiedHyperbolicSoilType):
+    """
+    Darendeli (2001) model for fine grained soils.
+
+    Parameters
+    ----------
+    unit_wt:  float
+        unit weight of the material [kN/m³]
+    plas_index: float, default=0
+        plasticity index [percent]
+    ocr: float, default=1
+        overconsolidation ratio
+    stress_mean: float, default=101.3
+        mean effective stress [kN/m²]
+    freq: float, default=1
+        excitation frequency [Hz]
+    num_cycles: float, default=10
+        number of cycles of loading
+    strains: `array_like`, default: np.logspace(-4, 0.5, num=20)
+        shear strains levels
+    """
+
+    def __init__(self,
+                 unit_wt=0.,
+                 plas_index=0,
+                 ocr=1,
+                 stress_mean=101.3,
+                 freq=1,
+                 num_cycles=10,
+                 strains=None):
+
+        self._plas_index = plas_index
+        self._ocr = ocr
+        self._stress_mean = stress_mean
+        self._freq = freq
+
+        strain_ref = self._calc_strain_ref()
+        curvature = self._calc_curvature()
+        damping_min = self._calc_damping_min()
+        name = self._create_name()
+
+        super().__init__(name, unit_wt, strain_ref, curvature, damping_min, num_cycles, strains)
+
+    def _calc_damping_min(self):
+        return ((0.8005 + 0.0129 * self._plas_index * self._ocr ** -0.1069) *
+                (self._stress_mean * KPA_TO_ATM)
+                ** -0.2889 * (1 + 0.2919 * np.log(self._freq)))
+
+    def _calc_strain_ref(self):
+        return ((0.0352 + 0.0010 * self._plas_index * self._ocr ** 0.3246) *
+                (self._stress_mean * KPA_TO_ATM) ** 0.3483)
+
+    def _calc_curvature(self):
+        return 0.9190
+
+    def _create_name(self):
+        fmt = "Darendeli (PI={:.0f}, OCR={:.1f}, σₘ'={:.1f} kN/m²)"
+        return fmt.format(self._plas_index, self._ocr, self._stress_mean)
+
+
+class MenqSoilType(ModifiedHyperbolicSoilType):
+    """
+    Menq SoilType for gravelly soils.
+
+    Parameters
+    ----------
+    unit_wt:  float
+        unit weight of the material [kN/m³]
+    uniformity_coeff: float, default=10
+        uniformity coeffecient (Cᵤ)
+    diam_mean: float, default=5
+        mean diameter (D₅₀) [mm]
+    stress_mean: float, default=101.3
+        mean effective stress [kN/m²]
+    num_cycles: float, default=10
+        number of cycles of loading
+    strains: `array_like`, default: np.logspace(-4, 0.5, num=20)
+        shear strains levels
+    """
+
+    def __init__(self,
+                 unit_wt=0.,
+                 uniformity_coeff=10,
+                 diam_mean=5,
+                 stress_mean=101.3,
+                 num_cycles=10,
+                 strains=None):
+
+        self._uniformity_coeff = uniformity_coeff
+        self._diam_mean = diam_mean
+        self._stress_mean = stress_mean
+        self._num_cycles = num_cycles
+
+        strain_ref = self._calc_strain_ref()
+        curvature = self._calc_curvature()
+        damping_min = self._calc_damping_min()
+        name = self._create_name()
+
+        super().__init__(name, unit_wt, strain_ref, curvature, damping_min, num_cycles, strains)
+
+    def _calc_damping_min(self):
+        return (0.55 * self._uniformity_coeff**0.1 *
+                self._diam_mean**-0.3 * self._stress_mean**-0.08)
+
+    def _calc_strain_ref(self):
+        return (0.12 * self._uniformity_coeff**-0.6 *
+                self._stress_mean ** (0.5 * self._uniformity_coeff**-0.15))
+
+    def _calc_curvature(self):
+        return (0.86 + 0.1 * np.log10(self._stress_mean * KPA_TO_ATM))
+
+    def _create_name(self):
+        fmt = "Menq (Cᵤ={:.1f}, D₅₀={:.1f} mm, σₘ'={:.1f} kN/m²)"
+        return fmt.format(self._uniformity_coeff, self._diam_mean,
+                          self._stress_mean)
+
+
+class FixedValues:
+    """Utility class to store fixed values"""
+
+    def __init__(self, **kwds):
+        self._params = kwds
+
+    def __getattr__(self, name):
+        return self._params[name]
+
+
+class KishidaSoilType(SoilType):
+    """Empirical nonlinear model for highly organic soils.
+
+    Parameters
+    ----------
+    name: str, optional
+        used for identification
+    unit_wt:  float or None, default=None
+        unit weight of the material [kN/m³]. If *None*, then unit weight is
+        computed by the empirical model.
+    stress_vert: float
+        vertical effective stress [kN/m²]
+    organic_content: float
+        organic_content [percent]
+    lab_consol_ratio: float, default=1
+        laboratory consolidation ratio. This parameter is included for
+        completeness, but the default value of 1 should be used for field
+        applications.
+    strains: `array_like` or None
+        shear strains levels. If *None*, a default of `np.logspace(-4, 0.5,
+        num=20)` will be used. The first strain should be small such that the
+        shear modulus reduction is equal to 1.
+    """
+
+    def __init__(self,
+                 name='',
+                 unit_wt=None,
+                 stress_vert=101.3,
+                 organic_content=10,
+                 lab_consol_ratio=1,
+                 strains=None):
+        super().__init__(name, unit_wt)
+
+        self._stress_vert = float(stress_vert)
+        self._organic_content = float(organic_content)
+        self._lab_consol_ratio = float(lab_consol_ratio)
+
+        if strains is None:
+            strains = np.logspace(-4, 0.5, num=20)
+        else:
+            strains = np.asarray(strains)
+
+        # Mean values of the predictors defined in the paper
+        x_1_mean = -2.5
+        x_2_mean = 4.0
+        x_3_mean = 0.5
+        # Predictor variables
+        x_3 = 2. / (1 + np.exp(self._organic_content / 23))
+        strain_ref = self._calc_strain_ref(x_3, x_3_mean)
+        x_1 = np.log(strains + strain_ref)
+        x_2 = np.log(self._stress_vert)
+
+        if unit_wt is None:
+            self._unit_wt = self._calc_unit_wt(x_2, x_3)
+        else:
+            self._unit_wt = float(unit_wt)
+
+        # Convert to 1D arrays for matrix math support
+        ones = np.ones_like(strains)
+        x_2 = x_2 * ones
+        x_3 = x_3 * ones
+
+        mod_reducs = self._calc_mod_reduc(strains, strain_ref, x_1, x_1_mean,
+                                          x_2, x_2_mean, x_3, x_3_mean)
+        dampings = self._calc_damping(mod_reducs, x_2, x_2_mean, x_3, x_3_mean)
+
+        name = self._create_name()
+        self.mod_reduc = NonlinearProperty(
+            name, strains, mod_reducs, 'mod_reduc')
+        self.damping = NonlinearProperty(
+            name, strains, dampings, 'damping')
+
+    def _calc_strain_ref(self, x_3, x_3_mean):
+        """Compute the reference strain using Equation (6)."""
+        b_9 = -1.41
+        b_10 = -0.950
+        return np.exp(b_9 + b_10 * (x_3 - x_3_mean))
+
+    def _calc_mod_reduc(self, strains, strain_ref, x_1, x_1_mean, x_2,
+                        x_2_mean, x_3, x_3_mean):
+        """Compute the shear modulus reduction using Equation (1)."""
+
+        ones = np.ones_like(strains)
+        # Predictor
+        x_4 = np.log(self._lab_consol_ratio) * ones
+        x = np.c_[ones, x_1, x_2, x_3, x_4, (x_1 - x_1_mean) * (
+            x_2 - x_2_mean), (x_1 - x_1_mean) * (x_3 - x_3_mean), (
+                x_2 - x_2_mean) * (x_3 - x_3_mean), (x_1 - x_1_mean) * (
+                    x_2 - x_2_mean) * (x_3 - x_3_mean)]
+        # Coefficients
+        denom = np.log(1 / strain_ref + strains / strain_ref)
+        b = np.c_[5.11 * ones, -0.729 * ones, (1 - 0.37 * x_3_mean * (1 + ((
+            np.log(strain_ref) - x_1_mean) / denom))), -0.693 * ones, 0.8 - 0.4
+                  * x_3, 0.37 * x_3_mean / denom, 0.0 * ones, -0.37 * (1 + (
+                      np.log(strain_ref) - x_1_mean) / denom), 0.37 / denom, ]
+        ln_shear_mod = (b * x).sum(axis=1)
+        shear_mod = np.exp(ln_shear_mod)
+        mod_reduc = shear_mod / shear_mod[0]
+        return mod_reduc
+
+    def _calc_damping(self, mod_reducs, x_2, x_2_mean, x_3, x_3_mean):
+        """Compute the damping ratio using Equation (16)."""
+        # Mean values of the predictors
+        x_1_mean = -1.0
+        x_1 = np.log(np.log(1 / mod_reducs) + 0.103)
+
+        ones = np.ones_like(mod_reducs)
+        x = np.c_[ones, x_1, x_2, x_3, (x_1 - x_1_mean) * (x_2 - x_2_mean), (
+            x_2 - x_2_mean) * (x_3 - x_3_mean)]
+        c = np.c_[2.86, 0.571, -0.103, -0.141, 0.0419, -0.240]
+
+        ln_damping = (c * x).sum(axis=1)
+        return np.exp(ln_damping) / 100.
+
+    def _calc_unit_wt(self, x_1, x_2):
+        x = np.r_[1, x_1, x_2]
+        d = np.r_[-0.112, 0.038, 0.360]
+
+        ln_density = d.T @ x
+        unit_wt = np.exp(ln_density) * scipy.constants.g
+        return unit_wt
+
+    def _create_name(self):
+        return "Kishida (σᵥ'={:.1f} kN/m², OC={:.0f} %)".format(
+            self._stress_vert, self._organic_content)
 
 
 # TODO: for nonlinear site response this class wouldn't be used. Better way
@@ -261,11 +514,22 @@ class IterativeValue(object):
     def relative_error(self):
         """The relative error, in percent, between the two iterations.
         """
-        if self.previous:
-            err = 100. * (self.previous - self.value) / self.value
+        if self.previous is not None:
+            # FIXME
+            # Use the maximum strain value -- this is important for error calculation
+            # with frequency dependent properties
+            # prev = np.max(self.previous)
+            # value = np.max(self.value)
+            try:
+                err = 100. * np.max((self.previous - self.value) / self.value)
+            except ZeroDivisionError:
+                err = np.inf
         else:
             err = 0
         return err
+
+    def reset(self):
+        self._previous = None
 
 
 class Layer(object):
@@ -279,12 +543,14 @@ class Layer(object):
         self._thickness = thickness
         self._initial_shear_vel = shear_vel
 
-        self._shear_mod = IterativeValue(self.initial_shear_mod)
-        self._damping = IterativeValue(self.soil_type.damping_min)
-        self._strain = IterativeValue(None)
+        self._damping = None
+        self._shear_mod = None
+        self._strain = None
+        self.strain_max = None
+        self.reset()
 
         self._depth = 0
-        self._vert_stress = 0
+        self._stress_vert = 0
 
     @property
     def depth(self):
@@ -314,11 +580,15 @@ class Layer(object):
     @property
     def damping(self):
         """Strain-compatible damping."""
-        return self._damping
+        try:
+            value = self._damping.value
+        except AttributeError:
+            value = self._damping
+        return value
 
     @property
     def initial_shear_mod(self):
-        """Initial (small-strain) shear modulus from Kramer (1996) [kN/m²]."""
+        """Initial (small-strain) shear modulus [kN/m²]."""
         return self.density * self.initial_shear_vel ** 2
 
     @property
@@ -329,9 +599,27 @@ class Layer(object):
     @property
     def comp_shear_mod(self):
         """Strain-compatible complex shear modulus [kN/m²].
-
-        Frequency independent formulation."""
-        return self.shear_mod.value * (1 + 2j * self.damping.value)
+        """
+        damping = self.damping
+        if COMP_MODULUS_MODEL == 'seed':
+            # Frequency independent model (Seed et al., 1970)
+            # Correct dissipated energy
+            # Incorrect shear modulus: G * \sqrt{1 + 4 \beta^2 }
+            comp_factor = 1 + 2j * damping
+        elif COMP_MODULUS_MODEL == 'kramer':
+            # Simplifed shear modulus (Kramer, 1996)
+            # Correct dissipated energy
+            # Incorrect shear modulus: G * \sqrt{1 + 2 \beta^2 + \beta^4 }
+            comp_factor = 1 - damping ** 2 + 2j * damping
+        elif COMP_MODULUS_MODEL == 'dormieux':
+            # Dormieux and Canou (1990)
+            # Correct dissipated energy
+            # Correct shear modulus:
+            comp_factor = np.sqrt(1 - 4 * damping ** 2) + 2j * damping
+        else:
+            raise NotImplementedError
+        comp_shear_mod = self.shear_mod * comp_factor
+        return comp_shear_mod
 
     @property
     def comp_shear_vel(self):
@@ -341,24 +629,67 @@ class Layer(object):
     @property
     def max_error(self):
         return max(
-            self.shear_mod.relative_error,
-            self.damping.relative_error,
-        )
+            self._shear_mod.relative_error,
+            self._damping.relative_error, )
+
+    def reset(self):
+        self._shear_mod = IterativeValue(self.initial_shear_mod)
+        self._damping = IterativeValue(self.soil_type.damping_min)
+        self._strain = IterativeValue(None)
 
     @property
     def shear_mod(self):
         """Strain-compatible shear modulus [kN//m²]."""
-        return self._shear_mod
+        try:
+            value = self._shear_mod.value
+        except AttributeError:
+            value = self._shear_mod
+        return value
 
     @property
     def shear_vel(self):
         """Strain-compatible shear-wave velocity [m/s]."""
-        return np.sqrt(self.shear_mod.value / self.density)
+        return np.sqrt(self.shear_mod / self.density)
+
+    @property
+    def stress_shear_eff(self):
+        """Effective shear stress at layer midpoint"""
+        return self.shear_mod * self.strain / 100.
+
+    @property
+    def stress_shear_max(self):
+        """Maximum shear stress at layer midpoint"""
+        return self.shear_mod * self.strain_max / 100.
 
     @property
     def strain(self):
-        # FIXME simplify so that a float is always returned?
-        return self._strain
+        try:
+            value = self._strain.value
+        except AttributeError:
+            value = self._strain
+
+        return value
+
+    @strain.setter
+    def strain(self, strain):
+        if self.soil_type.is_nonlinear:
+            self._strain.value = strain
+        else:
+            self._strain = strain
+
+        # Update the shear modulus and damping
+        try:
+            mod_reduc = self.soil_type.mod_reduc(strain)
+        except TypeError:
+            mod_reduc = 1.
+
+        self._shear_mod.value = self.initial_shear_mod * mod_reduc
+
+        try:
+            self._damping.value = self.soil_type.damping(strain)
+        except TypeError:
+            # No iteration provided by damping
+            self._damping.value = self.soil_type.damping
 
     @property
     def soil_type(self):
@@ -374,38 +705,23 @@ class Layer(object):
         self._profile.update_layers(self, self._profile.index(self) + 1)
 
     @property
+    def travel_time(self):
+        """Travel time through the layer."""
+        return self.thickness / self.shear_vel
+
+    @property
     def unit_wt(self):
         return self.soil_type.unit_wt
 
-    def vert_stress(self, depth_within=0, effective=False):
+    def stress_vert(self, depth_within=0, effective=False):
         """Vertical stress from the top of the layer [kN//m²]."""
         assert depth_within <= self.thickness
-        vert_stress = self._vert_stress + depth_within * self.unit_wt
+        stress_vert = self._stress_vert + depth_within * self.unit_wt
         if effective:
-            pore_pressure = self._profile.pore_pressure(
-                self.depth + depth_within)
-            vert_stress -= pore_pressure
-        return vert_stress
-
-    @strain.setter
-    def strain(self, strain):
-        if self.soil_type.is_nonlinear:
-            self._strain.value = strain
-        else:
-            self._strain = strain
-
-        # Update the shear modulus and damping
-        try:
-            mod_reduc = self.soil_type.mod_reduc(strain)
-        except TypeError:
-            mod_reduc = 1.
-        self._shear_mod.value = self.initial_shear_mod * mod_reduc
-
-        try:
-            self._damping.value = self.soil_type.damping(strain)
-        except TypeError:
-            # No iteration provided by damping
-            self._damping.value = self.soil_type.damping
+            pore_pressure = self._profile.pore_pressure(self.depth +
+                                                        depth_within)
+            stress_vert -= pore_pressure
+        return stress_vert
 
     @property
     def incr_site_atten(self):
@@ -415,6 +731,7 @@ class Layer(object):
 
 class Location(object):
     """Location within a profile"""
+
     def __init__(self, index, layer, wave_field, depth_within=0):
         self._index = index
         self._layer = layer
@@ -440,19 +757,16 @@ class Location(object):
     def wave_field(self):
         return self._wave_field
 
-    def vert_stress(self, effective=False):
-        return self._layer.vert_stress(self.depth_within, effective=effective)
+    def stress_vert(self, effective=False):
+        return self._layer.stress_vert(self.depth_within, effective=effective)
 
     def __repr__(self):
-        return (
-            '<Location(layer_index={_index}, depth_within={_depth_within} '
-            'wave_field={_wave_field})>'.
-            format(**self.__dict__)
-        )
+        return ('<Location(layer_index={_index}, depth_within={_depth_within} '
+                'wave_field={_wave_field})>'.format(**self.__dict__))
 
 
 class Profile(collections.UserList):
-    """Docstring for Profile """
+    """Soil profile with an infinite halfspace at the base."""
 
     def __init__(self, layers=None, wt_depth=0):
         collections.UserList.__init__(self, layers)
@@ -463,34 +777,60 @@ class Profile(collections.UserList):
     def update_layers(self, start_layer=0):
         if start_layer < 1:
             depth = 0
-            vert_stress = 0
+            stress_vert = 0
         else:
             ref_layer = self[start_layer - 1]
             depth = ref_layer.depth_base
-            vert_stress = ref_layer.vert_stress(
+            stress_vert = ref_layer.stress_vert(
                 ref_layer.thickness, effective=False)
 
-        for l in self[start_layer:]:
-            l._profile = self
-            l._depth = depth
-            l._vert_stress = vert_stress
-            if l != self[-1]:
+        for layer in self[start_layer:]:
+            layer._profile = self
+            layer._depth = depth
+            layer._stress_vert = stress_vert
+            if layer != self[-1]:
                 # Use the layer to compute the values at the base of the
                 # layer, and apply them at the top of the next layer
-                depth = l.depth_base
-                vert_stress = l.vert_stress(l.thickness, effective=False)
+                depth = layer.depth_base
+                stress_vert = layer.stress_vert(
+                    layer.thickness, effective=False)
 
     def iter_soil_types(self):
         yielded = set()
-        for l in self:
-            if l.soil_type in yielded:
+        for layer in self:
+            if layer.soil_type in yielded:
                 continue
             else:
-                yielded.add(l)
-                yield l.soil_type
+                yielded.add(layer)
+                yield layer.soil_type
 
-    def auto_discretize(self):
-        raise NotImplementedError
+    def auto_discretize(self, max_freq=50., wave_frac=0.2):
+        """Subdivide the layers to capture strain variation.
+
+        Parameters
+        ----------
+        max_freq: float
+            Maximum frequency of interest [Hz].
+        wave_frac: float
+            Fraction of wavelength required. Typically 1/3 to 1/5.
+
+        Returns
+        -------
+        profile: Profile
+            A new profile with modified layer thicknesses
+        """
+        layers = []
+        for l in self:
+            if l.soil_type.is_nonlinear:
+                opt_thickness = l.shear_vel / max_freq * wave_frac
+                count = np.ceil(l.thickness / opt_thickness).astype(int)
+                thickness = l.thickness / count
+                for _ in range(count):
+                    layers.append(Layer(l.soil_type, thickness, l.shear_vel))
+            else:
+                layers.append(l)
+
+        return Profile(layers, wt_depth=self.wt_depth)
 
     def pore_pressure(self, depth):
         """Pore pressure at a given depth in [kN//m²].
@@ -501,11 +841,11 @@ class Profile(collections.UserList):
 
         Returns
         -------
-
+        pore_pressure
         """
         return GRAVITY * max(depth - self.wt_depth, 0)
 
-    def calc_site_attenuation(self):
+    def site_attenuation(self):
         return sum(l.incr_site_atten for l in self)
 
     def location(self, wave_field, depth=None, index=None):
@@ -532,20 +872,82 @@ class Profile(collections.UserList):
             wave_field = WaveField[wave_field]
 
         if index is None and depth is not None:
-            for i, l in enumerate(self[:-1]):
-                if l.depth <= depth < l.depth_base:
-                    depth_within = depth - l.depth
+            for i, layer in enumerate(self[:-1]):
+                if layer.depth <= depth < layer.depth_base:
+                    depth_within = depth - layer.depth
                     break
             else:
                 # Bedrock
                 i = len(self) - 1
-                l = self[-1]
+                layer = self[-1]
                 depth_within = 0
         elif index is not None and depth is None:
-            l = self[index]
-            i = self.index(l)
+            layer = self[index]
+            i = self.index(layer)
             depth_within = 0
         else:
             raise NotImplementedError
 
-        return Location(i, l, wave_field, depth_within)
+        return Location(i, layer, wave_field, depth_within)
+
+    def time_average_vel(self, depth):
+        """Calculate the time-average velocity.
+
+        Parameters
+        ----------
+        depth: float
+            Depth over which the average velocity is computed.
+
+        Returns
+        -------
+        avg_vel: float
+            Time averaged velocity.
+        """
+        depths = [l.depth for l in self]
+        # Final layer is infinite and is treated separately
+        travel_times = [0] + [l.travel_time for l in self[:-1]]
+        # If needed, add the final layer to the required depth
+        if depths[-1] < depth:
+            depths.append(depth)
+            travel_times.append(
+                (depth - self[-1].depth) / self[-1].shear_vel)
+
+        total_travel_times = np.cumsum(travel_times)
+        # Interpolate the travel time to the depth of interest
+        avg_shear_vel = depth / np.interp(depth, depths, total_travel_times)
+        return avg_shear_vel
+
+    def simplified_rayliegh_vel(self):
+        """Simplified Rayliegh velocity of the site.
+
+        This follows the simplifications proposed by Urzua et al. (2017)
+
+        Returns
+        -------
+        rayleigh_vel : float
+            Equivalent shear-wave velocity.
+        """
+        # FIXME: What if last layer has no thickness?
+        thicks = np.array([l.thickness for l in self])
+        depths_mid = np.array([l.depth_mid for l in self])
+        shear_vels = np.array([l.shear_vel for l in self])
+
+        mode_incr = depths_mid * thicks / shear_vels ** 2
+        # Mode shape is computed as the sumation from the base of
+        # the profile. Need to append a 0 for the roll performed in the next
+        # step
+        shape = np.r_[np.cumsum(mode_incr[::-1])[::-1], 0]
+
+        freq_fund = np.sqrt(
+            4 * np.sum(thicks * depths_mid ** 2 / shear_vels ** 2) /
+            np.sum(
+                thicks *
+                # Roll is used to offset the mode_shape so that the sum
+                # can be calculated for two adjacent layers
+                np.sum(np.c_[shape, np.roll(shape, -1)],
+                       axis=1)[:-1] ** 2
+            )
+        )
+        period_fun = 2 * np.pi / freq_fund
+        rayleigh_vel = 4 * thicks.sum() / period_fun
+        return rayleigh_vel

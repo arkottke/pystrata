@@ -24,6 +24,8 @@ from .motion import WaveField, GRAVITY
 
 
 class LinearElasticCalculator(object):
+    """Class for performing linear elastic site response."""
+
     def __init__(self):
         self._waves_a = np.array([])
         self._waves_b = np.array([])
@@ -63,8 +65,9 @@ class LinearElasticCalculator(object):
         self._profile = profile
         self._loc_input = loc_input
 
-        # Set intial properties
+        # Set initial properties
         for l in profile:
+            l.reset()
             if l.strain is None:
                 l.strain = 0.
 
@@ -101,13 +104,13 @@ class LinearElasticCalculator(object):
             cterm = 1j * wave_nums[i, :] * l.thickness
 
             waves_a[i + 1, :] = (
-                0.5 * waves_a[i] * (1 + cimped) * np.exp(cterm) +
-                0.5 * waves_b[i] * (1 - cimped) * np.exp(-cterm)
-            )
+                0.5 * waves_a[i] *
+                (1 + cimped) * np.exp(cterm) + 0.5 * waves_b[i] *
+                (1 - cimped) * np.exp(-cterm))
             waves_b[i + 1, :] = (
-                0.5 * waves_a[i] * (1 - cimped) * np.exp(cterm) +
-                0.5 * waves_b[i] * (1 + cimped) * np.exp(-cterm)
-            )
+                0.5 * waves_a[i] *
+                (1 - cimped) * np.exp(cterm) + 0.5 * waves_b[i] *
+                (1 + cimped) * np.exp(-cterm))
 
         # fixme: Better way to handle this?
         # Set wave amplitudes to 1 at frequencies near 0
@@ -177,7 +180,7 @@ class LinearElasticCalculator(object):
             # damping
             tf *= lout.layer.comp_shear_mod
         else:
-            tf *= lout.layer.shear_mod.value
+            tf *= lout.layer.shear_mod
 
         return tf
 
@@ -217,7 +220,7 @@ class LinearElasticCalculator(object):
         numer = (1j * self._wave_nums[lout.index, :] *
                  (self._waves_a[lout.index, :] * np.exp(cterm) -
                   self._waves_b[lout.index, :] * np.exp(-cterm)))
-        denom = -self.motion.angular_freqs ** 2 * self.wave_at_location(lin)
+        denom = -self.motion.angular_freqs**2 * self.wave_at_location(lin)
         # Scale into units from gravity
         tf = GRAVITY * numer / denom
         # Set frequencies close to zero to zero
@@ -227,9 +230,9 @@ class LinearElasticCalculator(object):
         return tf
 
 
-class EquivalentLinearCalculation(LinearElasticCalculator):
-    """Equivalent-linear site response calculator.
-    """
+class EquivalentLinearCalculator(LinearElasticCalculator):
+    """Class for performing equivalent-linear elastic site response."""
+
     def __init__(self, strain_ratio=0.65, tolerance=0.01, max_iterations=15):
         """Initialize the class.
 
@@ -271,25 +274,29 @@ class EquivalentLinearCalculation(LinearElasticCalculator):
 
         # Estimate the strain based on the PGV and shear-wave velocity
         for l in profile:
+            l.reset()
             l.strain = motion.pgv / l.initial_shear_vel
 
         iteration = 0
         while iteration < self.max_iterations:
             self._calc_waves(motion.angular_freqs, profile)
-
-            for i, l in enumerate(profile[:-1]):
-                l.strain = (
-                    self.strain_ratio * motion.calc_peak(
-                        self.calc_strain_tf(
-                            loc_input,
-                            Location(i, l, 'within', l.thickness / 2))
-                    )
-                )
+            for index, layer in enumerate(profile[:-1]):
+                loc_layer = Location(index, layer, 'within',
+                                     layer.thickness / 2)
+                # Compute the representative strain(s) within the layer. FDM
+                #  will provide a vector of strains.
+                layer.strain = self._calc_strain(loc_input, loc_layer, motion)
             # Maximum error (damping and shear modulus) over all layers
             max_error = max(l.max_error for l in profile)
             if max_error < self.tolerance:
                 break
             iteration += 1
+
+        # Compute the maximum strain within the profile.
+        for index, layer in enumerate(profile[:-1]):
+            loc_layer = Location(index, layer, 'within', layer.thickness / 2)
+            layer.strain_max = self._calc_strain_max(
+                loc_input, loc_layer, motion)
 
     @property
     def strain_ratio(self):
@@ -305,7 +312,7 @@ class EquivalentLinearCalculation(LinearElasticCalculator):
 
     @classmethod
     def calc_strain_ratio(cls, mag):
-        """Compute the effective strain ratio using Idriss and Sun (1991).
+        """Compute the effective strain ratio using Idriss and Sun (1992).
 
         Parameters
         ----------
@@ -314,7 +321,84 @@ class EquivalentLinearCalculation(LinearElasticCalculator):
 
         Returns
         -------
-        float
+        strain_ratio : float
             Effective strain ratio
+
+        References
+        ----------
+        .. [1] Idriss, I. M., & Sun, J. I. (1992). SHAKE91: A computer program
+            for conducting equivalent linear seismic response analyses of
+            horizontally layered soil deposits. Center for Geotechnical
+            Modeling, Department of Civil and Environmental Engineering,
+            University of California, Davis, CA.
         """
         return (mag - 1) / 10
+
+    def _calc_strain(self, loc_input, loc_layer, motion, *args):
+        """Compute the strain used for iterations of material properties."""
+        strain_max = self._calc_strain_max(loc_input, loc_layer, motion, *args)
+        return self.strain_ratio * strain_max
+
+    def _calc_strain_max(self, loc_input, loc_layer, motion, *args):
+        """Compute the effective strain at the center of a layer."""
+        return 100 * motion.calc_peak(
+            self.calc_strain_tf(loc_input, loc_layer))
+
+
+class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
+    """Class for performing equivalent-linear elastic site response with
+    frequency-dependent modulii and damping.
+
+    Parameters
+    ----------
+    strain_ratio: float, default=1.00
+        ratio between the maximum strain and effective strain used to compute
+        strain compatible properties.
+    tolerance: float, default=0.01
+        tolerance in the iterative properties, which would cause the iterative
+        process to terminate.
+    max_iterations: int, default=15
+        maximum number of iterations to perform.
+
+    References
+    ----------
+    .. [1] Kausel, E., & Assimaki, D. (2002). Seismic simulation of inelastic
+        soils via frequency-dependent moduli and damping. Journal of
+        Engineering Mechanics, 128(1), 34-47.
+    """
+
+    def __init__(self, strain_ratio=1.0, tolerance=0.01, max_iterations=15):
+        """Initialize the class."""
+        super().__init__(strain_ratio, tolerance, max_iterations)
+
+    def _calc_strain(self, loc_input, loc_layer, motion, *args):
+        freqs = np.array(motion.freqs)
+        strain_tf = self.calc_strain_tf(loc_input, loc_layer)
+        strain_fas = np.abs(strain_tf * motion.fourier_amps)
+        # Maximum strain in the time domain modified by the effective strain
+        # ratio
+        strain_eff = 100. * self.strain_ratio * motion.calc_peak(strain_tf)
+
+        # Equation (8)
+        freq_avg = (np.trapz(freqs * strain_fas, x=freqs) /
+                    np.trapz(strain_fas, x=freqs))
+
+        # Find the average strain at frequencies less than the average
+        # frequency
+        # Equation (8)
+        mask = (freqs < freq_avg)
+        strain_avg = np.trapz(strain_fas[mask], x=freqs[mask]) / freq_avg
+
+        # Normalize the frequency and strain by the average values
+        freqs /= freq_avg
+        strain_fas /= strain_avg
+
+        # Fit the smoothed model at frequencies greater than the average
+        # FIXME: only fit over strain range of curves?
+        A = np.c_[-freqs[mask], -np.log(freqs[mask])]
+        a, b = np.linalg.lstsq(A, np.log(strain_fas[mask]))[0]
+        # FIXME: this is a modification of the published method that ensures a
+        # smooth transition in the strain
+        strains_max = np.minimum(1, np.exp(-a * freqs) / np.power(freqs, b))
+
+        return self.strain_ratio * strains_max

@@ -17,40 +17,56 @@
 #
 # Copyright (C) Albert Kottke, 2013-2016
 
-"""Randomize nonlinear properties."""
+"""Use Dask for parallel calculations -- incomplete!."""
+
+from dask import delayed
 
 import matplotlib.pyplot as plt
-import numpy as np
 
 import pysra
 
-soil_type = pysra.site.DarendeliSoilType(
-    18., plas_index=0, ocr=1, stress_mean=50)
-n = 30
-correlation = 0
+profile = pysra.site.Profile([
+    pysra.site.Layer(
+        pysra.site.DarendeliSoilType(
+            18., plas_index=0, ocr=1, stress_mean=200), 10, 400),
+    pysra.site.Layer(
+        pysra.site.DarendeliSoilType(
+            18., plas_index=0, ocr=1, stress_mean=200), 20, 600),
+    pysra.site.Layer(
+        pysra.site.SoilType('Rock', 24., None, 0.01), 0, 1200),
+])
+profile.update_layers()
+
+var_thickness = pysra.variation.ToroThicknessVariation()
+var_velocity = pysra.variation.ToroVelocityVariation.generic_model('USGS C')
+var_nlcurves = pysra.variation.SpidVariation(
+    -0.5, std_mod_reduc=0.15, std_damping=0.30)
+
+varied = delayed(
+    pysra.variation.iter_varied_profiles(
+        profile,
+        1,
+        var_thickness=var_thickness,
+        var_velocity=var_velocity,
+        var_nlcurves=var_nlcurves))
 
 fig, axarr = plt.subplots(
     2, 2, sharex=True, sharey='row', subplot_kw={'xscale': 'log'})
 
+correl_st = -0.7
+
 for i, (variation, name) in enumerate(
         zip([
-            pysra.variation.DarendeliVariation(correlation),
-            pysra.variation.SpidVariation(correlation)
+            pysra.variation.DarendeliVariation(correl_st),
+            pysra.variation.SpidVariation(correl_st)
         ], ['Darendeli (2001)', 'EPRI SPID (2014)'])):
     realizations = [variation(soil_type) for _ in range(n)]
     for j, prop in enumerate(['mod_reduc', 'damping']):
         axarr[j, i].plot(
             getattr(soil_type, prop).strains,
             np.transpose([getattr(r, prop).values for r in realizations]),
+            'b-',
             linewidth=0.5,
-            color='C0',
             alpha=0.8)
         if j == 0:
             axarr[j, i].set_title(name)
-
-axarr[0, 0].set_ylabel('$G/G_{max}$')
-axarr[1, 0].set_ylabel('$D$ (%)')
-plt.setp(axarr[1, :], xlabel='Strain, $\gamma$ (%)')
-
-fig.tight_layout()
-fig.savefig(__file__.replace('.py', '.png'), dpi=150)

@@ -29,10 +29,14 @@ class OutputCollection(collections.UserList):
     def __init__(self, *outputs):
         super().__init__(outputs)
 
-    def __call__(self, calc):
+    def __call__(self, calc, name=None):
         # Save results
         for o in self.data:
-            o(calc)
+            o(calc, name=name)
+
+    def reset(self):
+        for o in self.data:
+            o.reset()
 
 
 def append_arrays(many, single):
@@ -59,7 +63,7 @@ def append_arrays(many, single):
     if diff < 0:
         single = np.pad(single, (0, -diff), 'constant', constant_values=np.nan)
     elif diff > 0:
-        many = np.pad(many, ((0, diff),), 'constant', constant_values=np.nan)
+        many = np.pad(many, ((0, diff), ), 'constant', constant_values=np.nan)
     else:
         # No padding needed
         pass
@@ -67,12 +71,23 @@ def append_arrays(many, single):
 
 
 class Output(object):
+    _const_ref = False
+
     def __init__(self, refs=None):
         self._refs = refs if refs is None else np.asarray(refs)
         self._values = None
+        self._names = []
 
-    def __call__(self, calc):
-        raise NotImplementedError
+    def __call__(self, calc, name=None):
+        if name is None:
+            if self.values is None:
+                i = 1
+            elif len(self.values.shape) == 1:
+                i = 2
+            else:
+                i = self.values.shape[1] + 1
+            name = 'r%d' % i
+        self._names.append(name)
 
     @property
     def refs(self):
@@ -81,6 +96,24 @@ class Output(object):
     @property
     def values(self):
         return self._values
+
+    @property
+    def names(self):
+        return self._names
+
+    def reset(self):
+        self._values = None
+        self._names = []
+        if not self._const_ref:
+            self._refs = None
+
+    def iter_results(self):
+        shared_ref = len(self.refs.shape) == 1
+        for i, name in enumerate(self.names):
+            refs = self.refs if shared_ref else self.refs[:, i]
+            values = self.values if len(
+                self.values.shape) == 1 else self.values[:, i]
+            yield name, refs, values
 
     def _add_refs(self, refs):
         refs = np.asarray(refs)
@@ -136,7 +169,7 @@ class LocationBasedOutput(Output):
     def location(self):
         return self._location
 
-    def __call__(self, calc):
+    def __call__(self, calc, name=None):
         raise NotImplementedError
 
     def _get_location(self, calc):
@@ -155,9 +188,10 @@ class TimeSeriesOutput(LocationBasedOutput):
     def times(self):
         return self.refs
 
-    def __call__(self, calc):
+    def __call__(self, calc, name=None):
         if not isinstance(calc.motion, TimeSeriesMotion):
             raise NotImplementedError
+        Output.__call__(self, calc, name)
         # Compute the response
         loc = self._get_location(calc)
         tf = self._get_trans_func(calc, loc)
@@ -187,7 +221,7 @@ class AriasIntensityTSOutput(AccelerationTSOutput):
 
     def _modify_values(self, calc, location, values):
         time_step = calc.motion.time_step
-        values = scipy.integrate.cumtrapz(values ** 2, dx=time_step)
+        values = scipy.integrate.cumtrapz(values**2, dx=time_step)
         values *= GRAVITY * np.pi / 2
         return values
 
@@ -222,11 +256,12 @@ class StressTSOutput(TimeSeriesOutput):
     def _get_trans_func(self, calc, location):
         tf = calc.calc_stress_tf(calc.loc_input, location, self.damped)
         # Correct by effective stress at depth
-        tf /= location.vert_stress(effective=True)
+        tf /= location.stress_vert(effective=True)
         return tf
 
 
 class ResponseSpectrumOutput(LocationBasedOutput):
+    _const_ref = True
     xlabel = 'Frequency (Hz)'
     # fixme: Include damping?
     ylabel = 'Spectral Accel. (g)'
@@ -247,7 +282,8 @@ class ResponseSpectrumOutput(LocationBasedOutput):
     def osc_damping(self):
         return self._osc_damping
 
-    def __call__(self, calc):
+    def __call__(self, calc, name=None):
+        Output.__call__(self, calc, name)
         loc = self._get_location(calc)
         tf = calc.calc_accel_tf(calc.loc_input, loc)
         ars = calc.motion.calc_osc_accels(self.freqs, self.osc_damping, tf)
@@ -268,7 +304,7 @@ class RatioBasedOutput(Output):
     def location_out(self):
         return self._location_out
 
-    def __call__(self, calc):
+    def __call__(self, calc, name=None):
         raise NotImplementedError
 
     def _get_locations(self, calc):
@@ -278,7 +314,8 @@ class RatioBasedOutput(Output):
 
 
 class AccelTransferFunctionOutput(RatioBasedOutput):
-    def __call__(self, calc):
+    def __call__(self, calc, name=None):
+        Output.__call__(self, calc, name)
         # Locate position within the profile
         loc_in, loc_out = self._get_locations(calc)
         # Compute the response
@@ -292,6 +329,8 @@ class AccelTransferFunctionOutput(RatioBasedOutput):
 
 
 class ResponseSpectrumRatioOutput(RatioBasedOutput):
+    _const_ref = True
+
     def __init__(self, freqs, location_in, location_out, osc_damping):
         super().__init__(freqs, location_in, location_out)
         self._osc_damping = osc_damping
@@ -308,15 +347,54 @@ class ResponseSpectrumRatioOutput(RatioBasedOutput):
     def osc_damping(self):
         return self._osc_damping
 
-    def __call__(self, calc):
+    def __call__(self, calc, name=None):
+        Output.__call__(self, calc, name)
         loc_in, loc_out = self._get_locations(calc)
-        in_ars = calc.motion.calc_osc_accels(
-            self.freqs, self.osc_damping,
-            calc.calc_accel_tf(calc.loc_input, loc_in)
-        )
-        out_ars = calc.motion.calc_osc_accels(
-            self.freqs, self.osc_damping,
-            calc.calc_accel_tf(calc.loc_input, loc_out)
-        )
+        in_ars = calc.motion.calc_osc_accels(self.freqs, self.osc_damping,
+                                             calc.calc_accel_tf(calc.loc_input,
+                                                                loc_in))
+        out_ars = calc.motion.calc_osc_accels(self.freqs, self.osc_damping,
+                                              calc.calc_accel_tf(
+                                                  calc.loc_input, loc_out))
         ratio = out_ars / in_ars
         self._add_values(ratio)
+
+
+class ProfileBasedOutput(Output):
+    def __init__(self):
+        super().__init__()
+
+    def __call__(self, calc, name=None):
+        Output.__call__(self, calc, name)
+        depths = [0] + [l.depth_mid for l in calc.profile[:-1]]
+        self._add_refs(depths)
+
+
+class MaxStrainProfile(ProfileBasedOutput):
+    def __init__(self):
+        super().__init__()
+
+    def __call__(self, calc, name=None):
+        ProfileBasedOutput.__call__(self, calc, name)
+        values = [0] + [l.strain for l in calc.profile[:-1]]
+        self._add_values(values)
+
+
+class CyclicStressRatioProfile(ProfileBasedOutput):
+    # From Idriss and Boulanger (2008, pg. 70):
+    # The 0.65 is a constant used to represent the reference stress
+    # level. While being somewhat arbitrary it was selected in the
+    # beginning of the development of liquefaction procedures in 1966
+    # and has been in use ever since.
+    _stress_level = 0.65
+
+    def __init__(self):
+        super().__init__()
+
+    def __call__(self, calc, name=None):
+        ProfileBasedOutput.__call__(self, calc, name)
+        values = [l.stress_shear_max / l.stress_vert(l.thickness / 2, True)
+                        for l in calc.profile[:-1]]
+        # Repeat the first value for the surface
+        values = self._stress_level * np.array([values[0]] + values)
+        self._add_values(values)

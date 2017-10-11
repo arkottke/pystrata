@@ -1,7 +1,7 @@
 jinja2
 matplotlib
+mock
 numpy
-pyprind
 sphinx
 sphinx_rtd_theme
 sphinxcontrib-bibtex

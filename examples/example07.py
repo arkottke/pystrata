@@ -16,7 +16,6 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
 # Copyright (C) Albert Kottke, 2013-2016
-
 """Compute transfer functions for within and outcrop conditions."""
 
 import matplotlib.pyplot as plt
@@ -24,12 +23,12 @@ import numpy as np
 
 import pysra
 
-motion = pysra.motion.SourceTheoryRvtMotion(6.5, 20, 'wna')
+motion = pysra.motion.SourceTheoryRvtMotion(6, 30, 'wna')
 motion.calc_fourier_amps()
 profile = pysra.site.Profile([
     pysra.site.Layer(
         pysra.site.DarendeliSoilType(
-            18., plas_index=0, ocr=1, stress_mean=100.), 30, 400),
+            18., plas_index=0, ocr=1, stress_mean=200), 30, 400),
     pysra.site.Layer(pysra.site.SoilType('Rock', 24., None, 0.01), 0, 1200),
 ])
 
@@ -53,27 +52,35 @@ outputs = pysra.output.OutputCollection(
             pysra.motion.WaveField.outcrop, depth=profile[-1].depth),
         0.05),
     # Surface (outcrop).
-    pysra.output.ResponseSpectrumOutput(
-        osc_freqs,
-        pysra.output.OutputLocation('outcrop', index=0),
-        0.05),
-)
+    pysra.output.ResponseSpectrumOutput(osc_freqs,
+                                        pysra.output.OutputLocation(
+                                            'outcrop', index=0), 0.05), )
 
 # Compute the response
-calc = pysra.propagation.EquivalentLinearCalculator(strain_ratio=0.65)
-calc(motion, profile, profile.location('outcrop', index=-1))
+calc_le = pysra.propagation.LinearElasticCalculator()
+calc_le(motion, profile, profile.location('outcrop', index=-1))
+outputs(calc_le, 'LE')
 
-# Compute the outputs
-outputs(calc)
+calc_eql = pysra.propagation.EquivalentLinearCalculator(
+    strain_ratio=0.65, max_iterations=3)
+calc_eql(motion, profile, profile.location('outcrop', index=-1))
+outputs(calc_eql, 'EQL')
+
+calc_fdm = pysra.propagation.FrequencyDependentEqlCalculator(
+    strain_ratio=0.65, max_iterations=3)
+calc_fdm(motion, profile, profile.location('outcrop', index=-1))
+outputs(calc_fdm, 'FDM')
 
 # Transfer function
 accel_tf = outputs[0]
 fig, ax = plt.subplots()
-ax.plot(accel_tf.freqs, accel_tf.values.real, label='Real')
-ax.plot(accel_tf.freqs, accel_tf.values.imag, label='Imaginary')
-ax.plot(accel_tf.freqs, abs(accel_tf.values), label='Absolute')
+
+for name, freqs, values in accel_tf.iter_results():
+    ax.plot(freqs, abs(values), label=name)
+
 ax.set_xlabel('Frequency (Hz)')
 ax.set_xscale('log')
+ax.set_xlim(0.1, 100)
 ax.set_ylabel('Accel. Transfer Function')
 
 ax.grid()
@@ -85,8 +92,10 @@ fig.savefig(__file__.replace('.py', '-tf.png'), dpi=150)
 ars_input = outputs[1]
 ars_surface = outputs[2]
 fig, ax = plt.subplots()
-for label, ars in zip(['Input', 'Surface'], [ars_input, ars_surface]):
-    ax.plot(ars.freqs, ars.values, '-', label=label)
+
+ax.plot(ars_input.freqs, ars_input.values[:, 0], '--', label='Input')
+for name, freqs, values in ars_surface.iter_results():
+    ax.plot(freqs, values, label=name)
 
 ax.set_xlabel('Frequency (Hz)')
 ax.set_xscale('log')

@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# pysra documentation build configuration file, created by
-# sphinx-quickstart on Tue Jul  9 22:26:36 2013.
+# pySRA documentation build configuration file, created by
+# sphinx-quickstart on Mon Nov  2 15:41:52 2015.
 #
 # This file is execfile()d with the current directory set to its
 # containing dir.
@@ -14,11 +14,22 @@
 # serve to show the default.
 
 import os
-import pkg_resources
-import sys
 
+from mock import Mock
 
-# on_rtd = os.environ.get('READTHEDOCS', None) == True
+import pysra
+
+# Mock modules not included on RTD
+MOCK_MODULES = [
+    'matplotlib',
+    'numpy',
+    'numpy.testing',
+    'scipy',
+    'scipy.integrate',
+    'scipy.interpolate',
+    'scipy.stats',
+    'pyrvt',
+
 
 # If extensions (or modules to document with autodoc) are in another
 # directory, add these directories to sys.path here. If the directory is
@@ -26,16 +37,7 @@ import sys
 # absolute, like shown here.
 #sys.path.insert(0, os.path.abspath('.'))
 
-# Get the project root dir, which is the parent dir of this
-cwd = os.getcwd()
-project_root = os.path.dirname(cwd)
-
-# Insert the project root dir as the first element in the PYTHONPATH.
-# This lets us ensure that the source package is imported, and that its
-# version is used.
-sys.path.insert(0, project_root)
-
-# -- General configuration ---------------------------------------------
+# -- General configuration ------------------------------------------------
 
 # If your documentation needs a minimal Sphinx version, state it here.
 #needs_sphinx = '1.0'
@@ -56,13 +58,17 @@ extensions = [
 # Configuration of extensions
 autodoc_member_order = 'bysource'
 autodoc_default_flags = ['members', 'show-inheritance']
-autosummary_generate = True
 intersphinx_mappings = {
     'python': ('http://docs.python.org/3', None),
     'numpy': ('http://docs.scipy.org/doc/numpy/', None),
     'scipy': ('http://docs.scipy.org/doc/scipy/reference/', None),
     'matplotlib': ('http://matplotlib.sourceforge.net/', None)
-}
+
+# Disable autosummary from numpydoc
+# See https://github.com/phn/pytpm/issues/3#issuecomment-12133978
+autosummary_generate = True
+numpydoc_show_class_members = False
+>>>>>>> dev
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -77,15 +83,16 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'pySRA'
-copyright = u'2016, Albert Kottke'
+project = pysra.__title__
+copyright = pysra.__copyright__
+author = pysra.__author__
 
 # The version info for the project you're documenting, acts as replacement
 # for |version| and |release|, also used in various other places throughout
 # the built documents.
 #
 # The short X.Y version.
-version = pkg_resources.get_distribution('pysra').version
+version = pysra.__version__
 # The full version, including alpha/beta/rc tags.
 release = version
 
@@ -130,6 +137,9 @@ pygments_style = 'sphinx'
 
 
 # -- Options for HTML output -------------------------------------------
+
+# Natbib references file
+natbib = {"file": "references.bib"}
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
@@ -210,7 +220,7 @@ html_static_path = ['_static']
 #html_file_suffix = None
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'pysradoc'
+htmlhelp_basename = 'pySRAdoc'
 
 
 # -- Options for LaTeX output ------------------------------------------
@@ -224,15 +234,16 @@ latex_elements = {
 
     # Additional stuff for the LaTeX preamble.
     #'preamble': '',
+
+    # Latex figure (float) alignment
+    #'figure_align': 'htbp',
 }
 
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass
 # [howto/manual]).
 latex_documents = [
-    ('index', 'pysra.tex',
-     u'pySRA Documentation',
-     u'Albert Kottke', 'manual'),
+    (master_doc, 'pysra.tex', 'pySRA Documentation', 'Albert R. Kottke', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at
@@ -255,33 +266,23 @@ latex_documents = [
 # If false, no module index is generated.
 #latex_domain_indices = True
 
-
-# -- Options for manual page output ------------------------------------
+# -- Options for manual page output ---------------------------------------
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [
-    ('index', 'pysra',
-     u'pySRA Documentation',
-     [u'Albert Kottke'], 1)
-]
+man_pages = [(master_doc, 'pySRA', 'pySRA Documentation', [author], 1)]
 
 # If true, show URL addresses after external links.
 #man_show_urls = False
 
-
-# -- Options for Texinfo output ----------------------------------------
+# -- Options for Texinfo output -------------------------------------------
 
 # Grouping the document tree into Texinfo files. List of tuples
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    ('index', 'pysra',
-     u'pySRA Documentation',
-     u'Albert Kottke',
-     'pysra',
-     'Site response analyses in Python.',
-     'Miscellaneous'),
+    (master_doc, 'pySRA', 'pySRA Documentation', author, 'pySRA',
+     'Python site response analysis.', 'Miscellaneous'),
 ]
 
 # Documents to append as an appendix to all manuals.

@@ -17,15 +17,15 @@
 #
 # Copyright (C) Albert Kottke, 2013-2016
 
+"""Classes used to define input motions."""
+
 import enum
 
 import numpy as np
+# Gravity in m/sec²
+from scipy.constants import g as GRAVITY
 
 import pyrvt
-
-# Gravity in m/sec²
-# Source: http://physics.nist.gov/cgi-bin/cuu/Value?gn
-GRAVITY = 9.80665
 
 
 class WaveField(enum.Enum):
@@ -68,7 +68,11 @@ class Motion(object):
 
 
 class TimeSeriesMotion(Motion):
-    def __init__(self, filename, description, time_step, accels,
+    def __init__(self,
+                 filename,
+                 description,
+                 time_step,
+                 accels,
                  fa_length=None):
         Motion.__init__(self)
 
@@ -94,6 +98,10 @@ class TimeSeriesMotion(Motion):
     @property
     def time_step(self):
         return self._time_step
+
+    @property
+    def times(self):
+        return self._time_step * np.arange(self._accels.size)
 
     @property
     def freqs(self):
@@ -147,10 +155,10 @@ class TimeSeriesMotion(Motion):
         else:
             tf = np.asarray(tf).astype(complex)
 
-        resp = np.array(
-            [self.calc_peak(tf * self._calc_sdof_tf(of, osc_damping))
-             for of in osc_freqs]
-        )
+        resp = np.array([
+            self.calc_peak(tf * self._calc_sdof_tf(of, osc_damping))
+            for of in osc_freqs
+        ])
         return resp
 
     def _calc_fourier_spectrum(self, fa_length=None):
@@ -186,9 +194,8 @@ class TimeSeriesMotion(Motion):
         tf : :class:`numpy.ndarray`
             Complex-valued transfer function with length equal to `self.freq`.
         """
-        return (-osc_freq ** 2. /
-                (np.square(self.freqs) - np.square(osc_freq) -
-                    2.j * damping * osc_freq * self.freqs))
+        return (-osc_freq**2. / (np.square(self.freqs) - np.square(osc_freq) -
+                                 2.j * damping * osc_freq * self.freqs))
 
     @classmethod
     def load_at2_file(cls, filename):
@@ -213,31 +220,61 @@ class TimeSeriesMotion(Motion):
 
 
 class RvtMotion(pyrvt.motions.RvtMotion, Motion):
-    def __init__(self, osc_freqs, osc_accels_target, duration=None,
-                 peak_calculator=None, calc_kwds=None):
+    def __init__(self,
+                 osc_freqs,
+                 osc_accels_target,
+                 duration=None,
+                 peak_calculator=None,
+                 calc_kwds=None):
         Motion.__init__(self)
         pyrvt.motions.RvtMotion.__init__(
-            self, osc_freqs, osc_accels_target, duration=duration,
+            self,
+            osc_freqs,
+            osc_accels_target,
+            duration=duration,
             peak_calculator=peak_calculator,
             calc_kwds=calc_kwds)
 
 
 class CompatibleRvtMotion(pyrvt.motions.CompatibleRvtMotion, Motion):
-    def __init__(self, osc_freqs, osc_accels_target, duration=None,
-                 osc_damping=0.05, event_kwds=None, window_len=None,
-                 peak_calculator=None, calc_kwds=None):
+    def __init__(self,
+                 osc_freqs,
+                 osc_accels_target,
+                 duration=None,
+                 osc_damping=0.05,
+                 event_kwds=None,
+                 window_len=None,
+                 peak_calculator=None,
+                 calc_kwds=None):
         Motion.__init__(self)
         pyrvt.motions.CompatibleRvtMotion.__init__(
-            self, osc_freqs, osc_accels_target, duration=duration,
-            osc_damping=osc_damping, event_kwds=event_kwds,
-            window_len=window_len, peak_calculator=peak_calculator,
+            self,
+            osc_freqs,
+            osc_accels_target,
+            duration=duration,
+            osc_damping=osc_damping,
+            event_kwds=event_kwds,
+            window_len=window_len,
+            peak_calculator=peak_calculator,
             calc_kwds=calc_kwds)
 
 
 class SourceTheoryRvtMotion(pyrvt.motions.SourceTheoryMotion, Motion):
-    def __init__(self, magnitude, distance, region, stress_drop=None,
-                 depth=8, peak_calculator=None, calc_kwds=None):
+    def __init__(self,
+                 magnitude,
+                 distance,
+                 region,
+                 stress_drop=None,
+                 depth=8,
+                 peak_calculator=None,
+                 calc_kwds=None):
         Motion.__init__(self)
         pyrvt.motions.SourceTheoryMotion.__init__(
-            self, magnitude, distance, region, stress_drop, depth,
-            peak_calculator=peak_calculator, calc_kwds=calc_kwds)
+            self,
+            magnitude,
+            distance,
+            region,
+            stress_drop,
+            depth,
+            peak_calculator=peak_calculator,
+            calc_kwds=calc_kwds)
