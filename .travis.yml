@@ -13,8 +13,12 @@ deploy:
   provider: pypi
   user: arkottke
   password:
-    secure: XJ68lufBupCicSgg7mnA85+IsXVHgqKOV3ZfUwjruKh4J/5e67XJXfKZs5vx66VL872bjoID/NPZ2TpGlf48MMT4leIokPmO0IZy0B4Ixsar0ABq1z76x3YUvFYLIxWGGyd1wtFDZfJiCYHJoO98I/CT/g2Uphb7Fzux77vYGok=
+    secure: !!binary |
+      RW5tRGlPRm5yRzNMa1FzNjV0NWN2SHNiTjc3QnJwdTZ4OVlXNWoyeXNXS3BDcnJCWnNCSmg4V0E5
+      WFpoczBnaWxmcXE3MktaODg5OEVnY00rRnBQdk1IVWRmMWdCTWlmMVJpRTFWOWpjMVFVQk8yY1Fk
+      VTZlQ0J4elhQTERFM1VHQjFVL1djL0d6M1NQU1cvZmY5QzRzTjJQaU5hM3dzc2IvY05ia2hXa0s4
+      PQ==
   on:
-    tags: true
     distributions: sdist bdist_wheel
-    repo: arkottke/pysra
+    repo: arkottke/pyrvt
+    tags: true
