@@ -1,10 +1,9 @@
 language: python
 python:
-- '3.6'
+    - '3.6'
 install:
-- pip install -r requirements_dev.txt
-- python setup.py install
->>>>>>> dev
+    - pip install -r requirements_dev.txt
+    - python setup.py install
 script:
     - make test
     - make examples
