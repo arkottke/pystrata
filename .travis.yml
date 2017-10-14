@@ -1,23 +1,19 @@
 language: python
 python:
-    - '3.6'
+- '3.6'
 install:
-    - pip install -r requirements_dev.txt
-    - python setup.py install
+- pip install -r requirements_dev.txt
+- python setup.py install
 script:
-    - make test
-    - make examples
+- make test
+- make examples
 after_success:
-    - coveralls
+- coveralls
 deploy:
   provider: pypi
   user: arkottke
   password:
-    secure: !!binary |
-      RW5tRGlPRm5yRzNMa1FzNjV0NWN2SHNiTjc3QnJwdTZ4OVlXNWoyeXNXS3BDcnJCWnNCSmg4V0E5
-      WFpoczBnaWxmcXE3MktaODg5OEVnY00rRnBQdk1IVWRmMWdCTWlmMVJpRTFWOWpjMVFVQk8yY1Fk
-      VTZlQ0J4elhQTERFM1VHQjFVL1djL0d6M1NQU1cvZmY5QzRzTjJQaU5hM3dzc2IvY05ia2hXa0s4
-      PQ==
+    secure: FfmTw7ima0b3hjHe3tamYGzYvdPAY2qDiLcwJezfT7422ECARQolcC0Zl6QTAyGJWlYHwDb77F1R/QoZf9DMViN8uOXItV3IHP2nAkr+MxcAdcrHaUJyxQ45jC297siA8YxK9MrTQOGgVL2Hdu7UOOF85BUT6D9JIx9vcgH0jUg=
   on:
     distributions: sdist bdist_wheel
     repo: arkottke/pysra
