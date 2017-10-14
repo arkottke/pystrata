@@ -13,22 +13,22 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 
-import os
-
-from mock import Mock
+import sys
 
 import pysra
 
-# Mock modules not included on RTD
-MOCK_MODULES = [
-    'matplotlib',
-    'numpy',
-    'numpy.testing',
-    'scipy',
-    'scipy.integrate',
-    'scipy.interpolate',
-    'scipy.stats',
-    'pyrvt',
+# Mock http://docs.readthedocs.io/en/latest/faq.html
+from unittest.mock import MagicMock
+
+
+class Mock(MagicMock):
+    @classmethod
+    def __getattr__(cls, name):
+            return MagicMock()
+
+
+MOCK_MODULES = ['pyrvt']
+sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 
 
 # If extensions (or modules to document with autodoc) are in another
@@ -63,12 +63,12 @@ intersphinx_mappings = {
     'numpy': ('http://docs.scipy.org/doc/numpy/', None),
     'scipy': ('http://docs.scipy.org/doc/scipy/reference/', None),
     'matplotlib': ('http://matplotlib.sourceforge.net/', None)
+}
 
 # Disable autosummary from numpydoc
 # See https://github.com/phn/pytpm/issues/3#issuecomment-12133978
 autosummary_generate = True
 numpydoc_show_class_members = False
->>>>>>> dev
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
