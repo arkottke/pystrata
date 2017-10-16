@@ -47,7 +47,7 @@ def parse_fixed_width(types, lines):
     line = []
     for width, parser in types:
         if not line:
-            line = lines.pop(0)
+            line = lines.pop(0).replace('\n', '')
 
         values.append(parser(line[:width]))
         line = line[width:]
