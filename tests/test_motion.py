@@ -18,7 +18,7 @@
 # Copyright (C) Albert Kottke, 2013-2015
 
 
-import os
+import pathlib
 
 import numpy as np
 import pytest
@@ -32,7 +32,8 @@ from pysra import motion
 def tsm():
     """Create a default time series for testing."""
     return motion.TimeSeriesMotion.load_at2_file(
-        os.path.join(os.path.dirname(__file__), 'data', 'NIS090.AT2'))
+        pathlib.Path(__file__) / 'data/NIS090.AT2'
+    )
 
 
 def test_ts_load_at2_file(tsm):
@@ -72,4 +73,24 @@ def test_ts_fft_with_tf(tsm):
     assert_allclose(
         tsm.accels,
         tsm.calc_time_series(2 * np.ones_like(tsm.freqs)) / 2,
+    )
+
+
+@pytest.mark.parametrize('fname', ['2516b_a.smc'])
+def test_ts_load_smc_file(fname):
+    tsm = motion.TimeSeriesMotion.load_smc_file(
+        str(pathlib.Path(__file__).parent / 'data' / fname)
+    )
+
+    assert tsm.description == 'VA: Reston; Fire Station #25; 360'
+
+    assert_allclose(
+        tsm.time_step,
+        1 / 200.
+    )
+
+    assert_allclose(
+        [tsm.accels[0], tsm.accels[1], tsm.accels[-1]],
+        [2.3489E-2, -1.6646E-2, 3.4990E-3],
+        rtol=1E-4,
     )

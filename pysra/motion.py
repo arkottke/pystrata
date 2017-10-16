@@ -20,12 +20,15 @@
 """Classes used to define input motions."""
 
 import enum
+import itertools
+import re
 
 import numpy as np
-# Gravity in m/sec²
-from scipy.constants import g as GRAVITY
 
 import pyrvt
+
+# Gravity in m/sec²
+from scipy.constants import g as GRAVITY
 
 
 class WaveField(enum.Enum):
@@ -217,6 +220,60 @@ class TimeSeriesMotion(Motion):
             accels = [float(p) for l in fp for p in l.split()]
 
         return cls(filename, description, time_step, accels)
+
+    @classmethod
+    def load_smc_file(cls, filename):
+        """Read an SMC formatted time series.
+
+        Format of the time series is provided by:
+            https://escweb.wr.usgs.gov/nsmp-data/smcfmt.html
+
+        Parameters
+        ----------
+        filename: str
+            Filename to open.
+
+        """
+        from .tools import parse_fixed_width
+
+        with open(filename) as fp:
+            lines = list(fp)
+
+        # 11 lines of strings
+        lines_str = [lines.pop(0) for _ in range(11)]
+
+        if lines_str[0].strip() != '2 CORRECTED ACCELEROGRAM':
+            raise RuntimeWarning("Loading uncorrected SMC file.")
+
+        m = re.search('station =(.+)component=(.+)', lines_str[5])
+        description = '; '.join([g.strip() for g in m.groups()])
+
+        # 6 lines of (8i10) formatted integers
+        values_int = parse_fixed_width(
+            48 * [(10, int)],
+            [lines.pop(0) for _ in range(6)]
+        )
+        count_comment = values_int[15]
+        count = values_int[16]
+
+        # 10 lines of (5e15.7) formatted floats
+        values_float = parse_fixed_width(
+            50 * [(15, float)],
+            [lines.pop(0) for _ in range(10)]
+        )
+        time_step = 1 / values_float[1]
+
+        # Skip comments
+        lines = lines[count_comment:]
+
+        accels = np.array(
+            parse_fixed_width(count * [(10, float), ], lines)
+        )
+
+        return TimeSeriesMotion(filename, description, time_step, accels)
+
+
+
 
 
 class RvtMotion(pyrvt.motions.RvtMotion, Motion):
