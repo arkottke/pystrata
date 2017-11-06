@@ -23,7 +23,7 @@ import numpy as np
 
 import pysra
 
-motion = pysra.motion.SourceTheoryRvtMotion(6, 30, 'wna')
+motion = pysra.motion.SourceTheoryRvtMotion(7, 10, 'wna')
 motion.calc_fourier_amps()
 profile = pysra.site.Profile([
     pysra.site.Layer(
@@ -67,7 +67,7 @@ calc_eql(motion, profile, profile.location('outcrop', index=-1))
 outputs(calc_eql, 'EQL')
 
 calc_fdm = pysra.propagation.FrequencyDependentEqlCalculator(
-    strain_ratio=0.65, max_iterations=3)
+    use_smooth_spectrum=False, strain_ratio=1.0, max_iterations=3)
 calc_fdm(motion, profile, profile.location('outcrop', index=-1))
 outputs(calc_fdm, 'FDM')
 

@@ -272,10 +272,7 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
         self._profile = profile
         self._loc_input = loc_input
 
-        # Estimate the strain based on the PGV and shear-wave velocity
-        for l in profile:
-            l.reset()
-            l.strain = motion.pgv / l.initial_shear_vel
+        self._estimate_strains()
 
         iteration = 0
         while iteration < self.max_iterations:
@@ -297,6 +294,13 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
             loc_layer = Location(index, layer, 'within', layer.thickness / 2)
             layer.strain_max = self._calc_strain_max(
                 loc_input, loc_layer, motion)
+
+    def _estimate_strains(self):
+        """Compute an estimate of the strains."""
+        # Estimate the strain based on the PGV and shear-wave velocity
+        for l in self._profile:
+            l.reset()
+            l.strain = self._motion.pgv / l.initial_shear_vel
 
     @property
     def strain_ratio(self):
@@ -351,9 +355,14 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
 
     Parameters
     ----------
+    use_smooth_spectrum: bool, default=False
+        Use the Kausel & Assimaki (2002) smooth spectrum for the strain.
+        Otherwise, the complete Fourier amplitude spectrum is used.
     strain_ratio: float, default=1.00
         ratio between the maximum strain and effective strain used to compute
-        strain compatible properties.
+        strain compatible properties. There is not clear guidance the use of
+        the effective strain ratio. However, given the nature of the method,
+        it would make sense not to include the an effective strain ratio.
     tolerance: float, default=0.01
         tolerance in the iterative properties, which would cause the iterative
         process to terminate.
@@ -367,9 +376,20 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         Engineering Mechanics, 128(1), 34-47.
     """
 
-    def __init__(self, strain_ratio=1.0, tolerance=0.01, max_iterations=15):
+    def __init__(self, use_smooth_spectrum=False, strain_ratio=1.0, tolerance=0.01, max_iterations=15):
         """Initialize the class."""
         super().__init__(strain_ratio, tolerance, max_iterations)
+
+        # Use the smooth strain spectrum as proposed by Kausel and Assimaki
+        self._use_smooth_spectrum = use_smooth_spectrum
+
+    def _estimate_strains(self):
+        """Estimate the strains by running an EQL site response.
+
+        This step was recommended in Section 8.3.1 of Zalachoris (2014).
+        """
+        eql = EquivalentLinearCalculator()
+        eql(self._motion, self._profile, self._loc_input)
 
     def _calc_strain(self, loc_input, loc_layer, motion, *args):
         freqs = np.array(motion.freqs)
@@ -379,26 +399,29 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         # ratio
         strain_eff = 100. * self.strain_ratio * motion.calc_peak(strain_tf)
 
-        # Equation (8)
-        freq_avg = (np.trapz(freqs * strain_fas, x=freqs) /
-                    np.trapz(strain_fas, x=freqs))
+        if self._use_smooth_spectrum:
+            # Equation (8)
+            freq_avg = (np.trapz(freqs * strain_fas, x=freqs) /
+                        np.trapz(strain_fas, x=freqs))
 
-        # Find the average strain at frequencies less than the average
-        # frequency
-        # Equation (8)
-        mask = (freqs < freq_avg)
-        strain_avg = np.trapz(strain_fas[mask], x=freqs[mask]) / freq_avg
+            # Find the average strain at frequencies less than the average
+            # frequency
+            # Equation (8)
+            mask = (freqs < freq_avg)
+            strain_avg = np.trapz(strain_fas[mask], x=freqs[mask]) / freq_avg
 
-        # Normalize the frequency and strain by the average values
-        freqs /= freq_avg
-        strain_fas /= strain_avg
+            # Normalize the frequency and strain by the average values
+            freqs /= freq_avg
+            strain_fas /= strain_avg
 
-        # Fit the smoothed model at frequencies greater than the average
-        # FIXME: only fit over strain range of curves?
-        A = np.c_[-freqs[mask], -np.log(freqs[mask])]
-        a, b = np.linalg.lstsq(A, np.log(strain_fas[mask]))[0]
-        # FIXME: this is a modification of the published method that ensures a
-        # smooth transition in the strain
-        strains_max = np.minimum(1, np.exp(-a * freqs) / np.power(freqs, b))
+            # Fit the smoothed model at frequencies greater than the average
+            A = np.c_[-freqs[~mask], -np.log(freqs[~mask])]
+            a, b = np.linalg.lstsq(A, np.log(strain_fas[~mask]))[0]
+            # This is a modification of the published method that ensures a
+            # smooth transition in the strain
+            shape = np.minimum(1, np.exp(-a * freqs) / np.power(freqs, b))
+            strains = strain_eff * shape
+        else:
+            strains = strain_eff * strain_fas / np.max(strain_fas)
 
-        return self.strain_ratio * strains_max
+        return strains
