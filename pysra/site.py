@@ -554,6 +554,18 @@ class Layer(object):
         self._depth = 0
         self._stress_vert = 0
 
+    def __repr__(self):
+        index = self._profile.index(self)
+        shear_vel = self._initial_shear_vel
+        thickness = self._thickness
+        st_name = self.soil_type.name
+        return (
+            f'<Layer(index={index}, '
+            f'shear_vel={shear_vel:0.1f} m/s, '
+            f'thickness={thickness:0.1f} m, '
+            f'soil_type={st_name})>'
+        )
+
     @property
     def depth(self):
         """Depth to the top of the layer [m]."""
