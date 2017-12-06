@@ -22,6 +22,7 @@
 from dask import delayed
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 import pysra
 
