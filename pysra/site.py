@@ -205,9 +205,11 @@ class ModifiedHyperbolicSoilType(SoilType):
         super().__init__(name, unit_wt)
         self._num_cycles = num_cycles
 
-        strains = (
-            np.asarray(strains) if strains else np.logspace(-4, 0.5, num=20)
-        )
+        if strains is None:
+            strains = np.logspace(-4, 0.5, num=20)
+        else:
+            strains = np.asarray(strains)
+
         # Modified hyperbolic shear modulus reduction
         mod_reduc = 1 / (1 + (strains / strain_ref)**curvature)
         self.mod_reduc = NonlinearProperty(name, strains,
@@ -551,6 +553,18 @@ class Layer(object):
 
         self._depth = 0
         self._stress_vert = 0
+
+    def __repr__(self):
+        index = self._profile.index(self)
+        shear_vel = self._initial_shear_vel
+        thickness = self._thickness
+        st_name = self.soil_type.name
+        return (
+            f'<Layer(index={index}, '
+            f'shear_vel={shear_vel:0.1f} m/s, '
+            f'thickness={thickness:0.1f} m, '
+            f'soil_type={st_name})>'
+        )
 
     @property
     def depth(self):

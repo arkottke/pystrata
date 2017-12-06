@@ -96,9 +96,11 @@ class LinearElasticCalculator(object):
         waves_a = np.ones_like(wave_nums, np.complex)
         waves_b = np.ones_like(wave_nums, np.complex)
         for i, l in enumerate(profile[:-1]):
-            # Complex impedance
-            cimped = ((wave_nums[i] * l.comp_shear_mod) /
-                      (wave_nums[i + 1] * profile[i + 1].comp_shear_mod))
+            # Complex impedance -- wave number can be zero which causes an
+            # error.
+            with np.errstate(invalid='ignore'):
+                cimped = ((wave_nums[i] * l.comp_shear_mod) /
+                          (wave_nums[i + 1] * profile[i + 1].comp_shear_mod))
 
             # Complex term to simplify equations -- uses full layer height
             cterm = 1j * wave_nums[i, :] * l.thickness
@@ -111,6 +113,11 @@ class LinearElasticCalculator(object):
                 0.5 * waves_a[i] *
                 (1 - cimped) * np.exp(cterm) + 0.5 * waves_b[i] *
                 (1 + cimped) * np.exp(-cterm))
+
+            # Set wave amplitudes with zero frequency to 1
+            mask = ~np.isfinite(cimped)
+            waves_a[i + 1, mask] = 1.
+            waves_b[i + 1, mask] = 1.
 
         # fixme: Better way to handle this?
         # Set wave amplitudes to 1 at frequencies near 0
