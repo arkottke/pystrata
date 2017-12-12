@@ -27,45 +27,79 @@ from scipy.stats import truncnorm, norm
 
 from . import site
 
-# Limit of number of standard deviation for number generation
-STD_LIM = 2
-# Need to scale the standard deviation to achieve sample standard deviation
-# based on the truncation. Given truncation of 2 standard deviations,
-# the input standard deviation must be increased to 1.136847 to maintain a
-# unit standard deviation for the random samples. This is based on equation
-# on Wikipedia.
-#
-# https://en.wikipedia.org/wiki/Truncated_normal_distribution#Moments
-#
-# If STD_LIM is changed, then this should be adjusted.
-STD_SCALE = 1 / np.sqrt(
-    (1 + (-STD_LIM * norm.pdf(-STD_LIM) - STD_LIM * norm.pdf(STD_LIM)) /
-     (norm.cdf(STD_LIM) - norm.cdf(-STD_LIM)) - (
-         (norm.pdf(-STD_LIM) - norm.pdf(STD_LIM)) /
-         (norm.cdf(STD_LIM) - norm.cdf(-STD_LIM)) ** 2)))
 
-
-def randnorm(size=1):
-    """Random number generator that follows a truncated normal distribution.
-
-    This is the defalut random number generator used by the program. It
-    generates normally distributed values ranging from -2 to +2 with unit
-    standard deviation.
-
-    The state of the random number generator is controlled by the
-    ``np.random.RandomState`` instance.
+class TruncatedNorm:
+    """Truncated normal random number generator.
 
     Parameters
     ----------
-    size : int
-        Number of random values to compute
-
-    Returns
-    -------
-    rvs : ndarray or scalar
-        Random variates of given `size`.
+    limit : float
+        Standard normal limits to impose
     """
-    return truncnorm.rvs(-STD_LIM, STD_LIM, scale=STD_SCALE, size=size)
+    def __init__(self, limit):
+        self.limit = limit
+
+    @property
+    def limit(self):
+        return self._limit
+
+    @limit.setter
+    def limit(self, value):
+        self._limit = value
+
+        # Need to scale the standard deviation to achieve sample standard
+        # deviation based on the truncation. Given truncation of 2 standard
+        # deviations, the input standard deviation must be increased to
+        # 1.136847 to maintain a unit standard deviation for the random
+        # samples.
+        self.scale = 1 / np.sqrt(truncnorm.stats(-value, value, moments='v'))
+
+    def __call__(self, size=1):
+        """Random number generator that follows a truncated normal distribution.
+
+        This is the defalut random number generator used by the program. It
+        generates normally distributed values ranging from -2 to +2 with unit
+        standard deviation.
+
+        The state of the random number generator is controlled by the
+        ``np.random.RandomState`` instance.
+
+        Parameters
+        ----------
+        size : int
+            Number of random values to compute
+
+        Returns
+        -------
+        rvs : ndarray or scalar
+            Random variates of given `size`.
+        """
+        return truncnorm.rvs(
+            -self.limit, self.limit, scale=self.scale, size=size)
+
+    def correlated(self, correl):
+        # Acceptance proportion
+        accept = np.diff(norm.cdf([-self.limit, self.limit]))[0]
+        # The expected number of tries required
+        expected = np.ceil(1 / accept).astype(int)
+
+        while True:
+            # Compute the multivariate normal with a unit variance and
+            # specified standard deviation. Use twice the expected since
+            # this calculation is fast and we don't want to loop.
+            randvar = np.random.multivariate_normal(
+                [0, 0], [[1, correl], [correl, 1]],
+                size=(2 * expected)
+            )
+            valid = np.all(np.abs(randvar) < self.limit, axis=1)
+            if np.any(valid):
+                # Return the first valid value
+                return randvar[valid][0]
+
+
+# Random number generator used for all random number. Limited to +/- 2,
+# and the standard deviation is scaled to maintain the standard deviation
+randnorm = TruncatedNorm(2)
 
 
 class ToroThicknessVariation(object):
@@ -171,7 +205,7 @@ class ToroThicknessVariation(object):
 
         profile_varied = site.Profile()
         for (thickness, depth_mid) in \
-                self.iter_thickness(profile[-2].depth_base):
+            self.iter_thickness(profile[-2].depth_base):
             # Locate the proper layer and add it to the model
             for l in profile:
                 if l.depth < depth_mid <= l.depth_base:
@@ -321,7 +355,7 @@ class ToroVelocityVariation(object):
             corr = (1 - corr_d) * corr_t + corr_d
 
             # Correlated random variable
-            var_cur = corr * var_prev + randnorm() * np.sqrt(1 - corr**2)
+            var_cur = corr * var_prev + randnorm() * np.sqrt(1 - corr ** 2)
             yield var_cur
             var_prev = var_cur
 
@@ -445,20 +479,11 @@ class SoilTypeVariation(object):
         mod_reduc = get_values(soil_type.mod_reduc)
         damping = get_values(soil_type.damping)
 
-        # Create correlated random variables. Generating truncated
-        # correlated random variables is challenging. Instead, we just loop
-        # until it works.
-        #
-        # todo: More elegant solution?
-        while True:
-            randvar = np.random.multivariate_normal(
-                [0, 0], [[STD_SCALE ** 2, self.correlation * STD_SCALE ** 2],
-                         [self.correlation * STD_SCALE ** 2, STD_SCALE ** 2]])
-            if np.all(abs(randvar) < STD_LIM):
-                break
+        # A pair of correlated random variables
+        randvar = randnorm.correlated(self.correlation)
 
-        varied_mod_reduc, varied_damping = self._get_varied(randvar, mod_reduc,
-                                                            damping)
+        varied_mod_reduc, varied_damping = self._get_varied(
+            randvar, mod_reduc, damping)
 
         # Clip the values to the specified min/max
         varied_mod_reduc = np.clip(varied_mod_reduc, self.limits_mod_reduc[0],
@@ -523,7 +548,8 @@ class DarendeliVariation(SoilTypeVariation):
         mod_reduc = np.asarray(mod_reduc).astype(float)
         std = (
             np.exp(-4.23) +
-            np.sqrt(0.25 / np.exp(3.62) - (mod_reduc - 0.5)**2 / np.exp(3.62)))
+            np.sqrt(
+                0.25 / np.exp(3.62) - (mod_reduc - 0.5) ** 2 / np.exp(3.62)))
         return std
 
     @staticmethod
