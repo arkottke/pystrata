@@ -266,8 +266,6 @@ class StressTSOutput(TimeSeriesOutput):
 class ResponseSpectrumOutput(LocationBasedOutput):
     _const_ref = True
     xlabel = 'Frequency (Hz)'
-    # fixme: Include damping?
-    ylabel = 'Spectral Accel. (g)'
 
     def __init__(self, freqs, location, osc_damping):
         super().__init__(freqs, location)
@@ -284,6 +282,10 @@ class ResponseSpectrumOutput(LocationBasedOutput):
     @property
     def osc_damping(self):
         return self._osc_damping
+
+    @property
+    def ylabel(self):
+        return f'{100 * self.osc_damping:g}%-Damped, Spec. Accel. (g)'
 
     def __call__(self, calc, name=None):
         Output.__call__(self, calc, name)
@@ -333,6 +335,7 @@ class AccelTransferFunctionOutput(RatioBasedOutput):
 
 class ResponseSpectrumRatioOutput(RatioBasedOutput):
     _const_ref = True
+    xlabel = 'Frequency (Hz)'
 
     def __init__(self, freqs, location_in, location_out, osc_damping):
         super().__init__(freqs, location_in, location_out)
@@ -349,6 +352,10 @@ class ResponseSpectrumRatioOutput(RatioBasedOutput):
     @property
     def osc_damping(self):
         return self._osc_damping
+
+    @property
+    def ylabel(self):
+        return f'{100 * self.osc_damping:g}%-Damped, Resp. Spectral Ratio'
 
     def __call__(self, calc, name=None):
         Output.__call__(self, calc, name)
