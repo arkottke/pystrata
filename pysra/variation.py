@@ -594,6 +594,9 @@ def iter_varied_profiles(profile,
                          var_velocity=None,
                          var_soiltypes=None):
     for i in range(count):
+        # Copy the profile to form the realization
+        p = copy
+
         if var_thickness is None:
             varied = copy.deepcopy(profile)
         else:
@@ -608,5 +611,5 @@ def iter_varied_profiles(profile,
                 # Copy over the varied properties
                 for attr in ['mod_reduc', 'damping']:
                     if getattr(st, attr) is not None:
-                        getattr(st, attr).values[:] = \
-                            getattr(st_varied, attr).values
+                        print(getattr(st, attr), getattr(st_varied, attr))
+                        getattr(st, attr)[:] = getattr(st_varied, attr)
