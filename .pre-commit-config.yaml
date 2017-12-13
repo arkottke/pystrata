@@ -8,10 +8,6 @@
     -   id: trailing-whitespace
     -   id: end-of-file-fixer
     -   id: flake8
-<<<<<<< HEAD
-        exclude: docs/conf.py
-=======
         exclude: docs/*
->>>>>>> 4d71de0126fd2979338192782a55642ad41b2c46
     -   id: check-yaml
     -   id: check-merge-conflict
