@@ -224,18 +224,21 @@ class LinearElasticCalculator(object):
         #                         -angFreq^2 (2 * A_n)
         #
         assert lout.wave_field == WaveField.within
+
+        ang_freqs = self.motion.angular_freqs
         # The numerator cannot be computed using wave_at_location() because
         # it is A - B.
         cterm = 1j * self._wave_nums[lout.index, :] * lout.depth_within
         numer = (1j * self._wave_nums[lout.index, :] *
                  (self._waves_a[lout.index, :] * np.exp(cterm) -
                   self._waves_b[lout.index, :] * np.exp(-cterm)))
-        denom = -self.motion.angular_freqs**2 * self.wave_at_location(lin)
+        denom = -ang_freqs ** 2 * self.wave_at_location(lin)
+
+        # Only compute transfer function for non-zero frequencies
+        mask = ~np.isclose(ang_freqs, 0)
+        tf = np.zeros_like(mask, dtype=np.complex)
         # Scale into units from gravity
-        tf = GRAVITY * numer / denom
-        # Set frequencies close to zero to zero
-        mask = np.isclose(self.motion.angular_freqs, 0)
-        tf[mask] = 0
+        tf[mask] = GRAVITY * numer[mask] / denom[mask]
 
         return tf
 
