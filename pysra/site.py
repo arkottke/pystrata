@@ -9,8 +9,8 @@
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
 #
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
 #
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -197,9 +197,13 @@ class SoilType(object):
             for p in [self.mod_reduc, self.damping])
 
     def __eq__(self, other):
-        return all(
-            getattr(self, attr) == getattr(other, attr)
-            for attr in ['name', 'unit_wt', 'mod_reduc', 'damping'])
+        # return all(
+        #     getattr(self, attr) == getattr(other, attr)
+        #     for attr in ['name', 'unit_wt', 'mod_reduc', 'damping'])
+        return self.__dict__ == other.__dict__
+
+    def __hash__(self):
+        return hash(self.__dict__.values())
 
 
 class ModifiedHyperbolicSoilType(SoilType):
@@ -240,6 +244,7 @@ class ModifiedHyperbolicSoilType(SoilType):
         # Convert to decimal values
         self.damping = NonlinearProperty(name, strains,
                                          damping / 100., 'damping')
+
 
 class DarendeliSoilType(ModifiedHyperbolicSoilType):
     """
@@ -282,7 +287,10 @@ class DarendeliSoilType(ModifiedHyperbolicSoilType):
         damping_min = self._calc_damping_min()
         name = self._create_name()
 
-        super().__init__(name, unit_wt, strain_ref, curvature, damping_min, num_cycles, strains)
+        super().__init__(
+            name, unit_wt, strain_ref, curvature, damping_min,
+            num_cycles, strains
+        )
 
     def _calc_damping_min(self):
         return ((0.8005 + 0.0129 * self._plas_index * self._ocr ** -0.1069) *
@@ -293,7 +301,8 @@ class DarendeliSoilType(ModifiedHyperbolicSoilType):
         return ((0.0352 + 0.0010 * self._plas_index * self._ocr ** 0.3246) *
                 (self._stress_mean * KPA_TO_ATM) ** 0.3483)
 
-    def _calc_curvature(self):
+    @staticmethod
+    def _calc_curvature():
         return 0.9190
 
     def _create_name(self):
@@ -339,7 +348,10 @@ class MenqSoilType(ModifiedHyperbolicSoilType):
         damping_min = self._calc_damping_min()
         name = self._create_name()
 
-        super().__init__(name, unit_wt, strain_ref, curvature, damping_min, num_cycles, strains)
+        super().__init__(
+            name, unit_wt, strain_ref, curvature, damping_min, num_cycles,
+            strains
+        )
 
     def _calc_damping_min(self):
         return (0.55 * self._uniformity_coeff**0.1 *
@@ -350,7 +362,7 @@ class MenqSoilType(ModifiedHyperbolicSoilType):
                 self._stress_mean ** (0.5 * self._uniformity_coeff**-0.15))
 
     def _calc_curvature(self):
-        return (0.86 + 0.1 * np.log10(self._stress_mean * KPA_TO_ATM))
+        return 0.86 + 0.1 * np.log10(self._stress_mean * KPA_TO_ATM)
 
     def _create_name(self):
         fmt = "Menq (Cᵤ={:.1f}, D₅₀={:.1f} mm, σₘ'={:.1f} kN/m²)"
@@ -440,7 +452,8 @@ class KishidaSoilType(SoilType):
         self.damping = NonlinearProperty(
             name, strains, dampings, 'damping')
 
-    def _calc_strain_ref(self, x_3, x_3_mean):
+    @staticmethod
+    def _calc_strain_ref(x_3, x_3_mean):
         """Compute the reference strain using Equation (6)."""
         b_9 = -1.41
         b_10 = -0.950
@@ -468,7 +481,8 @@ class KishidaSoilType(SoilType):
         mod_reduc = shear_mod / shear_mod[0]
         return mod_reduc
 
-    def _calc_damping(self, mod_reducs, x_2, x_2_mean, x_3, x_3_mean):
+    @staticmethod
+    def _calc_damping(mod_reducs, x_2, x_2_mean, x_3, x_3_mean):
         """Compute the damping ratio using Equation (16)."""
         # Mean values of the predictors
         x_1_mean = -1.0
@@ -482,7 +496,8 @@ class KishidaSoilType(SoilType):
         ln_damping = (c * x).sum(axis=1)
         return np.exp(ln_damping) / 100.
 
-    def _calc_unit_wt(self, x_1, x_2):
+    @staticmethod
+    def _calc_unit_wt(x_1, x_2):
         x = np.r_[1, x_1, x_2]
         d = np.r_[-0.112, 0.038, 0.360]
 
@@ -521,8 +536,8 @@ class IterativeValue(object):
         """
         if self.previous is not None:
             # FIXME
-            # Use the maximum strain value -- this is important for error calculation
-            # with frequency dependent properties
+            # Use the maximum strain value -- this is important for error
+            #  calculation with frequency dependent properties
             # prev = np.max(self.previous)
             # value = np.max(self.value)
             try:
