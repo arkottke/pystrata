@@ -225,7 +225,77 @@ class ToroThicknessVariation(object):
         return profile_varied
 
 
-class ToroVelocityVariation(object):
+class VelocityVariation(object):
+    """Abstract model for varying the velocity."""
+
+    def __call__(self, profile):
+        """Calculate a varied shear-wave velocity profile.
+
+        Parameters
+        ----------
+        profile : site.Profile
+            Profile to be varied. Not modified in place.
+
+        Returns
+        -------
+        site.Profile
+            Varied site profile.
+        """
+        corr = self._calc_corr(profile)
+
+        std = self._calc_ln_std(profile)
+
+
+        profile_varied = site.Profile()
+        for l, corr_var in zip(profile,
+                               self.iter_correlated_variables(profile)):
+            # FIXME: add layer specific ln_std
+            ln_std = self.ln_std
+            shear_vel_varied = l.initial_shear_vel * np.exp(ln_std * corr_var)
+
+            profile_varied.append(
+                site.Layer(
+                    l.soil_type,
+                    l.thickness,
+                    shear_vel_varied, ))
+
+        profile_varied.update_layers()
+
+        return profile_varied
+
+    def _calc_corr(self, profile):
+        """Compute the correlation matrix
+
+        Parameters
+        ----------
+        profile : site.Profile
+            Input site profile
+
+        Yields
+        ------
+        np.array
+            Correlation matrix
+        """
+        raise NotImplementedError
+
+    def _calc_ln_std(self, profile):
+        """Compute the standard deviation for each layer.
+
+        Parameters
+        ----------
+        profile : site.Profile
+            Input site profile
+
+        Yields
+        ------
+        np.array
+            Standard deviation of the shear-wave velocity
+        """
+        raise NotImplementedError
+
+
+
+class ToroVelocityVariation(VelocityVariation):
     """ Toro (1995) [T95] velocity variation model.
 
     Default values can be selected with :meth:`.generic_model`.
@@ -322,8 +392,8 @@ class ToroVelocityVariation(object):
         self._h_0 = h_0
         self._b = b
 
-    def iter_correlated_variables(self, profile):
-        """Iteratively provide corrlated variables.
+    def _calc_correlation(self, profile):
+        """Compute the correlation matrix
 
         Parameters
         ----------
@@ -332,66 +402,36 @@ class ToroVelocityVariation(object):
 
         Yields
         ------
-        float
-            Correlated random variable of velocity ranging from
-            :math:`-\infty` to :math:`+\infty`.
+        np.array
+            Correlation matrix
         """
-        var_prev = randnorm()
-        yield var_prev
+        depth = np.array([l.depth_mid for l in profile[:-1]])
+        thick = np.diff(depth)
+        depth = depth[1:]
 
-        for i in range(len(profile) - 1):
-            h = (profile[i + 1].depth_mid + profile[i].depth_mid) / 2
-            t = profile[i + 1].depth_mid - profile[i].depth_mid
+        # Depth dependent correlation
+        corr_depth = (
+            self.rho_200 * np.power(
+            (depth + self.rho_0) / (200 + self.rho_0),
+            self.b)
+        )
+        corr_depth[depth > 200] = self.rho_200
 
-            if h <= 200.:
-                corr_d = (self.rho_200 * np.power(
-                    (h + self.rho_0) / (200 + self.rho_0), self.b))
-            else:
-                corr_d = self.rho_200
+        # Thickness dependent correlation
+        corr_thick = self.rho_0 * np.exp(-thick / self.delta)
 
-            corr_t = self.rho_0 * np.exp(-t / self.delta)
-
-            # Correlation coefficient
-            corr = (1 - corr_d) * corr_t + corr_d
-
-            # Correlated random variable
-            var_cur = corr * var_prev + randnorm() * np.sqrt(1 - corr ** 2)
-            yield var_cur
-            var_prev = var_cur
+        # Final correlation
+        # Correlation coefficient
+        corr = (1 - corr_depth) * corr_thick + corr_depth
 
         # Bedrock is perfectly correlated with layer above it
-        yield var_prev
+        corr = np.r_[corr, 1]
 
-    def __call__(self, profile):
-        """Calculate a varied shear-wave velocity profile.
+        return corr
 
-        Parameters
-        ----------
-        profile : site.Profile
-            Profile to be varied. Not modified in place.
-
-        Returns
-        -------
-        site.Profile
-            Varied site profile.
-        """
-
-        profile_varied = site.Profile()
-        for l, corr_var in zip(profile,
-                               self.iter_correlated_variables(profile)):
-            # FIXME: add layer specific ln_std
-            ln_std = self.ln_std
-            shear_vel_varied = l.initial_shear_vel * np.exp(ln_std * corr_var)
-
-            profile_varied.append(
-                site.Layer(
-                    l.soil_type,
-                    l.thickness,
-                    shear_vel_varied, ))
-
-        profile_varied.update_layers()
-
-        return profile_varied
+    def _calc_ln_std(self, profile):
+        ln_std = self.ln_std * np.ones(len(profile))
+        return ln_std
 
     @property
     def ln_std(self):
