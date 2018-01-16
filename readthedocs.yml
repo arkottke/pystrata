@@ -1,0 +1,5 @@
+requirements_file: requirements_rtfd.txt
+
+python:
+    version: 3
+    pip_install: true
