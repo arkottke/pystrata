@@ -1,6 +1,7 @@
+--index-url https://pypi.python.org/simple/
+
 jinja2
 matplotlib
-mock
 numpy
 sphinx
 sphinx_rtd_theme

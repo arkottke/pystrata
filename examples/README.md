@@ -11,4 +11,4 @@ spectrum and site amplification functions.
 1. Generate simulated shear-wave velocity profiles.
 1. Generate simulated nonlinear properties.
 1. Time series analysis to compute surface response spectrum and site amplification functions using velocity profiles from geopsy.
-
+1. RVT calculation using different peak factor calculators.
