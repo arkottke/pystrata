@@ -9,8 +9,8 @@
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
 #
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
 #
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -23,7 +23,6 @@
 """Classes used to define input motions."""
 
 import enum
-import itertools
 import re
 
 import numpy as np
@@ -277,9 +276,6 @@ class TimeSeriesMotion(Motion):
         )
 
         return TimeSeriesMotion(filename, description, time_step, accels)
-
-
-
 
 
 class RvtMotion(pyrvt.motions.RvtMotion, Motion):

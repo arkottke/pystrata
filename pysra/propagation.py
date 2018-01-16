@@ -389,7 +389,8 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         Engineering Mechanics, 128(1), 34-47.
     """
 
-    def __init__(self, use_smooth_spectrum=False, strain_ratio=1.0, tolerance=0.01, max_iterations=15):
+    def __init__(self, use_smooth_spectrum=False, strain_ratio=1.0,
+                 tolerance=0.01, max_iterations=15):
         """Initialize the class."""
         super().__init__(strain_ratio, tolerance, max_iterations)
 
