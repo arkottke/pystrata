@@ -1,5 +1,8 @@
-requirements_file: requirements_rtfd.txt
+build:
+  image: latest
 
 python:
-    version: 3
-    pip_install: true
+  version: 3.6
+  pip_install: true
+
+requirements_file: requirements_rtfd.txt
