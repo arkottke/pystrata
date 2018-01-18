@@ -1,6 +1,6 @@
 # The MIT License (MIT)
 #
-# Copyright (c) 2016 Albert Kottke
+# Copyright (c) 2016-2018 Albert Kottke
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -9,8 +9,8 @@
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
 #
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
 #
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -305,8 +305,8 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
         # Compute the maximum strain within the profile.
         for index, layer in enumerate(profile[:-1]):
             loc_layer = Location(index, layer, 'within', layer.thickness / 2)
-            layer.strain_max = self._calc_strain_max(
-                loc_input, loc_layer, motion)
+            layer.strain_max = self._calc_strain_max(loc_input, loc_layer,
+                                                     motion)
 
     def _estimate_strains(self):
         """Compute an estimate of the strains."""
@@ -389,8 +389,11 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         Engineering Mechanics, 128(1), 34-47.
     """
 
-    def __init__(self, use_smooth_spectrum=False, strain_ratio=1.0,
-                 tolerance=0.01, max_iterations=15):
+    def __init__(self,
+                 use_smooth_spectrum=False,
+                 strain_ratio=1.0,
+                 tolerance=0.01,
+                 max_iterations=15):
         """Initialize the class."""
         super().__init__(strain_ratio, tolerance, max_iterations)
 

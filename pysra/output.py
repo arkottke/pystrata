@@ -1,6 +1,6 @@
 # The MIT License (MIT)
 #
-# Copyright (c) 2016 Albert Kottke
+# Copyright (c) 2016-2018 Albert Kottke
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -224,7 +224,7 @@ class AriasIntensityTSOutput(AccelerationTSOutput):
 
     def _modify_values(self, calc, location, values):
         time_step = calc.motion.time_step
-        values = scipy.integrate.cumtrapz(values**2, dx=time_step)
+        values = scipy.integrate.cumtrapz(values ** 2, dx=time_step)
         values *= GRAVITY * np.pi / 2
         return values
 
@@ -403,8 +403,10 @@ class CyclicStressRatioProfile(ProfileBasedOutput):
 
     def __call__(self, calc, name=None):
         ProfileBasedOutput.__call__(self, calc, name)
-        values = [l.stress_shear_max / l.stress_vert(l.thickness / 2, True)
-                  for l in calc.profile[:-1]]
+        values = [
+            l.stress_shear_max / l.stress_vert(l.thickness / 2, True)
+            for l in calc.profile[:-1]
+        ]
         # Repeat the first value for the surface
         values = self._stress_level * np.array([values[0]] + values)
         self._add_values(values)

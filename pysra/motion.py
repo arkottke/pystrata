@@ -1,6 +1,6 @@
 # The MIT License (MIT)
 #
-# Copyright (c) 2016 Albert Kottke
+# Copyright (c) 2016-2018 Albert Kottke
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -19,7 +19,6 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
 """Classes used to define input motions."""
 
 import enum
@@ -202,8 +201,8 @@ class TimeSeriesMotion(Motion):
         tf : :class:`numpy.ndarray`
             Complex-valued transfer function with length equal to `self.freq`.
         """
-        return (-osc_freq**2. / (np.square(self.freqs) - np.square(osc_freq) -
-                                 2.j * damping * osc_freq * self.freqs))
+        return (-osc_freq ** 2. / (np.square(self.freqs) - np.square(osc_freq)
+                                   - 2.j * damping * osc_freq * self.freqs))
 
     @classmethod
     def load_at2_file(cls, filename):
@@ -254,26 +253,22 @@ class TimeSeriesMotion(Motion):
         description = '; '.join([g.strip() for g in m.groups()])
 
         # 6 lines of (8i10) formatted integers
-        values_int = parse_fixed_width(
-            48 * [(10, int)],
-            [lines.pop(0) for _ in range(6)]
-        )
+        values_int = parse_fixed_width(48 * [(10, int)],
+                                       [lines.pop(0) for _ in range(6)])
         count_comment = values_int[15]
         count = values_int[16]
 
         # 10 lines of (5e15.7) formatted floats
-        values_float = parse_fixed_width(
-            50 * [(15, float)],
-            [lines.pop(0) for _ in range(10)]
-        )
+        values_float = parse_fixed_width(50 * [(15, float)],
+                                         [lines.pop(0) for _ in range(10)])
         time_step = 1 / values_float[1]
 
         # Skip comments
         lines = lines[count_comment:]
 
-        accels = np.array(
-            parse_fixed_width(count * [(10, float), ], lines)
-        )
+        accels = np.array(parse_fixed_width(count * [
+            (10, float),
+        ], lines))
 
         return TimeSeriesMotion(filename, description, time_step, accels)
 

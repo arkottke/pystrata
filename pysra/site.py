@@ -1,6 +1,6 @@
 # The MIT License (MIT)
 #
-# Copyright (c) 2016 Albert Kottke
+# Copyright (c) 2016-2018 Albert Kottke
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -207,8 +207,14 @@ class SoilType(object):
 
 
 class ModifiedHyperbolicSoilType(SoilType):
-    def __init__(self, name, unit_wt, strain_ref, curvature, damping_min,
-                 num_cycles=10, strains=None):
+    def __init__(self,
+                 name,
+                 unit_wt,
+                 strain_ref,
+                 curvature,
+                 damping_min,
+                 num_cycles=10,
+                 strains=None):
         super().__init__(name, unit_wt)
         self._num_cycles = num_cycles
 
@@ -218,32 +224,33 @@ class ModifiedHyperbolicSoilType(SoilType):
             strains = np.asarray(strains)
 
         # Modified hyperbolic shear modulus reduction
-        mod_reduc = 1 / (1 + (strains / strain_ref)**curvature)
-        self.mod_reduc = NonlinearProperty(name, strains,
-                                           mod_reduc, 'mod_reduc')
+        mod_reduc = 1 / (1 + (strains / strain_ref) ** curvature)
+        self.mod_reduc = NonlinearProperty(name, strains, mod_reduc,
+                                           'mod_reduc')
 
         # Masing damping based on shear -modulus reduction
         damping_masing_a1 = (
             (100. / np.pi) * (4 * (strains - strain_ref * np.log(
                 (strains + strain_ref) / strain_ref)) /
-                              (strains**2 / (strains + strain_ref)) - 2.))
+                              (strains ** 2 / (strains + strain_ref)) - 2.))
         # Correction between perfect hyperbolic strain model and modified
         # model.
-        c1 = -1.1143 * curvature**2 + 1.8618 * curvature + 0.2523
-        c2 = 0.0805 * curvature**2 - 0.0710 * curvature - 0.0095
-        c3 = -0.0005 * curvature**2 + 0.0002 * curvature + 0.0003
-        damping_masing = (c1 * damping_masing_a1 + c2 * damping_masing_a1**2 +
-                          c3 * damping_masing_a1**3)
+        c1 = -1.1143 * curvature ** 2 + 1.8618 * curvature + 0.2523
+        c2 = 0.0805 * curvature ** 2 - 0.0710 * curvature - 0.0095
+        c3 = -0.0005 * curvature ** 2 + 0.0002 * curvature + 0.0003
+        damping_masing = (c1 * damping_masing_a1 + c2 * damping_masing_a1 ** 2
+                          + c3 * damping_masing_a1 ** 3)
 
         # Masing correction factor
         masing_corr = 0.6329 - 0.00566 * np.log(num_cycles)
         # Compute the damping in percent
-        damping = (damping_min + damping_masing * masing_corr * mod_reduc**0.1)
+        damping = (
+            damping_min + damping_masing * masing_corr * mod_reduc ** 0.1)
         # Prevent the damping from reducing as it can at large strains
         damping = np.maximum.accumulate(damping)
         # Convert to decimal values
-        self.damping = NonlinearProperty(name, strains,
-                                         damping / 100., 'damping')
+        self.damping = NonlinearProperty(name, strains, damping / 100.,
+                                         'damping')
 
 
 class DarendeliSoilType(ModifiedHyperbolicSoilType):
@@ -287,10 +294,8 @@ class DarendeliSoilType(ModifiedHyperbolicSoilType):
         damping_min = self._calc_damping_min()
         name = self._create_name()
 
-        super().__init__(
-            name, unit_wt, strain_ref, curvature, damping_min,
-            num_cycles, strains
-        )
+        super().__init__(name, unit_wt, strain_ref, curvature, damping_min,
+                         num_cycles, strains)
 
     def _calc_damping_min(self):
         return ((0.8005 + 0.0129 * self._plas_index * self._ocr ** -0.1069) *
@@ -348,18 +353,16 @@ class MenqSoilType(ModifiedHyperbolicSoilType):
         damping_min = self._calc_damping_min()
         name = self._create_name()
 
-        super().__init__(
-            name, unit_wt, strain_ref, curvature, damping_min, num_cycles,
-            strains
-        )
+        super().__init__(name, unit_wt, strain_ref, curvature, damping_min,
+                         num_cycles, strains)
 
     def _calc_damping_min(self):
-        return (0.55 * self._uniformity_coeff**0.1 *
-                self._diam_mean**-0.3 * self._stress_mean**-0.08)
+        return (0.55 * self._uniformity_coeff ** 0.1 * self._diam_mean
+                ** -0.3 * self._stress_mean ** -0.08)
 
     def _calc_strain_ref(self):
-        return (0.12 * self._uniformity_coeff**-0.6 *
-                self._stress_mean ** (0.5 * self._uniformity_coeff**-0.15))
+        return (0.12 * self._uniformity_coeff ** -0.6 * self._stress_mean
+                ** (0.5 * self._uniformity_coeff ** -0.15))
 
     def _calc_curvature(self):
         return 0.86 + 0.1 * np.log10(self._stress_mean * KPA_TO_ATM)
@@ -447,10 +450,9 @@ class KishidaSoilType(SoilType):
         dampings = self._calc_damping(mod_reducs, x_2, x_2_mean, x_3, x_3_mean)
 
         name = self._create_name()
-        self.mod_reduc = NonlinearProperty(
-            name, strains, mod_reducs, 'mod_reduc')
-        self.damping = NonlinearProperty(
-            name, strains, dampings, 'damping')
+        self.mod_reduc = NonlinearProperty(name, strains, mod_reducs,
+                                           'mod_reduc')
+        self.damping = NonlinearProperty(name, strains, dampings, 'damping')
 
     @staticmethod
     def _calc_strain_ref(x_3, x_3_mean):
@@ -577,12 +579,10 @@ class Layer(object):
         shear_vel = self._initial_shear_vel
         thickness = self._thickness
         st_name = self.soil_type.name
-        return (
-            f'<Layer(index={index}, '
-            f'shear_vel={shear_vel:0.1f} m/s, '
-            f'thickness={thickness:0.1f} m, '
-            f'soil_type={st_name})>'
-        )
+        return (f'<Layer(index={index}, '
+                f'shear_vel={shear_vel:0.1f} m/s, '
+                f'thickness={thickness:0.1f} m, '
+                f'soil_type={st_name})>')
 
     @property
     def depth(self):
@@ -941,8 +941,7 @@ class Profile(collections.UserList):
         # If needed, add the final layer to the required depth
         if depths[-1] < depth:
             depths.append(depth)
-            travel_times.append(
-                (depth - self[-1].depth) / self[-1].shear_vel)
+            travel_times.append((depth - self[-1].depth) / self[-1].shear_vel)
 
         total_travel_times = np.cumsum(travel_times)
         # Interpolate the travel time to the depth of interest
@@ -970,16 +969,13 @@ class Profile(collections.UserList):
         # step
         shape = np.r_[np.cumsum(mode_incr[::-1])[::-1], 0]
 
-        freq_fund = np.sqrt(
-            4 * np.sum(thicks * depths_mid ** 2 / shear_vels ** 2) /
-            np.sum(
-                thicks *
-                # Roll is used to offset the mode_shape so that the sum
-                # can be calculated for two adjacent layers
-                np.sum(np.c_[shape, np.roll(shape, -1)],
-                       axis=1)[:-1] ** 2
-            )
-        )
+        freq_fund = np.sqrt(4 * np.sum(
+            thicks * depths_mid ** 2 / shear_vels ** 2
+        ) / np.sum(
+            thicks *
+            # Roll is used to offset the mode_shape so that the sum
+            # can be calculated for two adjacent layers
+            np.sum(np.c_[shape, np.roll(shape, -1)], axis=1)[:-1] ** 2))
         period_fun = 2 * np.pi / freq_fund
         rayleigh_vel = 4 * thicks.sum() / period_fun
         return rayleigh_vel
