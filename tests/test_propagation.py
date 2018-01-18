@@ -17,13 +17,15 @@
 #
 # Copyright (C) Albert Kottke, 2013-2016
 
-import os
+import pathlib
 import string
 
 import numpy as np
-import openpyxl
+import pyexcel
 
 import pysra
+
+fpath_data = pathlib.Path(__file__).parent / 'data'
 
 
 def read_cluster(ws, cols, names, row_start, row_end):
@@ -36,13 +38,9 @@ def read_cluster(ws, cols, names, row_start, row_end):
 
 
 def read_deepsoil_results(name):
-    wb = openpyxl.load_workbook(
-        os.path.join(os.path.dirname(__file__), 'data', name + '.xlsx'),
-        data_only=True,
-        read_only=True)
-    records = [[cell.value for cell in row] for row in wb['Layer1'].rows]
-    names = ','.join(string.ascii_uppercase[:len(records[0])])
-    records = np.rec.fromrecords(records, names=names)
+    data = pyexcel.get_array(file_name=str(fpath_data / (name + '.xlsx')))
+    names = ','.join(string.ascii_uppercase[:len(data[0])])
+    records = np.rec.fromrecords(data, names=names)
 
     def extract_cols(records, cols, first, last, names):
         return {
@@ -65,14 +63,14 @@ def read_deepsoil_results(name):
 
 
 def load_ts():
-    fname = os.path.join(os.path.dirname(__file__), 'data', 'ChiChi.txt')
-    with open(fname) as fp:
+    fpath = fpath_data / 'ChiChi.txt'
+    with fpath.open() as fp:
         parts = next(fp).split()
         time_step = float(parts[1])
         accels = [float(l.split()[1]) for l in fp]
 
     return pysra.motion.TimeSeriesMotion(
-        fname, 'ChiChi.txt from DeepSoil v6.1', time_step, accels)
+        fpath.name, 'ChiChi.txt from DeepSoil v6.1', time_step, accels)
 
 
 class Comparison:

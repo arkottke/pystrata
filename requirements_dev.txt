@@ -6,6 +6,8 @@ cryptography
 flake8
 pre-commit
 pydocstyle
+pyexcel
+pyexcel-xlsx
 pytest-cov
 pytest-flake8
 pytest-runner
