@@ -134,25 +134,24 @@ class TestSpidVariation:
             rtol=0.1,
             atol=0.1)
 
+
 def test_iter_variations():
     m = motion.SourceTheoryRvtMotion(6.0, 30, 'wna')
     m.calc_fourier_amps()
 
     profile = site.Profile([
         site.Layer(
-            site.DarendeliSoilType(
-                18., plas_index=0, ocr=1, stress_mean=200), 10, 400),
+            site.DarendeliSoilType(18., plas_index=0, ocr=1, stress_mean=200),
+            10, 400),
         site.Layer(
-            site.DarendeliSoilType(
-                18., plas_index=0, ocr=1, stress_mean=200), 20, 600),
-        site.Layer(
-            site.SoilType('Rock', 24., None, 0.01), 0, 1200),
+            site.DarendeliSoilType(18., plas_index=0, ocr=1, stress_mean=200),
+            20, 600),
+        site.Layer(site.SoilType('Rock', 24., None, 0.01), 0, 1200),
     ])
 
     calc = propagation.EquivalentLinearCalculator()
     var_thickness = variation.ToroThicknessVariation()
-    var_velocity = variation.ToroVelocityVariation.generic_model(
-        'USGS C')
+    var_velocity = variation.ToroVelocityVariation.generic_model('USGS C')
     var_soiltypes = variation.SpidVariation(
         -0.5, std_mod_reduc=0.15, std_damping=0.30)
 
@@ -165,8 +164,7 @@ def test_iter_variations():
             # Location of the output
             output.OutputLocation('outcrop', index=0),
             # Damping
-            0.05
-        ),
+            0.05),
         output.ResponseSpectrumRatioOutput(
             # Frequency
             freqs,
@@ -175,16 +173,13 @@ def test_iter_variations():
             # Location out (numerator)
             output.OutputLocation('outcrop', index=0),
             # Damping
-            0.05
-        ),
-    )
+            0.05), )
 
     for profile in variation.iter_varied_profiles(
             profile,
             30,
             var_thickness=var_thickness,
             var_velocity=var_velocity,
-            var_soiltypes=var_soiltypes
-    ):
+            var_soiltypes=var_soiltypes):
         calc(m, profile, profile.location('outcrop', index=-1))
         outputs(calc)

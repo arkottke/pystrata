@@ -1,6 +1,6 @@
 # The MIT License (MIT)
 #
-# Copyright (c) 2016 Albert Kottke
+# Copyright (c) 2016-2018 Albert Kottke
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -9,8 +9,8 @@
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
 #
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
 #
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -23,7 +23,9 @@
 import copy
 
 import numpy as np
+
 from scipy.stats import truncnorm, norm
+from scipy.sparse import diags
 
 from . import site
 
@@ -36,6 +38,7 @@ class TruncatedNorm:
     limit : float
         Standard normal limits to impose
     """
+
     def __init__(self, limit):
         self.limit = limit
 
@@ -52,7 +55,11 @@ class TruncatedNorm:
         # deviations, the input standard deviation must be increased to
         # 1.136847 to maintain a unit standard deviation for the random
         # samples.
-        self.scale = 1 / np.sqrt(truncnorm.stats(-value, value, moments='v'))
+        self._scale = 1 / np.sqrt(truncnorm.stats(-value, value, moments='v'))
+
+    @property
+    def scale(self):
+        return self._scale
 
     def __call__(self, size=1):
         """Random number generator that follows a truncated normal distribution.
@@ -75,7 +82,7 @@ class TruncatedNorm:
             Random variates of given `size`.
         """
         return truncnorm.rvs(
-            -self.limit, self.limit, scale=self.scale, size=size)
+            -self.limit, self.limit, scale=self._scale, size=size)
 
     def correlated(self, correl):
         # Acceptance proportion
@@ -88,9 +95,7 @@ class TruncatedNorm:
             # specified standard deviation. Use twice the expected since
             # this calculation is fast and we don't want to loop.
             randvar = np.random.multivariate_normal(
-                [0, 0], [[1, correl], [correl, 1]],
-                size=(2 * expected)
-            )
+                [0, 0], [[1, correl], [correl, 1]], size=(2 * expected))
             valid = np.all(np.abs(randvar) < self.limit, axis=1)
             if np.any(valid):
                 # Return the first valid value
@@ -202,27 +207,23 @@ class ToroThicknessVariation(object):
             Varied site profile.
 
         """
-
-        profile_varied = site.Profile()
-        for (thickness, depth_mid) in \
-            self.iter_thickness(profile[-2].depth_base):
+        layers = []
+        for (thick, depth_mid) in self.iter_thickness(profile[-2].depth_base):
             # Locate the proper layer and add it to the model
             for l in profile:
                 if l.depth < depth_mid <= l.depth_base:
-                    profile_varied.append(
-                        site.Layer(l.soil_type, thickness,
-                                   l.initial_shear_vel))
+                    layers.append(
+                        site.Layer(l.soil_type, thick, l.initial_shear_vel))
                     break
             else:
                 raise LookupError
 
         # Add the half-space
-        l = profile[-1]
-        profile_varied.append(site.Layer(l.soil_type, 0, l.initial_shear_vel))
+        hsl = profile[-1]
+        layers.append(site.Layer(hsl.soil_type, 0, hsl.initial_shear_vel))
 
-        profile_varied.update_layers()
-
-        return profile_varied
+        varied = site.Profile(layers, profile.wt_depth)
+        return varied
 
 
 class VelocityVariation(object):
@@ -241,30 +242,54 @@ class VelocityVariation(object):
         site.Profile
             Varied site profile.
         """
+
+        mean = np.log([l.initial_shear_vel for l in profile])
+        covar = self._calc_covar_matrix(profile)
+
+        lnvel_rand = np.random.multivariate_normal(
+            mean, covar, check_valid='ignore')
+
+        # Limits based on the number of standard deviations
+        offset = randnorm.limit * np.sqrt(np.diag(covar))
+        lnvel = np.clip(lnvel_rand, mean - offset, mean + offset)
+
+        vel = np.exp(lnvel)
+
+        layers = [
+            site.Layer(l.soil_type, l.thickness, vel[i])
+            for i, l in enumerate(profile)
+        ]
+        varied = site.Profile(layers, profile.wt_depth)
+        return varied
+
+    def _calc_covar_matrix(self, profile):
+        """Calculate the covariance matrix.
+
+        Parameters
+        ----------
+        profile : site.Profile
+            Input site profile
+
+        Yields
+        ------
+        covar : `class`:numpy.array
+            Covariance matrix
+        """
         corr = self._calc_corr(profile)
-
         std = self._calc_ln_std(profile)
+        # Modify the standard deviation by the truncated norm scale
+        std *= randnorm.scale
 
+        var = std ** 2
+        covar = corr * std[:-1] * std[1:]
 
-        profile_varied = site.Profile()
-        for l, corr_var in zip(profile,
-                               self.iter_correlated_variables(profile)):
-            # FIXME: add layer specific ln_std
-            ln_std = self.ln_std
-            shear_vel_varied = l.initial_shear_vel * np.exp(ln_std * corr_var)
+        # Main diagonal is the variance
+        mat = diags([covar, var, covar], [-1, 0, 1]).toarray()
 
-            profile_varied.append(
-                site.Layer(
-                    l.soil_type,
-                    l.thickness,
-                    shear_vel_varied, ))
-
-        profile_varied.update_layers()
-
-        return profile_varied
+        return mat
 
     def _calc_corr(self, profile):
-        """Compute the correlation matrix
+        """Compute the adjacent-layer correlations.
 
         Parameters
         ----------
@@ -292,7 +317,6 @@ class VelocityVariation(object):
             Standard deviation of the shear-wave velocity
         """
         raise NotImplementedError
-
 
 
 class ToroVelocityVariation(VelocityVariation):
@@ -392,29 +416,26 @@ class ToroVelocityVariation(VelocityVariation):
         self._h_0 = h_0
         self._b = b
 
-    def _calc_correlation(self, profile):
-        """Compute the correlation matrix
+    def _calc_corr(self, profile):
+        """Compute the adjacent-layer correlations
 
         Parameters
         ----------
-        profile : site.Profile
+        profile : :class:`site.Profile`
             Input site profile
 
         Yields
         ------
-        np.array
-            Correlation matrix
+        corr : :class:`numpy.array`
+            Adjacent-layer correlations
         """
         depth = np.array([l.depth_mid for l in profile[:-1]])
         thick = np.diff(depth)
         depth = depth[1:]
 
         # Depth dependent correlation
-        corr_depth = (
-            self.rho_200 * np.power(
-            (depth + self.rho_0) / (200 + self.rho_0),
-            self.b)
-        )
+        corr_depth = (self.rho_200 * np.power(
+            (depth + self.rho_0) / (200 + self.rho_0), self.b))
         corr_depth[depth > 200] = self.rho_200
 
         # Thickness dependent correlation
@@ -522,8 +543,8 @@ class SoilTypeVariation(object):
         # A pair of correlated random variables
         randvar = randnorm.correlated(self.correlation)
 
-        varied_mod_reduc, varied_damping = self._get_varied(
-            randvar, mod_reduc, damping)
+        varied_mod_reduc, varied_damping = self._get_varied(randvar, mod_reduc,
+                                                            damping)
 
         # Clip the values to the specified min/max
         varied_mod_reduc = np.clip(varied_mod_reduc, self.limits_mod_reduc[0],
@@ -586,10 +607,8 @@ class DarendeliVariation(SoilTypeVariation):
             Standard deviation.
         """
         mod_reduc = np.asarray(mod_reduc).astype(float)
-        std = (
-            np.exp(-4.23) +
-            np.sqrt(
-                0.25 / np.exp(3.62) - (mod_reduc - 0.5) ** 2 / np.exp(3.62)))
+        std = (np.exp(-4.23) + np.sqrt(0.25 / np.exp(3.62) - (mod_reduc - 0.5)
+                                       ** 2 / np.exp(3.62)))
         return std
 
     @staticmethod
@@ -661,21 +680,23 @@ def iter_varied_profiles(profile,
                          var_soiltypes=None):
     for i in range(count):
         # Copy the profile to form the realization
-        p = copy
+        p = profile
 
-        if var_thickness is None:
-            varied = copy.deepcopy(profile)
-        else:
-            varied = var_thickness(profile)
+        if var_thickness:
+            p = var_thickness(p)
 
-        if var_velocity is not None:
-            var_velocity(varied)
+        if var_velocity:
+            p = var_velocity(p)
 
-        if var_soiltypes is not None:
-            for st in varied.iter_soil_types():
-                st_varied = var_soiltypes(st)
-                # Copy over the varied properties
-                for attr in ['mod_reduc', 'damping']:
-                    if getattr(st, attr) is not None:
-                        print(getattr(st, attr), getattr(st_varied, attr))
-                        getattr(st, attr)[:] = getattr(st_varied, attr)
+        if var_soiltypes:
+            # Map of varied soil types
+            varied = {st: var_soiltypes(st) for st in p.iter_soil_types()}
+            # Create new layers
+            layers = [
+                site.Layer(varied[l.soil_type], l.thickness,
+                           l.initial_shear_vel) for l in p
+            ]
+            # Create a new profile
+            p = site.Profile(layers, p.wt_depth)
+
+        yield p
