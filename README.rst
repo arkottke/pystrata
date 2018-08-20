@@ -26,6 +26,9 @@ pySRA
     :target: https://github.com/arkottke/pysra/blob/master/LICENSE
     :alt: License
 
+.. image:: https://zenodo.org/badge/8959678.svg
+   :target: https://zenodo.org/badge/latestdoi/8959678
+
 Site response analyses implemented in Python.
 
 * Free software: MIT license
