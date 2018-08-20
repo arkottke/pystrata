@@ -230,36 +230,53 @@ class AriasIntensityTSOutput(AccelerationTSOutput):
 
 
 class StrainTSOutput(TimeSeriesOutput):
-    ylabel = 'Shear Strain (%)'
-
-    def __init__(self, location):
+    def __init__(self, location, in_percent=False):
         super().__init__(location)
+        self._in_percent = in_percent
         assert self.location.wave_field == WaveField.within
 
     def _get_trans_func(self, calc, location):
         return calc.calc_strain_tf(calc.loc_input, location)
 
     def _modify_values(self, calc, location, values):
-        # Convert to percent
-        return 100. * values
+        if self._in_percent:
+            # Convert to percent
+            values *= 100.
+        return values
+
+    @property
+    def ylabel(self):
+        suffix = '(%)' if self._in_percent else '(dec)'
+        return 'Shear Strain ' + suffix
 
 
 class StressTSOutput(TimeSeriesOutput):
-    ylabel = 'Stress Ratio (τ/σ`ᵥ)'
-
-    def __init__(self, location, damped=False):
+    def __init__(self, location, damped=False, normalized=False):
         super().__init__(location)
         self._damped = damped
+        self._normalized = normalized
         assert self.location.wave_field == WaveField.within
 
     @property
     def damped(self):
         return self._damped
 
+    @property
+    def ylabel(self):
+        if self._normalized:
+            ylabel = 'Stress Ratio (τ/σ`ᵥ)'
+        else:
+            ylabel = 'Stress (τ)'
+
+        return ylabel
+
     def _get_trans_func(self, calc, location):
         tf = calc.calc_stress_tf(calc.loc_input, location, self.damped)
-        # Correct by effective stress at depth
-        tf /= location.stress_vert(effective=True)
+
+        if self._normalized:
+            # Correct by effective stress at depth
+            tf /= location.stress_vert(effective=True)
+
         return tf
 
 
