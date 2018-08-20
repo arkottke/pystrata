@@ -8,6 +8,7 @@ pre-commit
 pydocstyle
 pyexcel
 pyexcel-xlsx
+pytest>=3.5
 pytest-cov
 pytest-flake8
 pytest-runner
