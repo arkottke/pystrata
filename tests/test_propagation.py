@@ -93,9 +93,11 @@ class Comparison:
             pysra.output.AriasIntensityTSOutput(
                 pysra.output.OutputLocation('outcrop', depth=0), ),
             pysra.output.StrainTSOutput(
-                pysra.output.OutputLocation('within', depth=10), ),
+                pysra.output.OutputLocation('within', depth=10),
+                in_percent=True),
             pysra.output.StressTSOutput(
-                pysra.output.OutputLocation('within', depth=10), ),
+                pysra.output.OutputLocation('within', depth=10),
+                normalized=True),
             pysra.output.ResponseSpectrumOutput([
                 100.0000, 93.9744, 88.3119, 82.9910, 77.9903, 73.2912, 68.8753,
                 64.7249, 60.8250, 57.1602, 53.7158, 50.4793, 47.4377, 44.5794,
