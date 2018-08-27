@@ -21,22 +21,24 @@
 # SOFTWARE.
 
 import numpy as np
+import numba
 
-from .site import Location
+from scipy.optimize import minimize
+
+from .site import Location, Layer, Profile
 from .motion import WaveField, GRAVITY
 
 
-class LinearElasticCalculator(object):
-    """Class for performing linear elastic site response."""
-
+class AbstractCalculator(object):
     def __init__(self):
-        self._waves_a = np.array([])
-        self._waves_b = np.array([])
-        self._wave_nums = np.array([])
-
         self._loc_input = None
         self._motion = None
         self._profile = None
+
+    def __call__(self, motion, profile, loc_input):
+        self._motion = motion
+        self._profile = profile
+        self._loc_input = loc_input
 
     @property
     def motion(self):
@@ -49,6 +51,45 @@ class LinearElasticCalculator(object):
     @property
     def loc_input(self):
         return self._loc_input
+
+    def calc_accel_tf(self, lin, lout):
+        raise NotImplementedError
+
+    def calc_stress_tf(self, lin, lout, damped):
+        raise NotImplementedError
+
+    def calc_strain_tf(selfself, lin, lout):
+        raise NotImplementedError
+
+
+@numba.jit
+def my_trapz(thickness, property, depth_max):
+    total = 0
+    depth = 0
+
+    for t, p in zip(thickness, property):
+        depth += t
+        if depth_max < depth:
+            # Partial layer
+            total += (t - (depth - depth_max)) * p
+            break
+        total += t * p
+    else:
+        # Final infinite layer
+        total += (depth_max - depth) * p
+
+    return total / depth_max
+
+
+class QuarterWaveLenCalculator(AbstractCalculator):
+    """Compute quarter-wave length site amplification.
+
+    No consideration for nolninearity is made by this calculator.
+    """
+
+    def __init__(self, site_atten=None):
+        super().__init__()
+        self._site_atten = site_atten
 
     def __call__(self, motion, profile, loc_input):
         """Perform the wave propagation.
@@ -64,9 +105,173 @@ class LinearElasticCalculator(object):
         loc_input: :class:`~.base.site.Location`
             Location of the input motion.
         """
-        self._motion = motion
-        self._profile = profile
-        self._loc_input = loc_input
+        super().__call__(motion, profile, loc_input)
+
+        self._crustal_amp, self._site_term = self._calc_amp(
+            profile.density, profile.thickness, profile.slowness)
+
+    @property
+    def crustal_amp(self):
+        return self._crustal_amp
+
+    @property
+    def site_term(self):
+        return self._site_term
+
+    @property
+    def site_atten(self):
+        return self._site_atten
+
+    def _calc_amp(self, density, thickness, slowness):
+        freqs = self.motion.freqs
+        # 1/4 wavelength depth -- estimated for mean slowness
+        qwl_depth = 1 / (4 * np.mean(slowness) * freqs)
+
+        def qwl_average(param):
+            return np.array(
+                [my_trapz(thickness, param, qd) for qd in qwl_depth])
+
+        for _ in range(20):
+            qwl_slowness = qwl_average(slowness)
+            prev_qwl_depth = qwl_depth
+            qwl_depth = 1 / (4 * qwl_slowness * freqs)
+
+            if np.allclose(prev_qwl_depth, qwl_depth, rtol=0.005):
+                break
+
+        # FIXME return an error if not converged?
+
+        qwl_density = qwl_average(density)
+        crustal_amp = np.sqrt(
+            (density[-1] / slowness[-1]) / (qwl_density / qwl_slowness))
+        site_term = np.array(crustal_amp)
+        if self._site_atten:
+            site_term *= np.exp(-np.pi * self.site_atten * freqs)
+
+        return crustal_amp, site_term
+
+    def fit(self,
+            target_type,
+            target,
+            adjust_thickness=False,
+            adjust_site_atten=False,
+            adjust_source_vel=False):
+        """
+        Fit to a target crustal amplification or site term.
+
+        The fitting process adjusts the velocity, site attenuation, and layer
+        thickness (if enabled) to fit a target values. The frequency range is
+        specified by the input motion.
+
+        Parameters
+        ----------
+        target_type: str
+            Options are 'crustal_amp' to only fit to the crustal amplification,
+             or 'site_term' to fit both the velocity and the site attenuation
+             parameter.
+        target: `array_like`
+            Target values.
+        adjust_thickness: bool (optional)
+            If the thickness of the layers is adjusted as well, default: False.
+        adjust_site_atten: bool (optional)
+            If the site attenuation is adjusted as well, default: False.
+        adjust_source_vel: bool (optional)
+            If the source velocity should be adjusted, default: False.
+        Returns
+        -------
+        profile: `pyrsa.site.Profile`
+            profile optimized to fit a target amplification.
+        """
+        density = self.profile.density
+
+        nl = len(density)
+
+        # Slowness bounds
+        slowness = self.profile.slowness
+        thickness = self.profile.thickness
+        site_atten = self._site_atten
+
+        # Slowness
+        initial = slowness
+        bounds = 1 / np.tile((4000, 100), (nl, 1))
+        if not adjust_source_vel:
+            bounds[-1] = (initial[-1], initial[-1])
+
+        # Thickness bounds
+        if adjust_thickness:
+            bounds = np.r_[bounds, [[t / 2, 2 * t] for t in thickness]]
+            initial = np.r_[initial, thickness]
+
+        # Site attenuation bounds
+        if adjust_site_atten:
+            bounds = np.r_[bounds, [[0.0001, 0.200]]]
+            initial = np.r_[initial, self.site_atten]
+
+        def calc_rmse(this, that):
+            return np.mean(((this - that) / that) ** 2)
+
+        def err(x):
+            _slowness = x[0:nl]
+            if adjust_thickness:
+                _thickness = x[nl:(2 * nl)]
+            else:
+                _thickness = thickness
+            if adjust_site_atten:
+                self._site_atten = x[-1]
+
+            crustal_amp, site_term = self._calc_amp(density, _thickness,
+                                                    _slowness)
+
+            calc = crustal_amp if target_type == 'crustal_amp' else site_term
+
+            err = 10 * calc_rmse(target, calc)
+            # Prefer the original values so add the difference to the error
+            err += calc_rmse(slowness, _slowness)
+            if adjust_thickness:
+                err += calc_rmse(thickness, _thickness)
+            if adjust_site_atten:
+                err += calc_rmse(self._site_atten, site_atten)
+            return err
+
+        res = minimize(err, initial, method='L-BFGS-B', bounds=bounds)
+
+        slowness = res.x[0:nl]
+        if adjust_thickness:
+            thickness = res.x[nl:(2 * nl)]
+
+        profile = Profile([
+            Layer(l.soil_type, t, 1 / s)
+            for l, t, s in zip(self.profile, thickness, slowness)
+        ], self.profile.wt_depth)
+        # Update the calculated amplificaiton
+        return (self.motion, profile, self.loc_input)
+
+
+class LinearElasticCalculator(AbstractCalculator):
+    """Class for performing linear elastic site response."""
+
+    def __init__(self):
+        super().__init__()
+
+        self._waves_a = np.array([])
+        self._waves_b = np.array([])
+        self._wave_nums = np.array([])
+
+    def __call__(self, motion, profile, loc_input):
+        """Perform the wave propagation.
+
+        Parameters
+        ----------
+        motion: :class:`~.base.motion.Motion`
+            Input motion.
+
+        profile: :class:`~.base.site.Profile`
+            Site profile.
+
+        loc_input: :class:`~.base.site.Location`
+            Location of the input motion.
+        """
+        super().__call__(motion, profile, loc_input)
 
         # Set initial properties
         for l in profile:
@@ -281,9 +486,7 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
         loc_input: :class:`~.base.site.Location`
             Location of the input motion.
         """
-        self._motion = motion
-        self._profile = profile
-        self._loc_input = loc_input
+        super().__call__(motion, profile, loc_input)
 
         self._estimate_strains()
 

@@ -18,10 +18,12 @@
 # Copyright (C) Albert Kottke, 2013-2016
 
 import pathlib
+import json
 import string
 
 import numpy as np
 import pyexcel
+import pytest
 
 import pysra
 
@@ -73,7 +75,7 @@ def load_ts():
         fpath.name, 'ChiChi.txt from DeepSoil v6.1', time_step, accels)
 
 
-class Comparison:
+class DeepSoilComparison:
     rtol = 0.005
     atol = 0.001
 
@@ -89,9 +91,9 @@ class Comparison:
                  cls.profile.location('outcrop', index=-1))
         cls.outputs = pysra.output.OutputCollection(
             pysra.output.AccelerationTSOutput(
-                pysra.output.OutputLocation('outcrop', depth=0), ),
+                pysra.output.OutputLocation('outcrop', depth=0)),
             pysra.output.AriasIntensityTSOutput(
-                pysra.output.OutputLocation('outcrop', depth=0), ),
+                pysra.output.OutputLocation('outcrop', depth=0)),
             pysra.output.StrainTSOutput(
                 pysra.output.OutputLocation('within', depth=10),
                 in_percent=True),
@@ -114,77 +116,62 @@ class Comparison:
                 0.3723, 0.3499, 0.3288, 0.3090, 0.2904, 0.2729, 0.2564, 0.2410,
                 0.2265, 0.2128, 0.2000, 0.1879, 0.1766, 0.1660, 0.1560, 0.1466,
                 0.1378, 0.1295, 0.1217, 0.1143, 0.1074, 0.1010, 0.1000
-            ], pysra.output.OutputLocation('outcrop', depth=0), 0.05), )
+            ], pysra.output.OutputLocation('outcrop', depth=0), 0.05))
         cls.outputs(cls.calc)
 
     def test_times(self):
         ref = self.ref['time_series']['time']
         n = len(ref)
         np.testing.assert_allclose(
-            self.outputs[0].refs[:n],
-            ref,
-            rtol=self.rtol,
-            atol=self.atol, )
+            self.outputs[0].refs[:n], ref, rtol=self.rtol, atol=self.atol)
 
     def test_accels(self):
         ref = self.ref['time_series']['time']
         n = len(ref)
         np.testing.assert_allclose(
-            self.outputs[0].refs[:n],
-            ref,
-            rtol=self.rtol,
-            atol=self.atol, )
+            self.outputs[0].refs[:n], ref, rtol=self.rtol, atol=self.atol)
 
     def test_arias_ints(self):
         ref = self.ref['time_series']['arias_int']
         n = len(ref)
         np.testing.assert_allclose(
-            self.outputs[1].values[:n],
-            ref,
-            rtol=self.rtol,
-            atol=self.atol, )
+            self.outputs[1].values[:n], ref, rtol=self.rtol, atol=self.atol)
 
     def test_strains(self):
         ref = self.ref['time_series']['strain']
         n = len(ref)
         np.testing.assert_allclose(
-            self.outputs[2].values[:n],
-            ref,
-            rtol=self.rtol,
-            atol=self.atol, )
+            self.outputs[2].values[:n], ref, rtol=self.rtol, atol=self.atol)
 
     def test_stresses(self):
         ref = self.ref['time_series']['stress']
         n = len(ref)
         np.testing.assert_allclose(
-            self.outputs[3].values[:n],
-            ref,
-            rtol=self.rtol,
-            atol=self.atol, )
+            self.outputs[3].values[:n], ref, rtol=self.rtol, atol=self.atol)
 
     def test_periods(self):
         np.testing.assert_allclose(
             self.outputs[4].periods,
             self.ref['resp_spec']['period'],
             rtol=self.rtol,
-            atol=self.atol, )
+            atol=self.atol)
 
     def test_osc_freqs(self):
         np.testing.assert_allclose(
             1 / self.outputs[4].refs,
             self.ref['resp_spec']['period'],
             rtol=self.rtol,
-            atol=self.atol, )
+            atol=self.atol)
 
     def test_spec_accels(self):
         np.testing.assert_allclose(
             self.outputs[4].values,
             self.ref['resp_spec']['psa'],
             rtol=self.rtol,
-            atol=self.atol, )
+            atol=self.atol)
 
 
-class TestExample02LE(Comparison):
+class TestExample02LE(DeepSoilComparison):
     # Test the linear elastic wave propagation
     ref_name = 'ds-example-2a-le'
     calc = pysra.propagation.LinearElasticCalculator()
@@ -198,7 +185,7 @@ class TestExample02LE(Comparison):
     ])
 
 
-class TestExample02EL(Comparison):
+class TestExample02EL(DeepSoilComparison):
     # Run the linear elastic test with the EL calculator.
     ref_name = 'ds-example-2a-le'
     calc = pysra.propagation.EquivalentLinearCalculator()
@@ -212,7 +199,7 @@ class TestExample02EL(Comparison):
     ])
 
 
-class TestExample04EL(Comparison):
+class TestExample04EL(DeepSoilComparison):
     ref_name = 'ds-example-4-eql'
     calc = pysra.propagation.EquivalentLinearCalculator()
     profile = pysra.site.Profile([
@@ -225,7 +212,100 @@ class TestExample04EL(Comparison):
     ])
 
 
-#
+class QWLComparison():
+    rtol = 0.01
+    atol = 0.01
+
+    index = NotImplementedError
+
+    @classmethod
+    def setup_class(cls):
+        fpath = fpath_data / 'qwl_tests.json'
+        data = json.load(fpath.open())[cls.index]
+
+        thickness = np.diff(data['site']['depth'])
+
+        profile = pysra.site.Profile()
+        for i, thick in enumerate(thickness):
+            if 'damping' in data['site']:
+                damping = data['site']['damping'][i]
+            else:
+                damping = None
+
+            profile.append(
+                pysra.site.Layer(
+                    pysra.site.SoilType(
+                        f'{i}',
+                        data['site']['density'][i] * pysra.motion.GRAVITY,
+                        damping=damping), thick * 1000, data['site'][
+                            'velocity'][i] * 1000))
+
+        profile.update_layers()
+
+        if 'site_atten' in data['site']:
+            site_atten = data['site']['site_atten']
+        else:
+            site_atten = profile.site_attenuation()
+
+        cls.motion = pysra.motion.Motion(data['freqs'])
+        cls.calc = pysra.propagation.QuarterWaveLenCalculator(
+            site_atten=site_atten)
+        cls.calc(cls.motion, profile, profile.location('outcrop', index=-1))
+        cls.data = data
+
+    def test_crustal_amp(self):
+        ref = self.data['crustal_amp']
+        np.testing.assert_allclose(
+            self.calc.crustal_amp, ref, rtol=self.rtol, atol=self.atol)
+
+    def test_site_term(self):
+        ref = self.data['site_term']
+        np.testing.assert_allclose(
+            self.calc.site_term, ref, rtol=self.rtol, atol=self.atol)
+
+
+class TestQwl0(QWLComparison):
+    index = 0
+
+
+# Not sure why this test fails. I suspect there is a typo in one of the
+# equations
+@pytest.mark.xfail
+class TestQwl1(QWLComparison):
+    index = 1
+
+
+# class TestQwl2(QWLComparison):
+#     rtol = 0.05
+#     index = 2
+
+
+def test_quarter_wavelength_fit():
+    fpath = fpath_data / 'qwl_tests.json'
+    data = json.load(fpath.open())[0]
+    thickness = np.diff(data['site']['depth'])
+
+    profile = pysra.site.Profile()
+    for i, (thick, vel, density) in enumerate(
+            zip(thickness, data['site']['velocity'], data['site']['density'])):
+        profile.append(
+            pysra.site.Layer(
+                pysra.site.SoilType(f'{i}', density * pysra.motion.GRAVITY),
+                thick * 1000, vel * 1000))
+
+    profile.update_layers()
+
+    motion = pysra.motion.Motion(data['freqs'])
+    calc = pysra.propagation.QuarterWaveLenCalculator(
+        site_atten=data['site']['site_atten'])
+    calc(motion, profile, profile.location('outcrop', index=-1))
+
+    calc.fit('crustal_amp', data['crustal_amp'])
+
+    np.testing.assert_allclose(
+        profile.initial_shear_vel, calc.profile.initial_shear_vel, rtol=0.2)
+
+
 #
 # def compare_ts_results(calc, name):
 #     ref_soil, ref_inp = (name)

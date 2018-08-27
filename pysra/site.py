@@ -558,7 +558,7 @@ class Layer(object):
     """Docstring for Layer """
 
     def __init__(self, soil_type, thickness, shear_vel):
-        """@todo: to be defined1 """
+        """@todo: to be defined! """
         self._profile = None
 
         self._soil_type = soil_type
@@ -979,3 +979,26 @@ class Profile(collections.UserList):
         period_fun = 2 * np.pi / freq_fund
         rayleigh_vel = 4 * thicks.sum() / period_fun
         return rayleigh_vel
+
+    @property
+    def density(self):
+        return self._get_values('density')
+
+    @property
+    def depth(self):
+        return self._get_values('depth')
+
+    @property
+    def thickness(self):
+        return self._get_values('thickness')
+
+    @property
+    def slowness(self):
+        return 1 / self.initial_shear_vel
+
+    @property
+    def initial_shear_vel(self):
+        return self._get_values('initial_shear_vel')
+
+    def _get_values(self, attr):
+        return np.array([getattr(l, attr) for l in self])

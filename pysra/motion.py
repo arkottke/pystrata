@@ -188,6 +188,8 @@ class TimeSeriesMotion(Motion):
         """Compute the transfer function for a single-degree-of-freedom
         oscillator.
 
+        The transfer function computes the pseudo-spectral acceleration.
+
         Parameters
         ----------
         osc_freq : float
