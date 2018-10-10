@@ -42,7 +42,7 @@ class NonlinearProperty(object):
     name: str, optional
         used for identification
     strains: :class:`numpy.ndarray`, optional
-        strains for each of the values [decimal].
+        strains for each of the values [%].
     values: :class:`numpy.ndarray`, optional
         value of the property corresponding to each strain. Damping should be
         specified in decimal, e.g., 0.05 for 5%.
@@ -53,7 +53,7 @@ class NonlinearProperty(object):
                 Shear-modulus reduction curve
 
             damping
-                Damping ratio curve
+                Damping ratio curve [decimal]
     """
 
     PARAMS = ['mod_reduc', 'damping']
@@ -97,7 +97,7 @@ class NonlinearProperty(object):
 
     @property
     def strains(self):
-        """Strains [decimal]."""
+        """Strains [%]."""
         return self._strains
 
     @strains.setter
@@ -162,7 +162,8 @@ class SoilType(object):
         shear-modulus reduction curves. If None, linear behavior with no
         reduction is used
     damping: :class:`NonlinearProperty` or float
-        damping ratio. If float, then linear behavior with constant damping
+        damping ratio. [decimal]
+        If float, then linear behavior with constant damping
         is used.
     """
 
@@ -215,11 +216,30 @@ class ModifiedHyperbolicSoilType(SoilType):
                  damping_min,
                  num_cycles=10,
                  strains=None):
+        """
+
+        Parameters
+        ----------
+        name: str, optional
+        used for identification
+        unit_wt:  float
+            unit weight of the material in [kN/m³]
+        strain_ref: float
+            reference strain [decimal]
+        curvature: float
+            curvature modifier [decimal]
+        damping_min: float
+            Minimum damping at low strains [decimal]
+        num_cycles: float, default=10
+            number of cycles of loading
+        strains: `array_like`, default: np.logspace(-6, 0.5, num=20)
+            shear strains levels [%]
+        """
         super().__init__(name, unit_wt)
         self._num_cycles = num_cycles
 
         if strains is None:
-            strains = np.logspace(-4, 0.5, num=20)
+            strains = np.logspace(-6, 0.5, num=20)  # in decimal
         else:
             strains = np.asarray(strains)
 
@@ -228,13 +248,13 @@ class ModifiedHyperbolicSoilType(SoilType):
         self.mod_reduc = NonlinearProperty(name, strains, mod_reduc,
                                            'mod_reduc')
 
-        # Masing damping based on shear -modulus reduction
+        # Masing damping based on shear -modulus reduction [%]
         damping_masing_a1 = (
             (100. / np.pi) * (4 * (strains - strain_ref * np.log(
                 (strains + strain_ref) / strain_ref)) /
                               (strains ** 2 / (strains + strain_ref)) - 2.))
         # Correction between perfect hyperbolic strain model and modified
-        # model.
+        # model [%].
         c1 = -1.1143 * curvature ** 2 + 1.8618 * curvature + 0.2523
         c2 = 0.0805 * curvature ** 2 - 0.0710 * curvature - 0.0095
         c3 = -0.0005 * curvature ** 2 + 0.0002 * curvature + 0.0003
@@ -243,14 +263,13 @@ class ModifiedHyperbolicSoilType(SoilType):
 
         # Masing correction factor
         masing_corr = 0.6329 - 0.00566 * np.log(num_cycles)
-        # Compute the damping in percent
-        damping = (
-            damping_min + damping_masing * masing_corr * mod_reduc ** 0.1)
+        # Compute the damping correction in percent
+        d_correction = damping_masing * masing_corr * mod_reduc ** 0.1
+        damping = damping_min + d_correction / 100
         # Prevent the damping from reducing as it can at large strains
         damping = np.maximum.accumulate(damping)
         # Convert to decimal values
-        self.damping = NonlinearProperty(name, strains, damping / 100.,
-                                         'damping')
+        self.damping = NonlinearProperty(name, strains, damping, 'damping')
 
 
 class DarendeliSoilType(ModifiedHyperbolicSoilType):
@@ -264,7 +283,7 @@ class DarendeliSoilType(ModifiedHyperbolicSoilType):
     plas_index: float, default=0
         plasticity index [percent]
     ocr: float, default=1
-        overconsolidation ratio
+        over-consolidation ratio
     stress_mean: float, default=101.3
         mean effective stress [kN/m²]
     freq: float, default=1
@@ -272,7 +291,7 @@ class DarendeliSoilType(ModifiedHyperbolicSoilType):
     num_cycles: float, default=10
         number of cycles of loading
     strains: `array_like`, default: np.logspace(-4, 0.5, num=20)
-        shear strains levels
+        shear strains levels [%]
     """
 
     def __init__(self,
@@ -298,11 +317,13 @@ class DarendeliSoilType(ModifiedHyperbolicSoilType):
                          num_cycles, strains)
 
     def _calc_damping_min(self):
+        """minimum damping [decimal]"""
         return ((0.8005 + 0.0129 * self._plas_index * self._ocr ** -0.1069) *
                 (self._stress_mean * KPA_TO_ATM)
-                ** -0.2889 * (1 + 0.2919 * np.log(self._freq)))
+                ** -0.2889 * (1 + 0.2919 * np.log(self._freq))) / 100
 
     def _calc_strain_ref(self):
+        """reference strain [%]"""
         return ((0.0352 + 0.0010 * self._plas_index * self._ocr ** 0.3246) *
                 (self._stress_mean * KPA_TO_ATM) ** 0.3483)
 
@@ -332,7 +353,7 @@ class MenqSoilType(ModifiedHyperbolicSoilType):
     num_cycles: float, default=10
         number of cycles of loading
     strains: `array_like`, default: np.logspace(-4, 0.5, num=20)
-        shear strains levels
+        shear strains levels [%]
     """
 
     def __init__(self,
@@ -358,7 +379,7 @@ class MenqSoilType(ModifiedHyperbolicSoilType):
 
     def _calc_damping_min(self):
         return (0.55 * self._uniformity_coeff ** 0.1 * self._diam_mean
-                ** -0.3 * self._stress_mean ** -0.08)
+                ** -0.3 * self._stress_mean ** -0.08) / 100
 
     def _calc_strain_ref(self):
         return (0.12 * self._uniformity_coeff ** -0.6 * self._stress_mean
@@ -404,7 +425,7 @@ class KishidaSoilType(SoilType):
     strains: `array_like` or None
         shear strains levels. If *None*, a default of `np.logspace(-4, 0.5,
         num=20)` will be used. The first strain should be small such that the
-        shear modulus reduction is equal to 1.
+        shear modulus reduction is equal to 1. [%]
     """
 
     def __init__(self,
