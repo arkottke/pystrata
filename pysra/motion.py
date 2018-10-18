@@ -55,16 +55,17 @@ class Motion(object):
         return 2 * np.pi * self.freqs
 
     @property
-    def pgv(self):
-        """Peak-ground velocity [cm/sec]."""
+    def pgv(self, centimeters=False):
+        """Peak-ground velocity [m/sec]."""
         if self._pgv is None:
             # Compute transfer function -- only over non-zero frequencies
             mask = ~np.isclose(self.angular_freqs, 0)
             tf = np.zeros_like(mask, dtype=np.complex)
             tf[mask] = 1 / (self.angular_freqs[mask] * 1j)
-
-            self._pgv = GRAVITY * 100 * self.calc_peak(tf)
-
+            if centimeters:
+                self._pgv = GRAVITY * 100 * self.calc_peak(tf)
+            else:
+                self._pgv = GRAVITY * self.calc_peak(tf)
         return self._pgv
 
     @property

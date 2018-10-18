@@ -58,7 +58,7 @@ class AbstractCalculator(object):
     def calc_stress_tf(self, lin, lout, damped):
         raise NotImplementedError
 
-    def calc_strain_tf(selfself, lin, lout):
+    def calc_strain_tf(self, lin, lout):
         raise NotImplementedError
 
 
@@ -561,7 +561,7 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
 
     def _calc_strain_max(self, loc_input, loc_layer, motion, *args):
         """Compute the effective strain at the center of a layer."""
-        return 100 * motion.calc_peak(
+        return motion.calc_peak(
             self.calc_strain_tf(loc_input, loc_layer))
 
 
@@ -617,7 +617,7 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         strain_fas = np.abs(strain_tf * motion.fourier_amps)
         # Maximum strain in the time domain modified by the effective strain
         # ratio
-        strain_eff = 100. * self.strain_ratio * motion.calc_peak(strain_tf)
+        strain_eff = self.strain_ratio * motion.calc_peak(strain_tf)
 
         if self._use_smooth_spectrum:
             # Equation (8)
