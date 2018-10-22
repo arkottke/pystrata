@@ -54,7 +54,7 @@ class TestDarendeliVariation:
             stress_mean=1 / site.KPA_TO_ATM,
             freq=1,
             num_cycles=10,
-            strains=[1E-5, 2.2E-3, 1E0], )
+            strains=[1E-7, 2.2E-5, 1E-2], )
         cls.dvar = variation.DarendeliVariation(
             -0.7,
             limits_mod_reduc=[-np.inf, np.inf],
@@ -113,7 +113,7 @@ class TestSpidVariation:
             limits_mod_reduc=[0, np.inf],
             limits_damping=[0, np.inf],
             std_mod_reduc=0.2,
-            std_damping=0.2)
+            std_damping=0.002)
         n = 1000
         realizations = [cls.svar(soil_type) for _ in range(n)]
         cls.mod_reducs = np.array([r.mod_reduc for r in realizations])
@@ -153,7 +153,7 @@ def test_iter_variations():
     var_thickness = variation.ToroThicknessVariation()
     var_velocity = variation.ToroVelocityVariation.generic_model('USGS C')
     var_soiltypes = variation.SpidVariation(
-        -0.5, std_mod_reduc=0.15, std_damping=0.30)
+        -0.5, std_mod_reduc=0.15, std_damping=0.0030)
 
     freqs = np.logspace(-1, 2, num=500)
 
@@ -177,9 +177,13 @@ def test_iter_variations():
 
     for profile in variation.iter_varied_profiles(
             profile,
-            30,
+            3,
             var_thickness=var_thickness,
             var_velocity=var_velocity,
             var_soiltypes=var_soiltypes):
         calc(m, profile, profile.location('outcrop', index=-1))
         outputs(calc)
+
+
+if __name__ == '__main__':
+    test_iter_variations()
