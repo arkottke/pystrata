@@ -641,7 +641,7 @@ class SpidVariation(SoilTypeVariation):
                  limits_mod_reduc=[0, 1],
                  limits_damping=[0, 0.15],
                  std_mod_reduc=0.15,
-                 std_damping=0.30):
+                 std_damping=0.0030):
         super().__init__(correlation, limits_mod_reduc, limits_damping)
         self._std_mod_reduc = std_mod_reduc
         self._std_damping = std_damping
@@ -690,10 +690,10 @@ def iter_varied_profiles(profile,
 
         if var_soiltypes:
             # Map of varied soil types
-            varied = {st: var_soiltypes(st) for st in p.iter_soil_types()}
+            varied = {str(st): var_soiltypes(st) for st in p.iter_soil_types()}
             # Create new layers
             layers = [
-                site.Layer(varied[l.soil_type], l.thickness,
+                site.Layer(varied[str(l.soil_type)], l.thickness,
                            l.initial_shear_vel) for l in p
             ]
             # Create a new profile
