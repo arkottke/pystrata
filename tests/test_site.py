@@ -19,7 +19,7 @@
 #
 # Copyright (C) Albert Kottke, 2013-2015
 
-import os
+import pathlib
 import json
 
 import pytest
@@ -28,6 +28,8 @@ import numpy as np
 from numpy.testing import assert_allclose
 
 from pysra import site
+
+FPATH_DATA = pathlib.Path(__file__).parent / 'data'
 
 
 @pytest.fixture
@@ -113,18 +115,18 @@ def test_soil_type_iterative():
     assert_allclose(layer.damping, 0.05)
 
 
-with open(
-        os.path.join(os.path.dirname(__file__), 'data',
-                     'kishida_2009.json')) as fp:
+with (FPATH_DATA / 'kishida_2009.json').open() as fp:
     kishida_cases = json.load(fp)
     for i in range(len(kishida_cases)):
-        kishida_cases[i]["strains"] = np.array(kishida_cases[i]["strains"]) / 100
-        kishida_cases[i]["dampings"] = np.array(kishida_cases[i]["dampings"]) / 100
+        kishida_cases[i]["strains"] = \
+            np.array(kishida_cases[i]["strains"]) / 100
+        kishida_cases[i]["dampings"] = \
+            np.array(kishida_cases[i]["dampings"]) / 100
 
 
 def format_kishida_case_id(case):
     """Create an ID for the Kishida test cases."""
-    fmt = "({stress_mean:.1f} kN/m², OC={organic_content:.0f} %)"
+    fmt = "({stress_vert:.1f} kN/m², OC={organic_content:.0f} %)"
     return fmt.format(**case)
 
 
