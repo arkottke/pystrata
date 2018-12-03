@@ -2,10 +2,12 @@
 History
 =======
 
-v0.3.1 (2018-12-02)
+v0.3.2 (2018-12-02)
 -------------------
 
 - Fixed building of docs.
+- Removed stickler.
+- Version double increment due to pypi naming conflict.
 
 v0.3.0 (2018-11-30)
 -------------------
