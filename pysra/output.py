@@ -26,6 +26,7 @@ import numpy as np
 import scipy.integrate
 
 from .motion import TimeSeriesMotion, WaveField, GRAVITY
+from .tools import konno_omachi_interp
 
 
 class OutputCollection(collections.UserList):
@@ -278,6 +279,36 @@ class StressTSOutput(TimeSeriesOutput):
             tf /= location.stress_vert(effective=True)
 
         return tf
+
+
+class FourierAmplitudeSpectrumOutput(LocationBasedOutput):
+    _const_ref = True
+    xlabel = 'Frequency (Hz)'
+    ylabel = 'Fourier Ampl. (cm/s)'
+
+    def __init__(self, freqs, location, ko_bandwidth=30):
+        super().__init__(freqs, location)
+        self._ko_bandwidth = ko_bandwidth
+
+    @property
+    def freqs(self):
+        return self._refs
+
+    @property
+    def ko_bandwidth(self):
+        return self._ko_bandwidth
+
+    def __call__(self, calc, name=None):
+        Output.__call__(self, calc, name)
+        loc = self._get_location(calc)
+        tf = calc.calc_accel_tf(calc.loc_input, loc)
+        smoothed = konno_omachi_interp(
+            self.freqs,
+            calc.motion.freqs,
+            np.abs(tf * calc.motion.fourier_amps),
+            self.ko_bandwidth
+        )
+        self._add_values(smoothed)
 
 
 class ResponseSpectrumOutput(LocationBasedOutput):

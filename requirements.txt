@@ -2,6 +2,7 @@
 
 matplotlib
 numpy
+numba
 pyrvt
 scipy
 setuptools
