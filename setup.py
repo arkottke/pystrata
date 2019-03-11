@@ -11,7 +11,7 @@ with open('HISTORY.rst') as history_file:
 
 setup(
     name='pySRA',
-    version='0.3.2',
+    version='0.4.0',
     description='Site Response Analysis with Python',
     long_description=readme + '\n\n' + history,
     author='Albert Kottke',

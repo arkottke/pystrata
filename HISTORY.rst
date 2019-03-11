@@ -2,6 +2,11 @@
 History
 =======
 
+v0.4.0 (2019-03-11)
+-------------------
+
+- Added smoothed FourierAmplitudeSpectrum output.
+
 v0.3.2 (2018-12-02)
 -------------------
 
