@@ -1,5 +1,8 @@
 # History
 
+## v0.4.2 (2019-05-22)
+- Incremented version because of issue with automated builds.
+
 ## v0.4.1 (2019-05-22)
 - Fixed strain profile to use `max_strain`.
 - Changed README and HISTORY to markdown.
