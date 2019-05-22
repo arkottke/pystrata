@@ -162,9 +162,8 @@ class SoilType(object):
         shear-modulus reduction curves. If None, linear behavior with no
         reduction is used
     damping: :class:`NonlinearProperty` or float
-        damping ratio. [decimal]
-        If float, then linear behavior with constant damping
-        is used.
+        damping ratio. [decimal] If float, then linear behavior with constant
+        damping is used.
     """
 
     def __init__(self, name='', unit_wt=0., mod_reduc=None, damping=None):
