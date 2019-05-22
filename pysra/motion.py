@@ -129,9 +129,9 @@ class TimeSeriesMotion(Motion):
 
     def calc_time_series(self, tf=None):
         if tf is None:
-            ts = np.fft.irfft(self._fourier_amps)
+            ts = np.fft.irfft(self.fourier_amps)
         else:
-            ts = np.fft.irfft(tf * self._fourier_amps)
+            ts = np.fft.irfft(tf * self.fourier_amps)
         return ts
 
     def calc_peak(self, tf=None, **kwargs):
