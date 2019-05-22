@@ -11,7 +11,7 @@ with open('HISTORY.md') as fp:
 
 setup(
     name='pySRA',
-    version='0.4.0',
+    version='0.4.1',
     description='Site Response Analysis with Python',
     long_description=readme + '\n\n' + history,
     long_description_content_type='text/markdown',
