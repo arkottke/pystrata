@@ -419,6 +419,8 @@ class ResponseSpectrumRatioOutput(RatioBasedOutput):
 
 
 class ProfileBasedOutput(Output):
+    ylabel = 'Depth (m)'
+
     def __init__(self):
         super().__init__()
 
@@ -429,12 +431,14 @@ class ProfileBasedOutput(Output):
 
 
 class MaxStrainProfile(ProfileBasedOutput):
+    xlabel = 'Max. Strain (dec)'
+
     def __init__(self):
         super().__init__()
 
     def __call__(self, calc, name=None):
         ProfileBasedOutput.__call__(self, calc, name)
-        values = [0] + [l.strain for l in calc.profile[:-1]]
+        values = [0] + [l.strain_max for l in calc.profile[:-1]]
         self._add_values(values)
 
 
