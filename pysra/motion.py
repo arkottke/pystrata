@@ -279,16 +279,16 @@ class TimeSeriesMotion(Motion):
 
 class RvtMotion(pyrvt.motions.RvtMotion, Motion):
     def __init__(self,
-                 osc_freqs,
-                 osc_accels_target,
+                 freqs,
+                 fourier_amps,
                  duration=None,
                  peak_calculator=None,
                  calc_kwds=None):
         Motion.__init__(self)
         pyrvt.motions.RvtMotion.__init__(
             self,
-            osc_freqs,
-            osc_accels_target,
+            freqs,
+            fourier_amps,
             duration=duration,
             peak_calculator=peak_calculator,
             calc_kwds=calc_kwds)
