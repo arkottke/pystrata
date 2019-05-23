@@ -1,5 +1,8 @@
 # History
 
+## v0.4.3 (2019-05-22)
+- FIXED: Bug in MANIFEST.in
+
 ## v0.4.2 (2019-05-22)
 - Incremented version because of issue with automated builds.
 
