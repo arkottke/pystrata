@@ -1,4 +1,4 @@
 include LICENSE
-include HISTORY.rd
-include README.rd
+include HISTORY.md
+include README.md
 include requirements.txt
