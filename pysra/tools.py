@@ -25,7 +25,8 @@ import os
 import re
 
 import numpy as np
-import numba
+
+import cyko
 
 from . import site
 from . import motion
@@ -229,35 +230,3 @@ def load_shake_inp(fname):
         input[key] = parser(block, **input)
 
     return input
-
-
-@numba.jit
-def konno_omachi_smooth(fc, freqs, amps, bandwidth):
-    # If center frequency is out of the limits return np.nan
-    if fc < freqs[0] or freqs[-1] < fc:
-        return np.nan
-
-    # Limiting calculation at 3 provides a window value of 4.9E-6 and speeds up calculation
-    max_ratio = 10 ** (3 / bandwidth)
-
-    window_total = 0
-    total = 0
-    for i, freq in enumerate(freqs):
-        if abs(freq - fc) < 1E-6:
-            window = 1.
-        elif (abs(freq - 0) < 1E-6) or (abs(fc - 0) < 1E-6):
-            continue
-        elif (freq / fc) > max_ratio or (fc / freq) > max_ratio:
-            continue
-        else:
-            x = bandwidth * np.log10(freq / fc)
-            window = (np.sin(x) / x) ** 4
-        total += window * amps[i]
-        window_total += window
-
-    return total / window_total
-
-
-def konno_omachi_interp(x, xp, fp, bandwidth):
-    return np.array([
-        konno_omachi_smooth(xi, xp, fp, bandwidth) for xi in x])

@@ -25,8 +25,9 @@ import collections
 import numpy as np
 import scipy.integrate
 
+import cyko
+
 from .motion import TimeSeriesMotion, WaveField, GRAVITY
-from .tools import konno_omachi_interp
 
 
 class OutputCollection(collections.abc.Collection):
@@ -242,7 +243,6 @@ class AriasIntensityTSOutput(AccelerationTSOutput):
         values *= GRAVITY * np.pi / 2
         return values
 
-
 class StrainTSOutput(TimeSeriesOutput):
     def __init__(self, location, in_percent=False):
         super().__init__(location)
@@ -315,7 +315,7 @@ class FourierAmplitudeSpectrumOutput(LocationBasedOutput):
         Output.__call__(self, calc, name)
         loc = self._get_location(calc)
         tf = calc.calc_accel_tf(calc.loc_input, loc)
-        smoothed = konno_omachi_interp(
+        smoothed = cyko.smooth(
             self.freqs,
             calc.motion.freqs,
             np.abs(tf * calc.motion.fourier_amps),
@@ -380,14 +380,27 @@ class RatioBasedOutput(Output):
 
 
 class AccelTransferFunctionOutput(RatioBasedOutput):
+    xlabel = 'Frequency (Hz)'
+    ylabel = 'Accel. Transfer Func.'
+
+    def __init__(self, refs, location_in, location_out, ko_bandwidth=None):
+        super().__init__(refs, location_in, location_out)
+        self._ko_bandwidth = ko_bandwidth
+
     def __call__(self, calc, name=None):
         Output.__call__(self, calc, name)
         # Locate position within the profile
         loc_in, loc_out = self._get_locations(calc)
         # Compute the response
-        tf = calc.calc_accel_tf(loc_in, loc_out)
+        tf = np.abs(calc.calc_accel_tf(loc_in, loc_out))
+
+        if self._ko_bandwidth is None:
+            tf = np.interp(self.freqs, calc.motion.freqs, tf)
+        else:
+            tf = cyko.smooth(
+                self.freqs, calc.motion.freqs, tf, self._ko_bandwidth)
+
         self._add_values(tf)
-        self._add_refs(calc.motion.freqs)
 
     @property
     def freqs(self):
