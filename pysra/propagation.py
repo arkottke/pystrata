@@ -244,7 +244,7 @@ class QuarterWaveLenCalculator(AbstractCalculator):
             for l, t, s in zip(self.profile, thickness, slowness)
         ], self.profile.wt_depth)
         # Update the calculated amplificaiton
-        return (self.motion, profile, self.loc_input)
+        self(self.motion, profile, self.loc_input)
 
 
 class LinearElasticCalculator(AbstractCalculator):
