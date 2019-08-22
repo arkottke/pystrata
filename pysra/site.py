@@ -705,6 +705,10 @@ class Layer(object):
         return value
 
     @property
+    def shear_mod_reduc(self):
+        return self.shear_mod / self.initial_shear_mod
+
+    @property
     def shear_vel(self):
         """Strain-compatible shear-wave velocity [m/s]."""
         return np.sqrt(self.shear_mod / self.density)
@@ -823,14 +827,39 @@ class Location(object):
                 'wave_field={_wave_field})>'.format(**self.__dict__))
 
 
-class Profile(collections.UserList):
+class Profile(collections.abc.Container):
     """Soil profile with an infinite halfspace at the base."""
 
     def __init__(self, layers=None, wt_depth=0):
-        collections.UserList.__init__(self, layers)
+        super().__init__()
+        self.layers = layers or []
         self.wt_depth = wt_depth
         if layers:
             self.update_layers()
+
+    def __iter__(self):
+        return iter(self.layers)
+
+    def __contains__(self, value):
+        return value in self.layers
+
+    def __len__(self):
+        return len(self.layers)
+
+    def __getitem__(self, key):
+        return self.layers[key]
+
+    def index(self, layer):
+        return self.layers.index(layer)
+
+    def append(self, layer):
+        last = len(self.layers)
+        self.layers.append(layer)
+        self.update_layers(last)
+
+    def insert(self, index, layer):
+        self.layers.insert(index, layer)
+        self.update_layers(index)
 
     def update_layers(self, start_layer=0):
         if start_layer < 1:

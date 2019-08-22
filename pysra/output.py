@@ -29,17 +29,30 @@ from .motion import TimeSeriesMotion, WaveField, GRAVITY
 from .tools import konno_omachi_interp
 
 
-class OutputCollection(collections.UserList):
-    def __init__(self, *outputs):
-        super().__init__(outputs)
+class OutputCollection(collections.abc.Collection):
+    def __init__(self, outputs):
+        super().__init__()
+        self.outputs = outputs
+
+    def __iter__(self):
+        return iter(self.outputs)
+
+    def __contains__(self, value):
+        return value in self.outputs
+
+    def __len__(self):
+        return len(self.outputs)
+
+    def __getitem__(self, key):
+        return self.outputs[key]
 
     def __call__(self, calc, name=None):
         # Save results
-        for o in self.data:
+        for o in self:
             o(calc, name=name)
 
     def reset(self):
-        for o in self.data:
+        for o in self:
             o.reset()
 
 
