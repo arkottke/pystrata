@@ -40,7 +40,7 @@ def test_notebook(fpath):
     with fpath.open() as fp:
         nb = nbformat.read(fp, as_version=4)
 
-    ep = ExecutePreprocessor(timeout=600, kernel_name='python3')
+    ep = ExecutePreprocessor(timeout=600)
 
     try:
         ep.preprocess(nb, {'metadata': {'path': fpath.parent}})
