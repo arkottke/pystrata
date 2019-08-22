@@ -1,6 +1,6 @@
 --index-url https://pypi.python.org/simple/
 
-cython
+Cython
 cyko
 matplotlib
 numpy
