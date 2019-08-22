@@ -157,7 +157,7 @@ def test_iter_variations():
 
     freqs = np.logspace(-1, 2, num=500)
 
-    outputs = output.OutputCollection(
+    outputs = output.OutputCollection([
         output.ResponseSpectrumOutput(
             # Frequency
             freqs,
@@ -173,7 +173,8 @@ def test_iter_variations():
             # Location out (numerator)
             output.OutputLocation('outcrop', index=0),
             # Damping
-            0.05), )
+            0.05),
+    ])
 
     for profile in variation.iter_varied_profiles(
             profile,

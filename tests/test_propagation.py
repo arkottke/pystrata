@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# encoding: utf-8
-
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 2 of the License, or
@@ -17,7 +14,6 @@
 #
 # Copyright (C) Albert Kottke, 2013-2016
 
-import pathlib
 import json
 import string
 
@@ -27,7 +23,7 @@ import pytest
 
 import pysra
 
-fpath_data = pathlib.Path(__file__).parent / 'data'
+from . import FPATH_DATA
 
 
 def read_cluster(ws, cols, names, row_start, row_end):
@@ -40,7 +36,7 @@ def read_cluster(ws, cols, names, row_start, row_end):
 
 
 def read_deepsoil_results(name):
-    data = pyexcel.get_array(file_name=str(fpath_data / (name + '.xlsx')))
+    data = pyexcel.get_array(file_name=str(FPATH_DATA / (name + '.xlsx')))
     names = ','.join(string.ascii_uppercase[:len(data[0])])
     records = np.rec.fromrecords(data, names=names)
 
@@ -65,7 +61,7 @@ def read_deepsoil_results(name):
 
 
 def load_ts():
-    fpath = fpath_data / 'ChiChi.txt'
+    fpath = FPATH_DATA / 'ChiChi.txt'
     with fpath.open() as fp:
         parts = next(fp).split()
         time_step = float(parts[1])
@@ -89,7 +85,7 @@ class DeepSoilComparison:
         # Perform the calculation
         cls.calc(load_ts(), cls.profile,
                  cls.profile.location('outcrop', index=-1))
-        cls.outputs = pysra.output.OutputCollection(
+        cls.outputs = pysra.output.OutputCollection([
             pysra.output.AccelerationTSOutput(
                 pysra.output.OutputLocation('outcrop', depth=0)),
             pysra.output.AriasIntensityTSOutput(
@@ -100,23 +96,26 @@ class DeepSoilComparison:
             pysra.output.StressTSOutput(
                 pysra.output.OutputLocation('within', depth=10),
                 normalized=True),
-            pysra.output.ResponseSpectrumOutput([
-                100.0000, 93.9744, 88.3119, 82.9910, 77.9903, 73.2912, 68.8753,
-                64.7249, 60.8250, 57.1602, 53.7158, 50.4793, 47.4377, 44.5794,
-                41.8932, 39.3690, 36.9969, 34.7676, 32.6727, 30.7040, 28.8540,
-                27.1154, 25.4816, 23.9462, 22.5034, 21.1474, 19.8732, 18.6757,
-                17.5504, 16.4930, 15.4992, 14.5653, 13.6877, 12.8629, 12.0879,
-                11.3595, 10.6751, 10.0319, 9.4274, 8.8594, 8.3256, 7.8239,
-                7.3525, 6.9094, 6.4931, 6.1019, 5.7342, 5.3887, 5.0640, 4.7589,
-                4.4721, 4.2027, 3.9494, 3.7115, 3.4878, 3.2777, 3.0802, 2.8946,
-                2.7202, 2.5563, 2.4022, 2.2575, 2.1215, 1.9936, 1.8735, 1.7606,
-                1.6545, 1.5549, 1.4612, 1.3731, 1.2904, 1.2126, 1.1396, 1.0709,
-                1.0064, 0.9457, 0.8888, 0.8352, 0.7849, 0.7376, 0.6931, 0.6514,
-                0.6121, 0.5752, 0.5406, 0.5080, 0.4774, 0.4486, 0.4216, 0.3962,
-                0.3723, 0.3499, 0.3288, 0.3090, 0.2904, 0.2729, 0.2564, 0.2410,
-                0.2265, 0.2128, 0.2000, 0.1879, 0.1766, 0.1660, 0.1560, 0.1466,
-                0.1378, 0.1295, 0.1217, 0.1143, 0.1074, 0.1010, 0.1000
-            ], pysra.output.OutputLocation('outcrop', depth=0), 0.05))
+            pysra.output.ResponseSpectrumOutput(
+                [100.0000, 93.9744, 88.3119, 82.9910, 77.9903, 73.2912,
+                 68.8753, 64.7249, 60.8250, 57.1602, 53.7158, 50.4793, 47.4377,
+                 44.5794, 41.8932, 39.3690, 36.9969, 34.7676, 32.6727, 30.7040,
+                 28.8540, 27.1154, 25.4816, 23.9462, 22.5034, 21.1474, 19.8732,
+                 18.6757, 17.5504, 16.4930, 15.4992, 14.5653, 13.6877, 12.8629,
+                 12.0879, 11.3595, 10.6751, 10.0319, 9.4274, 8.8594, 8.3256,
+                 7.8239, 7.3525, 6.9094, 6.4931, 6.1019, 5.7342, 5.3887,
+                 5.0640, 4.7589, 4.4721, 4.2027, 3.9494, 3.7115, 3.4878,
+                 3.2777, 3.0802, 2.8946, 2.7202, 2.5563, 2.4022, 2.2575,
+                 2.1215, 1.9936, 1.8735, 1.7606, 1.6545, 1.5549, 1.4612,
+                 1.3731, 1.2904, 1.2126, 1.1396, 1.0709, 1.0064, 0.9457,
+                 0.8888, 0.8352, 0.7849, 0.7376, 0.6931, 0.6514, 0.6121,
+                 0.5752, 0.5406, 0.5080, 0.4774, 0.4486, 0.4216, 0.3962,
+                 0.3723, 0.3499, 0.3288, 0.3090, 0.2904, 0.2729, 0.2564,
+                 0.2410, 0.2265, 0.2128, 0.2000, 0.1879, 0.1766, 0.1660,
+                 0.1560, 0.1466, 0.1378, 0.1295, 0.1217, 0.1143, 0.1074,
+                 0.1010, 0.1000],
+                pysra.output.OutputLocation('outcrop', depth=0), 0.05)
+        ])
         cls.outputs(cls.calc)
 
     def test_times(self):
@@ -220,7 +219,7 @@ class QWLComparison():
 
     @classmethod
     def setup_class(cls):
-        fpath = fpath_data / 'qwl_tests.json'
+        fpath = FPATH_DATA / 'qwl_tests.json'
         data = json.load(fpath.open())[cls.index]
 
         thickness = np.diff(data['site']['depth'])
@@ -281,7 +280,7 @@ class TestQwl1(QWLComparison):
 
 
 def test_quarter_wavelength_fit():
-    fpath = fpath_data / 'qwl_tests.json'
+    fpath = FPATH_DATA / 'qwl_tests.json'
     data = json.load(fpath.open())[0]
     thickness = np.diff(data['site']['depth'])
 

@@ -19,7 +19,6 @@
 #
 # Copyright (C) Albert Kottke, 2013-2015
 
-import pathlib
 import json
 
 import pytest
@@ -29,7 +28,7 @@ from numpy.testing import assert_allclose
 
 from pysra import site
 
-FPATH_DATA = pathlib.Path(__file__).parent / 'data'
+from . import FPATH_DATA
 
 
 @pytest.fixture

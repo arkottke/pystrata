@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# encoding: utf-8
-
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 2 of the License, or
@@ -17,9 +14,6 @@
 #
 # Copyright (C) Albert Kottke, 2013-2015
 
-
-import pathlib
-
 import numpy as np
 import pytest
 
@@ -27,13 +21,13 @@ from numpy.testing import assert_allclose, assert_equal
 
 from pysra import motion
 
+from . import FPATH_DATA
+
 
 @pytest.fixture
 def tsm():
     """Create a default time series for testing."""
-    return motion.TimeSeriesMotion.load_at2_file(
-        pathlib.Path(__file__).parent / 'data/NIS090.AT2'
-    )
+    return motion.TimeSeriesMotion.load_at2_file(FPATH_DATA / 'NIS090.AT2')
 
 
 def test_ts_load_at2_file(tsm):
@@ -78,16 +72,10 @@ def test_ts_fft_with_tf(tsm):
 
 @pytest.mark.parametrize('fname', ['2516b_a.smc'])
 def test_ts_load_smc_file(fname):
-    tsm = motion.TimeSeriesMotion.load_smc_file(
-        pathlib.Path(__file__).parent / 'data' / fname
-    )
-
+    tsm = motion.TimeSeriesMotion.load_smc_file(FPATH_DATA / fname)
     assert tsm.description == 'VA: Reston; Fire Station #25; 360'
 
-    assert_allclose(
-        tsm.time_step,
-        1 / 200.
-    )
+    assert_allclose(tsm.time_step, 1 / 200.)
 
     assert_allclose(
         [tsm.accels[0], tsm.accels[1], tsm.accels[-1]],
