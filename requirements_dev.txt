@@ -4,6 +4,8 @@
 coveralls
 cryptography
 flake8
+nbconvert
+nbformat
 pre-commit
 pydocstyle
 pyexcel
