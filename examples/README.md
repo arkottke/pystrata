@@ -14,3 +14,4 @@ spectrum and site amplification functions.
 1. RVT calculation using different peak factor calculators.
 1. RVT calculation using a suite of simulated profiles
 1. Quarter-wave length site amplification
+1. Compute ground motion using a suite of peak factors
