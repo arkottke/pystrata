@@ -1,8 +1,10 @@
 language: python
 cache: pip
 python:
-- '3.6'
+- '3.7'
 install:
+# Manually install Cython to fix an issue with pip dependencies
+- pip install Cython
 - pip install -r requirements_dev.txt
 - python setup.py install
 script:
