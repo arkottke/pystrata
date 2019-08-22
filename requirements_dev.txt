@@ -4,6 +4,7 @@
 coveralls
 cryptography
 flake8
+ipykernel
 jupyter_client
 nbconvert
 nbformat
