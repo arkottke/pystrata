@@ -43,6 +43,8 @@ clean-pyc:
 clean-test:
 	rm -f .coverage
 	rm -fr htmlcov/
+	rm -fr .pytest_cache
+	rm -fr .cache
 
 lint:
 	flake8 pysra tests examples
