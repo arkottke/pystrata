@@ -38,8 +38,10 @@ Please cite this software using the following
    :target: https://travis-ci.org/arkottke/pysra
 .. |Documentation Status| image:: https://readthedocs.org/projects/pysra/badge/?version=latest&style=flat
    :target: https://pysra.readthedocs.org
-.. |Test Coverage| image:: https://coveralls.io/repos/github/arkottke/pysra/badge.svg?branch=master
-   :target: https://coveralls.io/github/arkottke/pysra?branch=master
+.. |Code Quality| image:: https://api.codacy.com/project/badge/Grade/6dbbb3a4279744d697b9bfe08af19ded
+   :target: https://www.codacy.com/manual/arkottke/pysra
+.. |Test Coverage| image:: https://api.codacy.com/project/badge/Coverage/6dbbb3a4279744d697b9bfe08af19ded
+   :target: https://www.codacy.com/manual/arkottke/pysra
 .. |License| image:: https://img.shields.io/badge/license-MIT-blue.svg
    :target: https://github.com/arkottke/pysra/blob/master/LICENSE
 .. |image| image:: https://zenodo.org/badge/8959678.svg
