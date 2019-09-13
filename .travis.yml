@@ -11,7 +11,8 @@ script:
 - make test
 - make examples
 after_success:
-- coveralls
+- coverage xml
+- python-codacy-coverage -r coverage.xml
 deploy:
   provider: pypi
   user: arkottke
