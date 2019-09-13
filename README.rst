@@ -44,5 +44,5 @@ Please cite this software using the following
    :target: https://www.codacy.com/manual/arkottke/pysra
 .. |License| image:: https://img.shields.io/badge/license-MIT-blue.svg
    :target: https://github.com/arkottke/pysra/blob/master/LICENSE
-.. |image| image:: https://zenodo.org/badge/8959678.svg
+.. |DOI| image:: https://zenodo.org/badge/8959678.svg
    :target: https://zenodo.org/badge/latestdoi/8959678
