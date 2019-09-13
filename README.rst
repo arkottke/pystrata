@@ -6,13 +6,23 @@ pySRA
 Site response analyses implemented in Python. This Python packages aims
 to implement many of the features found in
 `Strata <https://github.com/arkottke/strata>`__. These features include:
-- Input motion characterization: - Time series - Random vibration theory
-- Wave propagation or site amplification: - linear - equivalent-linear -
-equivalent-linear with frequency dependent properties - quarter
-wavelength - Nonlinear curve models: - Darendeli (2001) - Menq (2004) -
-Kishida (2012) - Site and soil property uncertainty: - Toro (1994) Vs
-correlation model - G/Gmax and D uncertainty: - Darendeli (2001) - EPRI
-SPID (2013)
+    - Input motion characterization:
+        - Time series
+        - Random vibration theory
+    - Wave propagation or site amplification:
+        - linear
+        - equivalent-linear 
+        - equivalent-linear with frequency dependent properties 
+        - quarter wavelength
+    - Nonlinear curve models:
+        - Darendeli (2001)
+        - Menq (2004)
+        - Kishida (2012)
+    - Site and soil property uncertainty:
+        - Toro (1994) Vs correlation model
+        - G/Gmax and D uncertainty:
+            - Darendeli (2001)
+            - EPRI SPID (2013)
 
 Development of this software is on-going and any contributions are
 encouraged.
