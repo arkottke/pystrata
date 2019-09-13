@@ -1,7 +1,7 @@
 -r ./requirements.txt
 -r ./requirements_rtfd.txt
 
-coveralls
+codacy-coverage
 cryptography
 flake8
 ipykernel
@@ -16,7 +16,6 @@ pyexcel-xlsx
 pytest-cov
 pytest-flake8
 pytest-runner
-pytest>=3.5
 pytest>=3.5
 watchdog
 wheel
