@@ -7,23 +7,24 @@ pySRA
 Site response analyses implemented in Python. This Python packages aims
 to implement many of the features found in
 Strata_. These features include:
-    - Input motion characterization:
-        - Time series
-        - Random vibration theory
-    - Wave propagation or site amplification:
-        - linear
-        - equivalent-linear
-        - equivalent-linear with frequency dependent properties
-        - quarter wavelength
-    - Nonlinear curve models:
+
+- Input motion characterization:
+    - Time series
+    - Random vibration theory
+- Wave propagation or site amplification:
+    - linear
+    - equivalent-linear
+    - equivalent-linear with frequency dependent properties
+    - quarter wavelength
+- Nonlinear curve models:
+    - Darendeli (2001)
+    - Menq (2004)
+    - Kishida (2012)
+- Site and soil property uncertainty:
+    - Toro (1994) Vs correlation model
+    - G/Gmax and D uncertainty:
         - Darendeli (2001)
-        - Menq (2004)
-        - Kishida (2012)
-    - Site and soil property uncertainty:
-        - Toro (1994) Vs correlation model
-        - G/Gmax and D uncertainty:
-            - Darendeli (2001)
-            - EPRI SPID (2013)
+        - EPRI SPID (2013)
 
 Development of this software is on-going and any contributions are
 encouraged.
@@ -50,18 +51,9 @@ Please cite this software using the following DOI_.
 .. |Documentation Status| image:: https://readthedocs.org/projects/pysra/badge/?version=latest&style=flat
    :target: https://pysra.readthedocs.org
 .. |Code Quality| image:: https://api.codacy.com/project/badge/Grade/6dbbb3a4279744d697b9bfe08af19ded
-<<<<<<< HEAD
    :target: https://www.codacy.com/app/arkottke/pysra
 .. |Test Coverage| image:: https://api.codacy.com/project/badge/Coverage/6dbbb3a4279744d697b9bfe08af19ded
    :target: https://www.codacy.com/app/arkottke/pysra
 .. |License| image:: https://img.shields.io/badge/license-MIT-blue.svg
 .. |image| image:: https://zenodo.org/badge/8959678.svg
-=======
-   :target: https://www.codacy.com/manual/arkottke/pysra
-.. |Test Coverage| image:: https://api.codacy.com/project/badge/Coverage/6dbbb3a4279744d697b9bfe08af19ded
-   :target: https://www.codacy.com/manual/arkottke/pysra
-.. |License| image:: https://img.shields.io/badge/license-MIT-blue.svg
-   :target: https://github.com/arkottke/pysra/blob/master/LICENSE
-.. |DOI| image:: https://zenodo.org/badge/8959678.svg
->>>>>>> b58cdc91be19f4d150ab77b66c72e4aa52af16f3
    :target: https://zenodo.org/badge/latestdoi/8959678
