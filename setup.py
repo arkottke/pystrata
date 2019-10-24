@@ -3,10 +3,10 @@
 
 from setuptools import setup, find_packages
 
-with open('README.md') as fp:
+with open('README.rst') as fp:
     readme = fp.read()
 
-with open('HISTORY.md') as fp:
+with open('HISTORY.rst') as fp:
     history = fp.read()
 
 setup(
@@ -14,7 +14,6 @@ setup(
     version='0.4.4',
     description='Site Response Analysis with Python',
     long_description=readme + '\n\n' + history,
-    long_description_content_type='text/markdown',
     author='Albert Kottke',
     author_email='albert.kottke@gmail.com',
     url='http://github.com/arkottke/pysra',
