@@ -380,19 +380,19 @@ class MenqSoilType(ModifiedHyperbolicSoilType):
 
     def _calc_damping_min(self):
         return (0.55 * self._uniformity_coeff ** 0.1 * self._diam_mean
-                ** -0.3 * self._stress_mean ** -0.08) / 100
+                ** -0.3 * (self._stress_mean * KPA_TO_ATM) ** -0.08) / 100
 
     def _calc_strain_ref(self):
-        return (0.12 * self._uniformity_coeff ** -0.6 * self._stress_mean
-                ** (0.5 * self._uniformity_coeff ** -0.15)) / 100
+        return (0.12 * self._uniformity_coeff ** -0.6 *
+                (self._stress_mean * KPA_TO_ATM) ** (0.5 * self._uniformity_coeff ** -0.15)
+                ) / 100
 
     def _calc_curvature(self):
         return 0.86 + 0.1 * np.log10(self._stress_mean * KPA_TO_ATM)
 
     def _create_name(self):
         fmt = "Menq (Cᵤ={:.1f}, D₅₀={:.1f} mm, σₘ'={:.1f} kN/m²)"
-        return fmt.format(self._uniformity_coeff, self._diam_mean,
-                          self._stress_mean)
+        return fmt.format(self._uniformity_coeff, self._diam_mean, self._stress_mean)
 
 
 class FixedValues:
