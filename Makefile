@@ -50,8 +50,8 @@ lint:
 	flake8 pysra tests examples
 
 test:
-	rstcheck --report warnig *.rst
-	py.test --flake8 --cov-report html --cov=pysra tests/
+	rstcheck --report warning *.rst
+	pytest --flake8 --cov-report html --cov=pysra tests/
 
 examples:
 	find examples -name 'example*.py' -exec python {} \;
