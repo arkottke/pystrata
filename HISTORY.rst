@@ -1,6 +1,10 @@
 History
 =======
 
+v0.4.6 (2019-11-12)
+-------------------
+- FIXED #11: Dependencies missing on install.
+
 v0.4.5 (2019-10-24)
 -------------------
 - FIXED #9: Wrong stress for some Menq components.
