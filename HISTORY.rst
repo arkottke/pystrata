@@ -1,6 +1,11 @@
 History
 =======
 
+v0.4.7 (2019-12-11)
+-------------------
+- Remove Cython and cyko as dependencies
+- Added a numba based Konno-Ohmachi smoothing
+
 v0.4.6 (2019-11-12)
 -------------------
 - FIXED #11: Dependencies missing on install.
