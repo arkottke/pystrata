@@ -22,12 +22,63 @@
 
 import collections
 
+import numba
 import numpy as np
 import scipy.integrate
 
-import cyko
+try:
+    import cyko
+except ImportError:
+    cyko = None
 
 from .motion import TimeSeriesMotion, WaveField, GRAVITY
+
+
+@numba.jit
+def nuko_smooth(ko_freqs, freqs, spectrum, b):
+    max_ratio = pow(10.0, (3.0 / b))
+    min_ratio = 1.0 / max_ratio
+
+    ko_smooth = np.empty_like(ko_freqs)
+    for i, fc in enumerate(ko_freqs):
+        fc = ko_freqs[i]
+        if fc < 1e-6:
+            ko_smooth[i] = 0
+            continue
+
+        total = 0
+        window_total = 0
+        for j, freq in enumerate(freqs):
+            frat = freq / fc
+
+            if (freq < 1e-6 or frat > max_ratio or frat < min_ratio):
+                continue
+            elif np.abs(freq - fc) < 1e-6:
+                window = 1.
+            else:
+                x = b * np.log10(frat)
+                window = np.sin(x) / x
+                window *= window
+                window *= window
+
+            total += window * spectrum[j]
+            window_total += window
+
+        if window_total > 0:
+            ko_smooth[i] = total / window_total
+        else:
+            ko_smooth[i] = 0
+
+    return ko_smooth
+
+
+def ko_smooth(ko_freqs, freqs, spectrum, b):
+    if cyko:
+        smoothed = cyko.smooth(ko_freqs, freqs, spectrum, b)
+    else:
+        smoothed = nuko_smooth(ko_freqs, freqs, spectrum, b)
+
+    return smoothed
 
 
 class OutputCollection(collections.abc.Collection):
@@ -315,12 +366,14 @@ class FourierAmplitudeSpectrumOutput(LocationBasedOutput):
         Output.__call__(self, calc, name)
         loc = self._get_location(calc)
         tf = calc.calc_accel_tf(calc.loc_input, loc)
-        smoothed = cyko.smooth(
+
+        smoothed = ko_smooth(
             self.freqs,
             calc.motion.freqs,
             np.abs(tf * calc.motion.fourier_amps),
             self.ko_bandwidth
         )
+
         self._add_values(smoothed)
 
 
@@ -397,7 +450,7 @@ class AccelTransferFunctionOutput(RatioBasedOutput):
         if self._ko_bandwidth is None:
             tf = np.interp(self.freqs, calc.motion.freqs, tf)
         else:
-            tf = cyko.smooth(
+            tf = ko_smooth(
                 self.freqs, calc.motion.freqs, tf, self._ko_bandwidth)
 
         self._add_values(tf)

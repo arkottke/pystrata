@@ -1,7 +1,5 @@
 --index-url https://pypi.python.org/simple/
 
-cython
-cyko
 matplotlib
 numpy
 numba
