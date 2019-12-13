@@ -26,8 +26,6 @@ import re
 
 import numpy as np
 
-import cyko
-
 from . import site
 from . import motion
 from . import propagation
