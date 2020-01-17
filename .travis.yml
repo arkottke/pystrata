@@ -15,7 +15,8 @@ deploy:
   user: arkottke
   password:
     secure: FfmTw7ima0b3hjHe3tamYGzYvdPAY2qDiLcwJezfT7422ECARQolcC0Zl6QTAyGJWlYHwDb77F1R/QoZf9DMViN8uOXItV3IHP2nAkr+MxcAdcrHaUJyxQ45jC297siA8YxK9MrTQOGgVL2Hdu7UOOF85BUT6D9JIx9vcgH0jUg=
-    on:
-      distributions: sdist bdist_wheel
-      repo: arkottke/pysra
-      tags: true
+  skip_existing: true
+  distributions: sdist bdist_wheel
+  on:
+    repo: arkottke/pysra
+    tags: true
