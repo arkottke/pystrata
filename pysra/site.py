@@ -92,7 +92,14 @@ class NonlinearProperty(object):
         float or array_like
             The nonlinear property at the requested strain(s).
         """
-        values = self._interpolater(np.log(strains))
+        ln_strains = np.log(np.maximum(1E-9, strains))
+
+        if self.strains.shape == self.values.shape:
+            # 1D interpolate
+            values = self._interpolater(ln_strains)
+        else:
+            ln_strains = np.atleast_1d(ln_strains)
+            values = np.array([i(ln_strains[0]) for i in self._interpolater])
         return values
 
     @property
@@ -128,25 +135,27 @@ class NonlinearProperty(object):
 
     def _update(self):
         """Initialize the 1D interpolation."""
+        if not self.strains.size:
+            self._interpolater = None
+            return
 
-        if self.strains.size and self.strains.size == self.values.size:
-            x = np.log(self.strains)
-            y = self.values
+        x = np.log(self.strains)
+        y = self.values
 
-            if x.size < 4:
-                self._interpolater = interp1d(
-                    x,
-                    y,
-                    'linear',
-                    bounds_error=False,
-                    fill_value=(y[0], y[-1]))
-            else:
-                self._interpolater = interp1d(
-                    x,
-                    y,
-                    'cubic',
-                    bounds_error=False,
-                    fill_value=(y[0], y[-1]))
+        if self.strains.shape == self.values.shape:
+            # 1D interpolate
+            self._interpolater = interp1d(
+                x, y, 'linear',
+                bounds_error=False, fill_value=(y[0], y[-1])
+            )
+        else:
+            self._interpolater = [
+                interp1d(
+                    x, y[:, i], 'linear',
+                    bounds_error=False, fill_value=(y[0, i], y[-1, i])
+                ) for i in range(y.shape[1])
+            ]
+
 
 
 class SoilType(object):
@@ -266,9 +275,17 @@ class ModifiedHyperbolicSoilType(SoilType):
         masing_corr = 0.6329 - 0.00566 * np.log(num_cycles)
         # Compute the damping correction in percent
         d_correction = damping_masing * masing_corr * mod_reduc ** 0.1
-        damping = damping_min + d_correction / 100
+
         # Prevent the damping from reducing as it can at large strains
-        damping = np.maximum.accumulate(damping)
+        damping = np.maximum.accumulate(d_correction / 100.)
+
+        # Add the minimum damping component
+        if isinstance(damping_min, np.ndarray):
+            # Broadcast
+            damping = damping_min + damping[:, np.newaxis]
+        else:
+            damping += damping_min
+
         # Convert to decimal values
         self.damping = NonlinearProperty(name, strains, damping, 'damping')
 
@@ -686,9 +703,8 @@ class Layer(object):
 
     @property
     def max_error(self):
-        return max(
-            self._shear_mod.relative_error,
-            self._damping.relative_error, )
+        return max(self._shear_mod.relative_error,
+                   self._damping.relative_error)
 
     def reset(self):
         self._shear_mod = IterativeValue(self.initial_shear_mod)
