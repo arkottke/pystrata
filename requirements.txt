@@ -3,6 +3,8 @@
 matplotlib
 numpy
 numba
+pyexcel
+pyexcel-xlsx
 pyrvt
 scipy
 setuptools
