@@ -35,6 +35,10 @@ Installation
 ``pysra`` is available via ``pip`` and can be installed with::
 
    pip install pysra
+   
+If you are using ``conda`` and a create a ``pysra`` specific environmental make sure you install ``ipykernels`` and ``nb_conda_kernels`` so that the environment is discoverable by ``Jupyter`` with::
+
+    conda install ipykernels nb_conda_kernels
 
 Citation
 --------
