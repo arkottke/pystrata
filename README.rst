@@ -2,7 +2,7 @@ pySRA
 =====
 
 |PyPi Cheese Shop| |Build Status| |Documentation Status| |Code Quality| |Test Coverage|
-|License| |image|
+|License| |Zenodo| |MyBinder|
 
 Site response analyses implemented in Python. This Python packages aims
 to implement many of the features found in
@@ -45,8 +45,17 @@ Citation
 
 Please cite this software using the following DOI_.
 
+Examples
+--------
+
+There are a variety of examples of using ``pysra`` within the `examples
+directory`_. An interactive Jupyter interface of these examples is available on
+|MyBinder|.
+
 .. _Strata: https://github.com/arkottke/strata
 .. _DOI: https://zenodo.org/badge/latestdoi/8959678
+.. _`examples directory`: https://github.com/arkottke/pysra/tree/master/examples
+.. _mybinder: 
 
 .. |PyPi Cheese Shop| image:: https://img.shields.io/pypi/v/pysra.svg
    :target: https://pypi.python.org/pypi/pysra
@@ -59,5 +68,7 @@ Please cite this software using the following DOI_.
 .. |Test Coverage| image:: https://api.codacy.com/project/badge/Coverage/6dbbb3a4279744d697b9bfe08af19ded
    :target: https://www.codacy.com/app/arkottke/pysra
 .. |License| image:: https://img.shields.io/badge/license-MIT-blue.svg
-.. |image| image:: https://zenodo.org/badge/8959678.svg
+.. |Zenodo| image:: https://zenodo.org/badge/8959678.svg
    :target: https://zenodo.org/badge/latestdoi/8959678
+.. |MyBinder| image:: https://mybinder.org/badge_logo.svg
+   :target: https://mybinder.org/v2/gh/arkottke/pysra/master?filepath=examples
