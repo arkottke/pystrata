@@ -16,3 +16,4 @@ spectrum and site amplification functions.
 1. Quarter-wave length site amplification
 1. Compute ground motion using a suite of peak factors
 1. Extract soil properties from FDM site response calculations
+1. Show the impact of frequency dependent D_min on FDM methods.
