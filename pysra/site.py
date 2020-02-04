@@ -134,7 +134,8 @@ class NonlinearProperty(object):
         self._param = value
 
     def _update(self):
-        """Initialize the 1D interpolation."""
+        """Initialize the interpolation."""
+
         if not self.strains.size:
             self._interpolater = None
             return
@@ -148,14 +149,16 @@ class NonlinearProperty(object):
                 x, y, 'linear',
                 bounds_error=False, fill_value=(y[0], y[-1])
             )
-        else:
+        elif (self.values.ndim == 2 and
+              self.strains.shape[0] == self.values.shape[0]):
             self._interpolater = [
                 interp1d(
                     x, y[:, i], 'linear',
                     bounds_error=False, fill_value=(y[0, i], y[-1, i])
                 ) for i in range(y.shape[1])
             ]
-
+        else:
+            self._interpolater = None
 
 
 class SoilType(object):
