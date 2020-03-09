@@ -521,6 +521,32 @@ class MaxStrainProfile(ProfileBasedOutput):
         self._add_values(values)
 
 
+class InitialVelProfile(ProfileBasedOutput):
+    xlabel = 'Initial Velocity (m/s)'
+
+    def __init__(self):
+        super().__init__()
+
+    def __call__(self, calc, name=None):
+        ProfileBasedOutput.__call__(self, calc, name)
+        values = [l.initial_shear_vel for l in calc.profile[:-1]]
+        values.insert(0, values[0])
+        self._add_values(values)
+
+
+class CompatVelProfile(ProfileBasedOutput):
+    xlabel = 'Strain-Compatible Velocity (m/s)'
+
+    def __init__(self):
+        super().__init__()
+
+    def __call__(self, calc, name=None):
+        ProfileBasedOutput.__call__(self, calc, name)
+        values = [np.min(l.shear_vel) for l in calc.profile[:-1]]
+        values.insert(0, values[0])
+        self._add_values(values)
+
+
 class CyclicStressRatioProfile(ProfileBasedOutput):
     # From Idriss and Boulanger (2008, pg. 70):
     # The 0.65 is a constant used to represent the reference stress

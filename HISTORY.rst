@@ -1,6 +1,10 @@
 History
 =======
 
+v0.4.9 (2020-03-09)
+-------------------
+- Add InitialVelProfile and CompatVelProfile outputs
+
 v0.4.8 (2019-12-11)
 -------------------
 - Remove Cython and cyko as dependencies
