@@ -38,7 +38,7 @@ Installation
    
 If you are using ``conda`` and a create a ``pysra`` specific environmental make sure you install ``ipykernels`` and ``nb_conda_kernels`` so that the environment is discoverable by ``Jupyter`` with::
 
-    conda install ipykernels nb_conda_kernels
+    conda install ipykernel nb_conda_kernels
 
 Citation
 --------
