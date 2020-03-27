@@ -1,6 +1,11 @@
 History
 =======
 
+v0.4.10 (2020-03-27)
+--------------------
+- Fixed: Error in SPID variation of G/Gmax
+- Added: Scaling during read of SMC and AT2 input motions
+
 v0.4.9 (2020-03-09)
 -------------------
 - Add InitialVelProfile and CompatVelProfile outputs
