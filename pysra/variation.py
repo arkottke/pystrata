@@ -649,7 +649,8 @@ class SpidVariation(SoilTypeVariation):
     def _get_varied(self, randvar, mod_reduc, damping):
         # Vary the G/Gmax in transformed space.
         # Equation 9.43 of PNNL (2014)
-        f_mean = (mod_reduc / (1 - mod_reduc))
+        # Here epsilon is added so that the denomiator doesn't go to zero.
+        f_mean = (mod_reduc / (1 - mod_reduc + np.finfo(float).eps))
         # Instead of constraining the standard deviation at a specific
         # strain, then standard deviation is constrained at G/Gmax of 0.5.
         # This is modified from Equation 9.44 of PNNL (2014).
@@ -696,6 +697,7 @@ def iter_varied_profiles(profile,
                 site.Layer(varied[str(l.soil_type)], l.thickness,
                            l.initial_shear_vel) for l in p
             ]
+
             # Create a new profile
             p = site.Profile(layers, p.wt_depth)
 
