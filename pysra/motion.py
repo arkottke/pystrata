@@ -209,14 +209,15 @@ class TimeSeriesMotion(Motion):
                                    - 2.j * damping * osc_freq * self.freqs))
 
     @classmethod
-    def load_at2_file(cls, filename):
+    def load_at2_file(cls, filename, scale=1.):
         """Read an AT2 formatted time series.
 
         Parameters
         ----------
         filename: str
             Filename to open.
-
+        scale: float, default: 1.
+            Scale factor to apply to the motion.
         """
         with open(filename) as fp:
             next(fp)
@@ -225,12 +226,13 @@ class TimeSeriesMotion(Motion):
             parts = next(fp).split()
             time_step = float(parts[1])
 
-            accels = [float(p) for l in fp for p in l.split()]
+            accels = np.array([float(p) for l in fp for p in l.split()])
 
+        accels *= scale
         return cls(filename, description, time_step, accels)
 
     @classmethod
-    def load_smc_file(cls, filename):
+    def load_smc_file(cls, filename, scale=1.):
         """Read an SMC formatted time series.
 
         Format of the time series is provided by:
@@ -240,7 +242,8 @@ class TimeSeriesMotion(Motion):
         ----------
         filename: str
             Filename to open.
-
+        scale: float, default: 1.
+            Scale factor to apply to the motion.
         """
         from .tools import parse_fixed_width
 
@@ -273,6 +276,7 @@ class TimeSeriesMotion(Motion):
         accels = np.array(parse_fixed_width(count * [
             (10, float),
         ], lines))
+        accels *= scale
 
         return TimeSeriesMotion(filename, description, time_step, accels)
 
