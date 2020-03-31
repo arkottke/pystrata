@@ -26,6 +26,9 @@ setup(
         'setuptools',
         'typing',
     ],
+    extras_require={
+        'dataframe': ['pandas'],
+    },
     keywords='site response',
     license='MIT',
     classifiers=[
