@@ -1,6 +1,12 @@
 History
 =======
 
+v0.4.11 (2020-03-31)
+--------------------
+- Added: Depth dependent velocity variation model
+- Added: Output plotting functionality
+- Added: Ability to exclude soil type variation from bedrock
+
 v0.4.10 (2020-03-27)
 --------------------
 - Fixed: Error in SPID variation of G/Gmax
