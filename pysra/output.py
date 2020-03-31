@@ -34,6 +34,11 @@ try:
 except ImportError:
     cyko = None
 
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
+
 from .motion import TimeSeriesMotion, WaveField, GRAVITY
 
 
@@ -210,11 +215,17 @@ class Output(object):
         else:
             self._values = append_arrays(self._values, values)
 
-    def calc_stats(self):
+    def calc_stats(self, as_dataframe=False):
         ln_values = np.log(self.values)
         median = np.exp(np.mean(ln_values, axis=1))
         ln_std = np.std(ln_values)
-        return {'ref': self.refs, 'median': median, 'ln_std': ln_std}
+
+        stats = {'ref': self.refs, 'median': median, 'ln_std': ln_std}
+        if as_dataframe and pd:
+            stats = pd.DataFrame(stats).set_index('ref')
+            stats.index.name = self.ref_name
+
+        return stats
 
     @staticmethod
     def _get_xy(refs, values):
@@ -297,6 +308,8 @@ class LocationBasedOutput(Output):
 class TimeSeriesOutput(LocationBasedOutput):
     xlabel = 'Time (sec)'
     ylabel = NotImplemented
+
+    ref_name = 'time'
 
     def __init__(self, location):
         super().__init__(None, location)
@@ -399,6 +412,8 @@ class FourierAmplitudeSpectrumOutput(LocationBasedOutput):
     xlabel = 'Frequency (Hz)'
     ylabel = 'Fourier Ampl. (cm/s)'
 
+    ref_name = 'freq'
+
     def __init__(self, freqs, location, ko_bandwidth=30):
         super().__init__(freqs, location)
         self._ko_bandwidth = ko_bandwidth
@@ -429,6 +444,8 @@ class FourierAmplitudeSpectrumOutput(LocationBasedOutput):
 class ResponseSpectrumOutput(LocationBasedOutput):
     _const_ref = True
     xlabel = 'Frequency (Hz)'
+
+    ref_name = 'freq'
 
     def __init__(self, freqs, location, osc_damping):
         super().__init__(freqs, location)
@@ -485,6 +502,8 @@ class AccelTransferFunctionOutput(RatioBasedOutput):
     xlabel = 'Frequency (Hz)'
     ylabel = 'Accel. Transfer Func.'
 
+    ref_name = 'freq'
+
     def __init__(self, refs, location_in, location_out, ko_bandwidth=None):
         super().__init__(refs, location_in, location_out)
         self._ko_bandwidth = ko_bandwidth
@@ -512,6 +531,8 @@ class AccelTransferFunctionOutput(RatioBasedOutput):
 class ResponseSpectrumRatioOutput(RatioBasedOutput):
     _const_ref = True
     xlabel = 'Frequency (Hz)'
+
+    ref_name = 'freq'
 
     def __init__(self, freqs, location_in, location_out, osc_damping):
         super().__init__(freqs, location_in, location_out)
@@ -551,6 +572,8 @@ class ProfileBasedOutput(Output):
     yscale = 'linear'
     drawstyle = 'steps-post'
 
+    ref_name = 'depth'
+
     def __init__(self):
         super().__init__()
 
@@ -559,7 +582,7 @@ class ProfileBasedOutput(Output):
         depths = [0] + [l.depth_mid for l in calc.profile[:-1]]
         self._add_refs(depths)
 
-    def calc_stats(self):
+    def calc_stats(self, as_dataframe=False):
         ref = np.linspace(0, np.nanmax(self.refs) * 1.05)
 
         n = self.values.shape[1]
@@ -585,12 +608,15 @@ class ProfileBasedOutput(Output):
             return _ln_interped
 
         ln_values = np.array([ln_interp(i) for i in range(n)]).T
-        print(ln_values.shape)
-
         median = np.exp(np.nanmean(ln_values, axis=1))
         ln_std = np.nanstd(ln_values, axis=1)
 
-        return {'ref': ref, 'median': median, 'ln_std': ln_std}
+        stats = {'ref': ref, 'median': median, 'ln_std': ln_std}
+        if as_dataframe and pd:
+            stats = pd.DataFrame(stats).set_index('ref')
+            stats.index.name = self.ref_name
+
+        return stats
 
     @staticmethod
     def _get_xy(refs, values):
