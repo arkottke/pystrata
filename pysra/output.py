@@ -210,7 +210,7 @@ class Output(object):
         else:
             self._values = append_arrays(self._values, values)
 
-    def _calc_stats(self):
+    def calc_stats(self):
         ln_values = np.log(self.values)
         median = np.exp(np.mean(ln_values, axis=1))
         ln_std = np.std(ln_values)
@@ -236,7 +236,7 @@ class Output(object):
             lines[0].set_label('Realization')
 
         if has_multi:
-            stats = self._calc_stats()
+            stats = self.calc_stats()
             ax.plot(*self._get_xy(stats['ref'], stats['median']),
                     color='C1', lw=2, label='Median')
 
@@ -559,7 +559,7 @@ class ProfileBasedOutput(Output):
         depths = [0] + [l.depth_mid for l in calc.profile[:-1]]
         self._add_refs(depths)
 
-    def _calc_stats(self):
+    def calc_stats(self):
         ref = np.linspace(0, np.nanmax(self.refs) * 1.05)
 
         n = self.values.shape[1]
