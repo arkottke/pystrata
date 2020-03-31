@@ -229,6 +229,9 @@ class ToroThicknessVariation(object):
 class VelocityVariation(object):
     """Abstract model for varying the velocity."""
 
+    def __init__(self, vary_bedrock=False):
+        self._vary_bedrock = vary_bedrock
+
     def __call__(self, profile):
         """Calculate a varied shear-wave velocity profile.
 
@@ -246,19 +249,23 @@ class VelocityVariation(object):
         mean = np.log([l.initial_shear_vel for l in profile])
         covar = self._calc_covar_matrix(profile)
 
-        lnvel_rand = np.random.multivariate_normal(
+        ln_vel_rand = np.random.multivariate_normal(
             mean, covar, check_valid='ignore')
 
         # Limits based on the number of standard deviations
         offset = randnorm.limit * np.sqrt(np.diag(covar))
-        lnvel = np.clip(lnvel_rand, mean - offset, mean + offset)
+        ln_vel = np.clip(ln_vel_rand, mean - offset, mean + offset)
+        vel = np.exp(ln_vel)
 
-        vel = np.exp(lnvel)
-
+        # Create the new layers
+        end = None if self.vary_bedrock else -1
         layers = [
             site.Layer(l.soil_type, l.thickness, vel[i])
-            for i, l in enumerate(profile)
+            for i, l in enumerate(profile[:end])
         ]
+        if not self.vary_bedrock:
+            layers.append(profile[-1])
+
         varied = site.Profile(layers, profile.wt_depth)
         return varied
 
@@ -317,6 +324,10 @@ class VelocityVariation(object):
             Standard deviation of the shear-wave velocity
         """
         raise NotImplementedError
+
+    @property
+    def vary_bedrock(self):
+        return self._vary_bedrock
 
 
 class ToroVelocityVariation(VelocityVariation):
@@ -407,8 +418,11 @@ class ToroVelocityVariation(VelocityVariation):
         },
     }
 
-    def __init__(self, ln_std, rho_0, delta, rho_200, h_0, b):
+    def __init__(self, ln_std, rho_0, delta, rho_200, h_0, b,
+                 vary_bedrock=False):
         """Initialize the model."""
+        super().__init__(vary_bedrock=vary_bedrock)
+
         self._ln_std = ln_std
         self._rho_0 = rho_0
         self._delta = delta
@@ -521,11 +535,103 @@ class ToroVelocityVariation(VelocityVariation):
         return cls(**p)
 
 
+class DepthDependToroVelVariation(ToroVelocityVariation):
+    """ Toro (1995) [T95] velocity variation model modified for a depth
+    dependent standard deviation.
+
+    Default values can be selected with :meth:`.generic_model`.
+
+    Parameters
+    ----------
+    depth: array_like, optional
+        Depths defining the standard deviation model. Default is [0, 15]
+        following the SPID model.
+    ln_std: array_like, optional
+        :math:`\sigma_{ln}` model parameter. Default is [0.25, 0.15]
+        following the SPID model.
+    rho_0: float, optional
+        :math:`ρ_0` model parameter.
+    delta: float, optional
+        :math:`\Delta` model parameter.
+    rho_200: float, optional
+        :math:`ρ_200` model parameter.
+    h_0: float, optional
+        :math:`h_0` model parameter.
+    b: float, optional
+        :math:`b` model parameter.
+    """
+    def __init__(self, depth, ln_std, rho_0, delta, rho_200, h_0, b,
+                 vary_bedrock=False):
+        """Initialize the model."""
+        super().__init__(ln_std, rho_0, delta, rho_200, h_0, b,
+                         vary_bedrock=vary_bedrock)
+        self._depth = depth
+
+    def _calc_ln_std(self, profile):
+        ln_std = np.interp(
+            [l.depth_mid for l in profile],
+            self.depth, self.ln_std,
+            left=self.ln_std[0],
+            right=self.ln_std[-1],
+        )
+        return ln_std
+
+    @property
+    def depth(self):
+        return self._depth
+
+    @classmethod
+    def generic_model(cls, site_class, **kwds):
+        """Use generic model parameters based on site class.
+
+        Parameters
+        ----------
+        site_class: str
+            Site classification. Possible options are:
+             * Geomatrix AB
+             * Geomatrix CD
+             * USGS AB
+             * USGS CD
+             * USGS A
+             * USGS B
+             * USGS C
+             * USGS D
+
+            See the report for definitions of the Geomatrix site
+            classication. USGS site classification is based on :math:`V_{s30}`:
+
+            =========== =====================
+            Site Class  :math:`V_{s30}` (m/s)
+            =========== =====================
+            A           >750 m/s
+            B           360 to 750 m/s
+            C           180 to 360 m/s
+            D           <180 m/s
+            =========== =====================
+
+        Returns
+        -------
+        DepthDependToroVelVariation
+            Initialized :class:`DepthDependToroVelVariation` with generic parameters.
+        """
+        p = dict(cls.PARAMS[site_class])
+        p.update(kwds)
+
+        if 'depth' not in kwds:
+            p['depth'] = [0, 15]
+            p['ln_std'] = [0.25, 0.15]
+
+        return cls(**p)
+
+
+
 class SoilTypeVariation(object):
     def __init__(self,
                  correlation,
                  limits_mod_reduc=[0.05, 1],
-                 limits_damping=[0, 0.15]):
+                 limits_damping=[0, 0.15],
+                 vary_bedrock=False):
+        self._vary_bedrock = vary_bedrock
         self._correlation = correlation
         self._limits_mod_reduc = list(limits_mod_reduc)
         self._limits_damping = list(limits_damping)
@@ -576,6 +682,10 @@ class SoilTypeVariation(object):
     @property
     def limits_mod_reduc(self):
         return self._limits_mod_reduc
+
+    @property
+    def vary_bedrock(self):
+        return self._vary_bedrock
 
 
 class DarendeliVariation(SoilTypeVariation):
@@ -676,9 +786,9 @@ class SpidVariation(SoilTypeVariation):
 
 def iter_varied_profiles(profile,
                          count,
-                         var_thickness=None,
-                         var_velocity=None,
-                         var_soiltypes=None):
+                         var_thickness: ToroThicknessVariation=None,
+                         var_velocity: VelocityVariation=None,
+                         var_soiltypes: SoilTypeVariation=None):
     for i in range(count):
         # Copy the profile to form the realization
         p = profile
@@ -693,10 +803,14 @@ def iter_varied_profiles(profile,
             # Map of varied soil types
             varied = {str(st): var_soiltypes(st) for st in p.iter_soil_types()}
             # Create new layers
+            end = None if var_soiltypes.vary_bedrock else -1
             layers = [
                 site.Layer(varied[str(l.soil_type)], l.thickness,
-                           l.initial_shear_vel) for l in p
+                           l.initial_shear_vel) for l in p[:end]
             ]
+            # Add the unrandomized bedrock
+            if not var_soiltypes.vary_bedrock:
+                layers.append(p[-1])
 
             # Create a new profile
             p = site.Profile(layers, p.wt_depth)
