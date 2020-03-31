@@ -451,7 +451,8 @@ class LinearElasticCalculator(AbstractCalculator):
 class EquivalentLinearCalculator(LinearElasticCalculator):
     """Class for performing equivalent-linear elastic site response."""
 
-    def __init__(self, strain_ratio=0.65, tolerance=0.01, max_iterations=15):
+    def __init__(self, strain_ratio=0.65, tolerance=0.01, max_iterations=15,
+                 strain_limit=0.05):
         """Initialize the class.
 
         Parameters
@@ -466,11 +467,16 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
 
         max_iterations: int, default=15
             Maximum number of iterations to perform.
+
+        strain_limit: float, default=0.05
+            Limit of strain in calculations. If this strain is exceed, the
+            iterative calculation is ended.
         """
         super().__init__()
         self._strain_ratio = strain_ratio
         self._tolerance = tolerance
         self._max_iterations = max_iterations
+        self._strain_limit = strain_limit
 
     def __call__(self, motion, profile, loc_input):
         """Perform the wave propagation.
@@ -491,18 +497,38 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
         self._estimate_strains()
 
         iteration = 0
+        # The iteration at which strains were last limited
+        limited_iter = -2
+        limited_strains = False
+
         while iteration < self.max_iterations:
+            limited_strains = False
             self._calc_waves(motion.angular_freqs, profile)
+
             for index, layer in enumerate(profile[:-1]):
                 loc_layer = Location(index, layer, 'within',
                                      layer.thickness / 2)
+
                 # Compute the representative strain(s) within the layer. FDM
                 #  will provide a vector of strains.
-                layer.strain = self._calc_strain(loc_input, loc_layer, motion)
+                strain = self._calc_strain(loc_input, loc_layer, motion)
+                if self._strain_limit and np.any(strain > self._strain_limit):
+                    limited_strains = True
+                    strain = np.maximum(strain, self._strain_limit)
+                layer.strain = strain
+
             # Maximum error (damping and shear modulus) over all layers
             max_error = max(l.max_error for l in profile)
             if max_error < self.tolerance:
                 break
+
+            # Break, if the strains were limited the last two iterations.
+            if limited_strains:
+                if limited_iter == (iteration - 1):
+                    break
+                else:
+                    limited_iter = iteration
+
             iteration += 1
 
         # Compute the maximum strain within the profile.
@@ -529,6 +555,10 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
     @property
     def max_iterations(self):
         return self._max_iterations
+
+    @property
+    def strain_limit(self):
+        return self._strain_limit
 
     @classmethod
     def calc_strain_ratio(cls, mag):
