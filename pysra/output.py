@@ -22,9 +22,12 @@
 
 import collections
 
+import matplotlib.pyplot as plt
 import numba
 import numpy as np
 import scipy.integrate
+
+from scipy.interpolate import interp1d
 
 try:
     import cyko
@@ -142,8 +145,12 @@ def append_arrays(many, single):
 class Output(object):
     _const_ref = False
 
+    xscale = 'log'
+    yscale = 'log'
+    drawstyle = 'default'
+
     def __init__(self, refs=None):
-        self._refs = refs if refs is None else np.asarray(refs)
+        self._refs = np.asarray([] if refs is None else refs)
         self._values = None
         self._names = []
 
@@ -174,7 +181,7 @@ class Output(object):
         self._values = None
         self._names = []
         if not self._const_ref:
-            self._refs = None
+            self._refs = np.array([])
 
     def iter_results(self):
         shared_ref = len(self.refs.shape) == 1
@@ -186,9 +193,10 @@ class Output(object):
 
     def _add_refs(self, refs):
         refs = np.asarray(refs)
-        if self._refs is None:
+
+        if not self._refs.size:
             self._refs = refs
-        elif len(refs) == len(self._refs) and np.allclose(refs, self._refs):
+        elif refs.shape == self._refs.shape and np.allclose(refs, self._refs):
             # Same values
             pass
         else:
@@ -201,6 +209,46 @@ class Output(object):
             self._values = values
         else:
             self._values = append_arrays(self._values, values)
+
+    def _calc_stats(self):
+        ln_values = np.log(self.values)
+        median = np.exp(np.mean(ln_values, axis=1))
+        ln_std = np.std(ln_values)
+        return {'ref': self.refs, 'median': median, 'ln_std': ln_std}
+
+    @staticmethod
+    def _get_xy(refs, values):
+        return refs, values
+
+    def plot(self, ax=None):
+        if ax is None:
+            fig, ax = plt.subplots()
+
+        has_multi = self.values.shape[1] > 2
+
+        x, y = self._get_xy(self.refs, self.values)
+
+        kwds = {'color': 'C0', 'alpha': 0.6, 'lw': 0.8, 'drawstyle':
+                self.drawstyle} if has_multi else {}
+        lines = ax.plot(x, y, **kwds)
+
+        if has_multi:
+            lines[0].set_label('Realization')
+
+        if has_multi:
+            stats = self._calc_stats()
+            ax.plot(*self._get_xy(stats['ref'], stats['median']),
+                    color='C1', lw=2, label='Median')
+
+        ax.set(
+            xlabel=self.xlabel, xscale=self.xscale,
+            ylabel=self.ylabel, yscale=self.yscale
+        )
+        ax.legend()
+
+        fig.tight_layout()
+
+        return fig, ax
 
 
 class OutputLocation(object):
@@ -293,6 +341,7 @@ class AriasIntensityTSOutput(AccelerationTSOutput):
         values = scipy.integrate.cumtrapz(values ** 2, dx=time_step)
         values *= GRAVITY * np.pi / 2
         return values
+
 
 class StrainTSOutput(TimeSeriesOutput):
     def __init__(self, location, in_percent=False):
@@ -499,6 +548,8 @@ class ResponseSpectrumRatioOutput(RatioBasedOutput):
 
 class ProfileBasedOutput(Output):
     ylabel = 'Depth (m)'
+    yscale = 'linear'
+    drawstyle = 'steps-post'
 
     def __init__(self):
         super().__init__()
@@ -507,6 +558,48 @@ class ProfileBasedOutput(Output):
         Output.__call__(self, calc, name)
         depths = [0] + [l.depth_mid for l in calc.profile[:-1]]
         self._add_refs(depths)
+
+    def _calc_stats(self):
+        ref = np.linspace(0, np.nanmax(self.refs) * 1.05)
+
+        n = self.values.shape[1]
+        nans = np.empty_like(ref)
+        nans[:] = np.nan
+
+        def ln_interp(i):
+            _ref = self.refs[:, i]
+            # Only select points with valid entries
+            mask = np.isfinite(_ref)
+            _ref = _ref[mask]
+            _ln_values = np.log(self.values[mask, i])
+
+            if np.any(mask):
+                f = interp1d(_ref, _ln_values,
+                             kind='previous',
+                             fill_value=(_ln_values[0], _ln_values[-1]),
+                             bounds_error=False)
+                _ln_interped = f(ref)
+            else:
+                _ln_interped = np.array(nans)
+
+            return _ln_interped
+
+        ln_values = np.array([ln_interp(i) for i in range(n)]).T
+        print(ln_values.shape)
+
+        median = np.exp(np.nanmean(ln_values, axis=1))
+        ln_std = np.nanstd(ln_values, axis=1)
+
+        return {'ref': ref, 'median': median, 'ln_std': ln_std}
+
+    @staticmethod
+    def _get_xy(refs, values):
+        return values, refs
+
+    def plot(self, ax=None):
+        fig, ax = Output.plot(self, ax)
+        ax.invert_yaxis()
+        return fig, ax
 
 
 class MaxStrainProfile(ProfileBasedOutput):
@@ -528,7 +621,10 @@ class InitialVelProfile(ProfileBasedOutput):
         super().__init__()
 
     def __call__(self, calc, name=None):
-        ProfileBasedOutput.__call__(self, calc, name)
+        Output.__call__(self, calc, name)
+        # Add depth at top of layer
+        self._add_refs(calc.profile.depth)
+
         values = [l.initial_shear_vel for l in calc.profile[:-1]]
         values.insert(0, values[0])
         self._add_values(values)
@@ -541,7 +637,10 @@ class CompatVelProfile(ProfileBasedOutput):
         super().__init__()
 
     def __call__(self, calc, name=None):
-        ProfileBasedOutput.__call__(self, calc, name)
+        Output.__call__(self, calc, name)
+        # Add depth at top of layer
+        self._add_refs(calc.profile.depth)
+
         values = [np.min(l.shear_vel) for l in calc.profile[:-1]]
         values.insert(0, values[0])
         self._add_values(values)
