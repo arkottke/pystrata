@@ -140,8 +140,10 @@ def append_arrays(many, single):
     if diff < 0:
         single = np.pad(single, (0, -diff), 'constant', constant_values=np.nan)
     elif diff > 0:
+        # Need different padding based on if many is 1d or 2d.
+        padding = ((0, diff), (0, 0)) if len(many.shape) > 1 else (0, diff)
         many = np.pad(
-            many, ((0, diff), (0, 0)), 'constant', constant_values=np.nan)
+            many, padding, 'constant', constant_values=np.nan)
     else:
         # No padding needed
         pass
