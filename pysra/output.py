@@ -226,19 +226,14 @@ class Output(object):
 
     def to_dataframe(self):
         if not pd:
-            raise RuntimeError('Install `pandas` library')
+            raise RuntimeError('Install `pandas` library.')
 
         if isinstance(self.names[0], tuple):
             columns = pd.MultiIndex.from_tuples(self.names)
         else:
             columns = self.names
 
-        df = pd.DataFrame(
-            self.values,
-            index=self.refs,
-            columns=columns,
-        )
-
+        df = pd.DataFrame(self.values, index=self.refs, columns=columns)
         return df
 
     @staticmethod
