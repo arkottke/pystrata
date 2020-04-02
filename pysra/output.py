@@ -140,7 +140,8 @@ def append_arrays(many, single):
     if diff < 0:
         single = np.pad(single, (0, -diff), 'constant', constant_values=np.nan)
     elif diff > 0:
-        many = np.pad(many, ((0, diff), ), 'constant', constant_values=np.nan)
+        many = np.pad(
+            many, ((0, diff), (0, 0)), 'constant', constant_values=np.nan)
     else:
         # No padding needed
         pass
@@ -198,14 +199,9 @@ class Output(object):
 
     def _add_refs(self, refs):
         refs = np.asarray(refs)
-
-        if not self._refs.size:
-            self._refs = refs
-        elif refs.shape == self._refs.shape and np.allclose(refs, self._refs):
-            # Same values
-            pass
+        if len(self._refs) == 0:
+            self._refs = np.array(refs)
         else:
-            # Different values
             self._refs = append_arrays(self._refs, refs)
 
     def _add_values(self, values):
@@ -227,6 +223,23 @@ class Output(object):
 
         return stats
 
+    def to_dataframe(self):
+        if not pd:
+            raise RuntimeError('Install `pandas` library')
+
+        if isinstance(self.names[0], tuple):
+            columns = pd.MultiIndex.from_tuples(self.names)
+        else:
+            columns = self.names
+
+        df = pd.DataFrame(
+            self.values,
+            index=self.refs,
+            columns=columns,
+        )
+
+        return df
+
     @staticmethod
     def _get_xy(refs, values):
         return refs, values
@@ -234,8 +247,10 @@ class Output(object):
     def plot(self, ax=None):
         if ax is None:
             fig, ax = plt.subplots()
+        else:
+            fig = None
 
-        has_multi = self.values.shape[1] > 2
+        has_multi = len(self.values.shape) > 1 and self.values.shape[1] > 2
 
         x, y = self._get_xy(self.refs, self.values)
 
@@ -255,11 +270,13 @@ class Output(object):
             xlabel=self.xlabel, xscale=self.xscale,
             ylabel=self.ylabel, yscale=self.yscale
         )
-        ax.legend()
+        if has_multi:
+            ax.legend()
 
-        fig.tight_layout()
+        if fig:
+            fig.tight_layout()
 
-        return fig, ax
+        return ax
 
 
 class OutputLocation(object):
@@ -337,6 +354,9 @@ class TimeSeriesOutput(LocationBasedOutput):
 
     def _modify_values(self, calc, location, values):
         return values
+
+    def to_dataframe(self):
+        raise NotImplementedError
 
 
 class AccelerationTSOutput(TimeSeriesOutput):
@@ -623,9 +643,12 @@ class ProfileBasedOutput(Output):
         return values, refs
 
     def plot(self, ax=None):
-        fig, ax = Output.plot(self, ax)
+        ax = Output.plot(self, ax)
         ax.invert_yaxis()
-        return fig, ax
+        return ax
+
+    def to_dataframe(self):
+        raise NotImplementedError
 
 
 class MaxStrainProfile(ProfileBasedOutput):
