@@ -666,10 +666,13 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
 
             # Fit the smoothed model at frequencies greater than the average
             A = np.c_[-freqs[~mask], -np.log(freqs[~mask])]
-            a, b = np.linalg.lstsq(A, np.log(strain_fas[~mask]))[0]
+            a, b = np.linalg.lstsq(A, np.log(strain_fas[~mask]), rcond=None)[0]
             # This is a modification of the published method that ensures a
-            # smooth transition in the strain
-            shape = np.minimum(1, np.exp(-a * freqs) / np.power(freqs, b))
+            # smooth transition in the strain. Make sure the frequencies are zero.
+            shape = np.minimum(
+                1, np.exp(-a * freqs) /
+                   np.maximum(np.finfo(float).eps, np.power(freqs, b))
+            )
             strains = strain_eff * shape
         else:
             strains = strain_eff * strain_fas / np.max(strain_fas)
