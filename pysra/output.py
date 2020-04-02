@@ -240,7 +240,7 @@ class Output(object):
     def _get_xy(refs, values):
         return refs, values
 
-    def plot(self, ax=None, style='stats'):
+    def plot(self, ax=None, style='indiv'):
         assert style in ['stats', 'indiv']
 
         if ax is None:
