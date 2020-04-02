@@ -41,7 +41,6 @@ except ImportError:
 
 from .motion import TimeSeriesMotion, WaveField, GRAVITY
 
-
 @numba.jit
 def nuko_smooth(ko_freqs, freqs, spectrum, b):
     max_ratio = pow(10.0, (3.0 / b))
@@ -246,24 +245,42 @@ class Output(object):
     def _get_xy(refs, values):
         return refs, values
 
-    def plot(self, ax=None):
+    def plot(self, ax=None, style='stats'):
+        assert style in ['stats', 'indiv']
+
         if ax is None:
             fig, ax = plt.subplots()
+
+        if (style == 'stats' and
+                len(self.values.shape) > 1 and self.values.shape[1] < 3):
+            raise RuntimeError("Unable to plot stats for less than 3 values.")
+
+        if style == 'stats':
+            kwds = {
+                'color': 'C0',
+                'alpha': 0.6,
+                'lw': 0.8,
+                'drawstyle': self.drawstyle
+            }
+        elif style == 'indiv':
+            kwds = {
+                'lw': 1.,
+                'drawstyle': self.drawstyle
+            }
         else:
-            fig = None
+            raise NotImplementedError('Valid options are: stats, indiv.')
 
-        has_multi = len(self.values.shape) > 1 and self.values.shape[1] > 2
-
+        # Add the data
         x, y = self._get_xy(self.refs, self.values)
-
-        kwds = {'color': 'C0', 'alpha': 0.6, 'lw': 0.8, 'drawstyle':
-                self.drawstyle} if has_multi else {}
         lines = ax.plot(x, y, **kwds)
 
-        if has_multi:
+        if style == 'stats':
             lines[0].set_label('Realization')
+        else:
+            for l, n in zip(lines, self.names):
+                l.set_label(n)
 
-        if has_multi:
+        if style == 'stats':
             stats = self.calc_stats()
             ax.plot(*self._get_xy(stats['ref'], stats['median']),
                     color='C1', lw=2, label='Median')
@@ -272,11 +289,9 @@ class Output(object):
             xlabel=self.xlabel, xscale=self.xscale,
             ylabel=self.ylabel, yscale=self.yscale
         )
-        if has_multi:
-            ax.legend()
 
-        if fig:
-            fig.tight_layout()
+        if len(lines) > 1:
+            ax.legend()
 
         return ax
 
@@ -620,7 +635,7 @@ class ProfileBasedOutput(Output):
 
             if np.any(mask):
                 f = interp1d(_ref, _ln_values,
-                             kind='previous',
+                             kind='next',
                              fill_value=(_ln_values[0], _ln_values[-1]),
                              bounds_error=False)
                 _ln_interped = f(ref)
@@ -629,9 +644,11 @@ class ProfileBasedOutput(Output):
 
             return _ln_interped
 
-        ln_values = np.array([ln_interp(i) for i in range(n)]).T
-        median = np.exp(np.nanmean(ln_values, axis=1))
-        ln_std = np.nanstd(ln_values, axis=1)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            # Ignore zeros in the data
+            ln_values = np.array([ln_interp(i) for i in range(n)]).T
+            median = np.exp(np.nanmean(ln_values, axis=1))
+            ln_std = np.nanstd(ln_values, axis=1)
 
         stats = {'ref': ref, 'median': median, 'ln_std': ln_std}
         if as_dataframe and pd:
@@ -644,8 +661,8 @@ class ProfileBasedOutput(Output):
     def _get_xy(refs, values):
         return values, refs
 
-    def plot(self, ax=None):
-        ax = Output.plot(self, ax)
+    def plot(self, ax=None, style='stats'):
+        ax = Output.plot(self, ax, style)
         ax.invert_yaxis()
         return ax
 
