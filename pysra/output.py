@@ -504,16 +504,21 @@ class AccelTransferFunctionOutput(RatioBasedOutput):
 
     ref_name = 'freq'
 
-    def __init__(self, refs, location_in, location_out, ko_bandwidth=None):
+    def __init__(self, refs, location_in, location_out, ko_bandwidth=None,
+                 absolute=True):
         super().__init__(refs, location_in, location_out)
         self._ko_bandwidth = ko_bandwidth
+        self._absolute = absolute
 
     def __call__(self, calc, name=None):
         Output.__call__(self, calc, name)
         # Locate position within the profile
         loc_in, loc_out = self._get_locations(calc)
         # Compute the response
-        tf = np.abs(calc.calc_accel_tf(loc_in, loc_out))
+        if self._absolute:
+            tf = np.abs(calc.calc_accel_tf(loc_in, loc_out))
+        else:
+            tf = calc.calc_accel_tf(loc_in, loc_out)
 
         if self._ko_bandwidth is None:
             tf = np.interp(self.freqs, calc.motion.freqs, tf)
