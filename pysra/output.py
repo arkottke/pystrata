@@ -41,6 +41,7 @@ except ImportError:
 
 from .motion import TimeSeriesMotion, WaveField, GRAVITY
 
+
 @numba.jit
 def nuko_smooth(ko_freqs, freqs, spectrum, b):
     max_ratio = pow(10.0, (3.0 / b))
@@ -336,7 +337,9 @@ class LocationBasedOutput(Output):
 
 class TimeSeriesOutput(LocationBasedOutput):
     xlabel = 'Time (sec)'
+    xscale = 'linear'
     ylabel = NotImplemented
+    yscale = 'linear'
 
     ref_name = 'time'
 
