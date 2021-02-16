@@ -166,7 +166,7 @@ class Output(object):
     def calc_stats(self, as_dataframe=False):
         ln_values = np.log(self.values)
         median = np.exp(np.mean(ln_values, axis=1))
-        ln_std = np.std(ln_values)
+        ln_std = np.std(ln_values, axis=1)
 
         stats = {'ref': self.refs, 'median': median, 'ln_std': ln_std}
         if as_dataframe and pd:
