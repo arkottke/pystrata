@@ -416,12 +416,18 @@ class FourierAmplitudeSpectrumOutput(LocationBasedOutput):
         loc = self._get_location(calc)
         tf = calc.calc_accel_tf(calc.loc_input, loc)
 
-        smoothed = pykooh.smooth(
-            self.freqs,
-            calc.motion.freqs,
-            np.abs(tf * calc.motion.fourier_amps),
-            self.ko_bandwidth
-        )
+        # try:
+        #     tf *= calc.motion.time_step
+        # except AttributeError:
+        #     pass
+
+        if self.ko_bandwidth:
+            smoothed = pykooh.smooth(
+                self.freqs,
+                calc.motion.freqs,
+                np.abs(tf * calc.motion.fourier_amps),
+                self.ko_bandwidth
+            )
 
         self._add_values(smoothed)
 
