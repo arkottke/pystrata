@@ -65,7 +65,7 @@ def load_ts():
     with fpath.open() as fp:
         parts = next(fp).split()
         time_step = float(parts[1])
-        accels = [float(l.split()[1]) for l in fp]
+        accels = [float(line.split()[1]) for line in fp]
 
     return pysra.motion.TimeSeriesMotion(
         fpath.name, 'ChiChi.txt from DeepSoil v6.1', time_step, accels)

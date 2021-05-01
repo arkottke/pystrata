@@ -31,6 +31,7 @@ def test_add_refs():
     output._add_refs(refs)
     assert_allclose(refs, output.refs)
 
+
 # FIXME: Is this important?
 @pytest.mark.xfail
 def test_add_refs_same():
