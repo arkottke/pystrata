@@ -222,10 +222,7 @@ class ModifiedHyperbolicSoilType(SoilType):
     def __init__(self,
                  name,
                  unit_wt,
-                 strain_ref,
-                 curvature,
                  damping_min,
-                 num_cycles=10,
                  strains=None):
         """
 
@@ -235,19 +232,12 @@ class ModifiedHyperbolicSoilType(SoilType):
         used for identification
         unit_wt:  float
             unit weight of the material in [kN/m³]
-        strain_ref: float
-            reference strain [decimal]
-        curvature: float
-            curvature modifier [decimal]
         damping_min: float
             Minimum damping at low strains [decimal]
-        num_cycles: float, default=10
-            number of cycles of loading
         strains: `array_like`, default: np.logspace(-6, -1.5, num=20)
             shear strains levels [decimal]
         """
         super().__init__(name, unit_wt)
-        self._num_cycles = num_cycles
 
         if strains is None:
             strains = np.logspace(-6, -1.5, num=20)  # in decimal
@@ -255,29 +245,27 @@ class ModifiedHyperbolicSoilType(SoilType):
             strains = np.asarray(strains)
 
         # Modified hyperbolic shear modulus reduction
-        mod_reduc = 1 / (1 + (strains / strain_ref) ** curvature)
+        mod_reduc = 1 / (1 + (strains / self.strain_ref) ** self.curvature)
         self.mod_reduc = NonlinearProperty(name, strains, mod_reduc,
                                            'mod_reduc')
 
         # Masing damping based on shear -modulus reduction [%]
         strains_percent = strains * 100
-        strain_ref_percent = strain_ref * 100
+        strain_ref_percent = self.strain_ref * 100
         damping_masing_a1 = (
             (100. / np.pi) * (4 * (strains_percent - strain_ref_percent * np.log(
                 (strains_percent + strain_ref_percent) / strain_ref_percent)) /
                               (strains_percent ** 2 / (strains_percent + strain_ref_percent)) - 2.))
         # Correction between perfect hyperbolic strain model and modified
         # model [%].
-        c1 = -1.1143 * curvature ** 2 + 1.8618 * curvature + 0.2523
-        c2 = 0.0805 * curvature ** 2 - 0.0710 * curvature - 0.0095
-        c3 = -0.0005 * curvature ** 2 + 0.0002 * curvature + 0.0003
+        c1 = -1.1143 * self.curvature ** 2 + 1.8618 * self.curvature + 0.2523
+        c2 = 0.0805 * self.curvature ** 2 - 0.0710 * self.curvature - 0.0095
+        c3 = -0.0005 * self.curvature ** 2 + 0.0002 * self.curvature + 0.0003
         damping_masing = (c1 * damping_masing_a1 + c2 * damping_masing_a1 ** 2
                           + c3 * damping_masing_a1 ** 3)
 
-        # Masing correction factor
-        masing_corr = 0.6329 - 0.00566 * np.log(num_cycles)
         # Compute the damping correction in percent
-        d_correction = damping_masing * masing_corr * mod_reduc ** 0.1
+        d_correction = self.masing_scaling * damping_masing * mod_reduc ** 0.1
 
         # Prevent the damping from reducing as it can at large strains
         damping = np.maximum.accumulate(d_correction / 100.)
@@ -291,6 +279,21 @@ class ModifiedHyperbolicSoilType(SoilType):
 
         # Convert to decimal values
         self.damping = NonlinearProperty(name, strains, damping, 'damping')
+
+    @property
+    def masing_scaling(self):
+        """Scaling of the Masing damping component."""
+        return NotImplementedError
+
+    @property
+    def curvature(self):
+        """Curvature of the model."""
+        return NotImplementedError
+
+    @property
+    def strain_ref(self):
+        """Reference strain."""
+        return NotImplementedError
 
 
 class DarendeliSoilType(ModifiedHyperbolicSoilType):
@@ -322,20 +325,21 @@ class DarendeliSoilType(ModifiedHyperbolicSoilType):
                  stress_mean=101.3,
                  freq=1,
                  num_cycles=10,
+                 damping_min=None,
                  strains=None):
 
         self._plas_index = plas_index
         self._ocr = ocr
         self._stress_mean = stress_mean
         self._freq = freq
+        self._num_cycles = num_cycles
 
-        strain_ref = self._calc_strain_ref()
-        curvature = self._calc_curvature()
-        damping_min = self._calc_damping_min()
+        if damping_min is None:
+            damping_min = self._calc_damping_min()
+
         name = self._create_name()
 
-        super().__init__(name, unit_wt, strain_ref, curvature, damping_min,
-                         num_cycles, strains)
+        super().__init__(name, unit_wt, damping_min, strains)
 
     def _calc_damping_min(self):
         """minimum damping [decimal]"""
@@ -343,13 +347,19 @@ class DarendeliSoilType(ModifiedHyperbolicSoilType):
                 (self._stress_mean * KPA_TO_ATM)
                 ** -0.2889 * (1 + 0.2919 * np.log(self._freq))) / 100
 
-    def _calc_strain_ref(self):
+    @property
+    def masing_scaling(self):
+        # Masing correction factor
+        return 0.6329 - 0.00566 * np.log(self._num_cycles)
+
+    @property
+    def strain_ref(self):
         """reference strain [decimal]"""
         return ((0.0352 + 0.0010 * self._plas_index * self._ocr ** 0.3246) *
                 (self._stress_mean * KPA_TO_ATM) ** 0.3483) / 100
 
-    @staticmethod
-    def _calc_curvature():
+    @property
+    def curvature(self):
         return 0.9190
 
     def _create_name(self):
@@ -357,7 +367,7 @@ class DarendeliSoilType(ModifiedHyperbolicSoilType):
         return fmt.format(self._plas_index, self._ocr, self._stress_mean)
 
 
-class MenqSoilType(ModifiedHyperbolicSoilType):
+class MenqSoilType(DarendeliSoilType):
     """
     Menq SoilType for gravelly soils.
 
@@ -383,6 +393,7 @@ class MenqSoilType(ModifiedHyperbolicSoilType):
                  diam_mean=5,
                  stress_mean=101.3,
                  num_cycles=10,
+                 damping_min=None,
                  strains=None):
 
         self._uniformity_coeff = uniformity_coeff
@@ -390,24 +401,25 @@ class MenqSoilType(ModifiedHyperbolicSoilType):
         self._stress_mean = stress_mean
         self._num_cycles = num_cycles
 
-        strain_ref = self._calc_strain_ref()
-        curvature = self._calc_curvature()
-        damping_min = self._calc_damping_min()
+        if damping_min is None:
+            damping_min = self._calc_damping_min()
+
         name = self._create_name()
 
-        super().__init__(name, unit_wt, strain_ref, curvature, damping_min,
-                         num_cycles, strains)
+        super().__init__(name, unit_wt, damping_min, strains)
 
     def _calc_damping_min(self):
         return (0.55 * self._uniformity_coeff ** 0.1 * self._diam_mean
                 ** -0.3 * (self._stress_mean * KPA_TO_ATM) ** -0.08) / 100
 
-    def _calc_strain_ref(self):
+    @property
+    def strain_ref(self):
         return (0.12 * self._uniformity_coeff ** -0.6 *
                 (self._stress_mean * KPA_TO_ATM) ** (0.5 * self._uniformity_coeff ** -0.15)
                 ) / 100
 
-    def _calc_curvature(self):
+    @property
+    def curvature(self):
         return 0.86 + 0.1 * np.log10(self._stress_mean * KPA_TO_ATM)
 
     def _create_name(self):
