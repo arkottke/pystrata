@@ -509,8 +509,12 @@ class AccelTransferFunctionOutput(RatioBasedOutput):
         if self._ko_bandwidth is None:
             tf = np.interp(self.freqs, calc.motion.freqs, tf)
         else:
-            tf = ko_smooth(
-                self.freqs, calc.motion.freqs, tf, self._ko_bandwidth)
+            tf = pykooh.smooth(
+                self.freqs,
+                calc.motion.freqs,
+                tf,
+                self._ko_bandwidth
+            )
 
         self._add_values(tf)
 
