@@ -294,15 +294,15 @@ class LinearElasticCalculator(AbstractCalculator):
         """
 
         # Compute the complex wave numbers of the system
-        wave_nums = np.empty((len(profile), len(angular_freqs)), np.complex)
+        wave_nums = np.empty((len(profile), len(angular_freqs)), complex)
         for i, l in enumerate(profile):
             wave_nums[i, :] = angular_freqs / l.comp_shear_vel
 
         # Compute the waves. In the top surface layer, the up-going and
         # down-going waves have an amplitude of 1 as they are completely
         # reflected at the surface.
-        waves_a = np.ones_like(wave_nums, np.complex)
-        waves_b = np.ones_like(wave_nums, np.complex)
+        waves_a = np.ones_like(wave_nums, complex)
+        waves_b = np.ones_like(wave_nums, complex)
         for i, l in enumerate(profile[:-1]):
             # Complex impedance -- wave number can be zero which causes an
             # error.
@@ -441,7 +441,7 @@ class LinearElasticCalculator(AbstractCalculator):
 
         # Only compute transfer function for non-zero frequencies
         mask = ~np.isclose(ang_freqs, 0)
-        tf = np.zeros_like(mask, dtype=np.complex)
+        tf = np.zeros_like(mask, dtype=complex)
         # Scale into units from gravity
         tf[mask] = GRAVITY * numer[mask] / denom[mask]
 
