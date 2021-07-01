@@ -816,6 +816,12 @@ class Layer(object):
             stress_vert -= pore_pressure
         return stress_vert
 
+    def stress_mean(self, depth_within=0, effective=False, k0=0.5):
+        """Mean effective stress from the top of the layer [kN//m²].
+        """
+        stress_vert = self.stress_vert(depth_within, effective)
+        return (2 * k0 * stress_vert + stress_vert) / 3.
+
     @property
     def incr_site_atten(self):
         return ((2 * self.soil_type.damping_min * self._thickness) /
