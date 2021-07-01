@@ -185,6 +185,7 @@ class Output(object):
             columns = self.names
 
         df = pd.DataFrame(self.values, index=self.refs, columns=columns)
+
         return df
 
     @staticmethod
@@ -228,6 +229,7 @@ class Output(object):
 
         if style == 'stats':
             stats = self.calc_stats()
+
             ax.plot(*self._get_xy(stats['ref'], stats['median']),
                     color='C1', lw=2, label='Median')
 
@@ -415,11 +417,12 @@ class FourierAmplitudeSpectrumOutput(LocationBasedOutput):
         Output.__call__(self, calc, name)
         loc = self._get_location(calc)
         tf = calc.calc_accel_tf(calc.loc_input, loc)
-
-        # try:
-        #     tf *= calc.motion.time_step
-        # except AttributeError:
-        #     pass
+        
+        # Scale by the time step of the time series if needed
+        try:
+            tf *= calc.motion.time_step
+        except AttributeError:
+            pass
 
         if self.ko_bandwidth:
             smoothed = pykooh.smooth(
@@ -639,6 +642,33 @@ class MaxStrainProfile(ProfileBasedOutput):
         values = [0] + [l.strain_max for l in calc.profile[:-1]]
         self._add_values(values)
 
+
+class DampingProfile(ProfileBasedOutput):
+    xlabel = 'Damping (dec)'
+
+    def __call__(self, calc, name=None):
+        Output.__call__(self, calc, name)
+        # Add depth at top of layer
+        self._add_refs(calc.profile.depth)
+
+        values = [l.damping for l in calc.profile[:-1]]
+        # Bring the first mid-layer value to the surface
+        values.insert(0, values[0])
+        self._add_values(values)
+
+
+class ShearModReducProfile(ProfileBasedOutput):
+    xlabel = 'G/Gmax'
+
+    def __call__(self, calc, name=None):
+        Output.__call__(self, calc, name)
+        # Add depth at top of layer
+        self._add_refs(calc.profile.depth)
+
+        values = [l.shear_mod_reduc for l in calc.profile[:-1]]
+        # Bring the first mid-layer value to the surface
+        values.insert(0, values[0])
+        self._add_values(values)
 
 class InitialVelProfile(ProfileBasedOutput):
     xlabel = 'Initial Velocity (m/s)'
