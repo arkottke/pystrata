@@ -108,7 +108,8 @@ class QuarterWaveLenCalculator(AbstractCalculator):
         super().__call__(motion, profile, loc_input)
 
         self._crustal_amp, self._site_term = self._calc_amp(
-            profile.density, profile.thickness, profile.slowness)
+            profile.density, profile.thickness, profile.slowness
+        )
 
     @property
     def crustal_amp(self):
@@ -128,8 +129,7 @@ class QuarterWaveLenCalculator(AbstractCalculator):
         qwl_depth = 1 / (4 * np.mean(slowness) * freqs)
 
         def qwl_average(param):
-            return np.array(
-                [my_trapz(thickness, param, qd) for qd in qwl_depth])
+            return np.array([my_trapz(thickness, param, qd) for qd in qwl_depth])
 
         for _ in range(20):
             qwl_slowness = qwl_average(slowness)
@@ -143,19 +143,22 @@ class QuarterWaveLenCalculator(AbstractCalculator):
 
         qwl_density = qwl_average(density)
         crustal_amp = np.sqrt(
-            (density[-1] / slowness[-1]) / (qwl_density / qwl_slowness))
+            (density[-1] / slowness[-1]) / (qwl_density / qwl_slowness)
+        )
         site_term = np.array(crustal_amp)
         if self._site_atten:
             site_term *= np.exp(-np.pi * self.site_atten * freqs)
 
         return crustal_amp, site_term
 
-    def fit(self,
-            target_type,
-            target,
-            adjust_thickness=False,
-            adjust_site_atten=False,
-            adjust_source_vel=False):
+    def fit(
+        self,
+        target_type,
+        target,
+        adjust_thickness=False,
+        adjust_site_atten=False,
+        adjust_source_vel=False,
+    ):
         """
         Fit to a target crustal amplification or site term.
 
@@ -213,16 +216,15 @@ class QuarterWaveLenCalculator(AbstractCalculator):
         def err(x):
             _slowness = x[0:nl]
             if adjust_thickness:
-                _thickness = x[nl:(2 * nl)]
+                _thickness = x[nl : (2 * nl)]
             else:
                 _thickness = thickness
             if adjust_site_atten:
                 self._site_atten = x[-1]
 
-            crustal_amp, site_term = self._calc_amp(density, _thickness,
-                                                    _slowness)
+            crustal_amp, site_term = self._calc_amp(density, _thickness, _slowness)
 
-            calc = crustal_amp if target_type == 'crustal_amp' else site_term
+            calc = crustal_amp if target_type == "crustal_amp" else site_term
 
             err = 10 * calc_rmse(target, calc)
             # Prefer the original values so add the difference to the error
@@ -233,16 +235,19 @@ class QuarterWaveLenCalculator(AbstractCalculator):
                 err += calc_rmse(self._site_atten, site_atten)
             return err
 
-        res = minimize(err, initial, method='L-BFGS-B', bounds=bounds)
+        res = minimize(err, initial, method="L-BFGS-B", bounds=bounds)
 
         slowness = res.x[0:nl]
         if adjust_thickness:
-            thickness = res.x[nl:(2 * nl)]
+            thickness = res.x[nl : (2 * nl)]
 
-        profile = Profile([
-            Layer(l.soil_type, t, 1 / s)
-            for l, t, s in zip(self.profile, thickness, slowness)
-        ], self.profile.wt_depth)
+        profile = Profile(
+            [
+                Layer(l.soil_type, t, 1 / s)
+                for l, t, s in zip(self.profile, thickness, slowness)
+            ],
+            self.profile.wt_depth,
+        )
         # Update the calculated amplificaiton
         self(self.motion, profile, self.loc_input)
 
@@ -277,7 +282,7 @@ class LinearElasticCalculator(AbstractCalculator):
         for l in profile:
             l.reset()
             if l.strain is None:
-                l.strain = 0.
+                l.strain = 0.0
 
         self._calc_waves(motion.angular_freqs, profile)
 
@@ -306,32 +311,31 @@ class LinearElasticCalculator(AbstractCalculator):
         for i, l in enumerate(profile[:-1]):
             # Complex impedance -- wave number can be zero which causes an
             # error.
-            with np.errstate(invalid='ignore'):
-                cimped = ((wave_nums[i] * l.comp_shear_mod) /
-                          (wave_nums[i + 1] * profile[i + 1].comp_shear_mod))
+            with np.errstate(invalid="ignore"):
+                cimped = (wave_nums[i] * l.comp_shear_mod) / (
+                    wave_nums[i + 1] * profile[i + 1].comp_shear_mod
+                )
 
             # Complex term to simplify equations -- uses full layer height
             cterm = 1j * wave_nums[i, :] * l.thickness
 
-            waves_a[i + 1, :] = (
-                0.5 * waves_a[i] *
-                (1 + cimped) * np.exp(cterm) + 0.5 * waves_b[i] *
-                (1 - cimped) * np.exp(-cterm))
-            waves_b[i + 1, :] = (
-                0.5 * waves_a[i] *
-                (1 - cimped) * np.exp(cterm) + 0.5 * waves_b[i] *
-                (1 + cimped) * np.exp(-cterm))
+            waves_a[i + 1, :] = 0.5 * waves_a[i] * (1 + cimped) * np.exp(
+                cterm
+            ) + 0.5 * waves_b[i] * (1 - cimped) * np.exp(-cterm)
+            waves_b[i + 1, :] = 0.5 * waves_a[i] * (1 - cimped) * np.exp(
+                cterm
+            ) + 0.5 * waves_b[i] * (1 + cimped) * np.exp(-cterm)
 
             # Set wave amplitudes with zero frequency to 1
             mask = ~np.isfinite(cimped)
-            waves_a[i + 1, mask] = 1.
-            waves_b[i + 1, mask] = 1.
+            waves_a[i + 1, mask] = 1.0
+            waves_b[i + 1, mask] = 1.0
 
         # fixme: Better way to handle this?
         # Set wave amplitudes to 1 at frequencies near 0
         mask = np.isclose(angular_freqs, 0)
-        waves_a[-1, mask] = 1.
-        waves_b[-1, mask] = 1.
+        waves_a[-1, mask] = 1.0
+        waves_b[-1, mask] = 1.0
 
         self._waves_a = waves_a
         self._waves_b = waves_b
@@ -353,8 +357,9 @@ class LinearElasticCalculator(AbstractCalculator):
         cterm = 1j * self._wave_nums[l.index] * l.depth_within
 
         if l.wave_field == WaveField.within:
-            return (self._waves_a[l.index] * np.exp(cterm) +
-                    self._waves_b[l.index] * np.exp(-cterm))
+            return self._waves_a[l.index] * np.exp(cterm) + self._waves_b[
+                l.index
+            ] * np.exp(-cterm)
         elif l.wave_field == WaveField.outcrop:
             return 2 * self._waves_a[l.index] * np.exp(cterm)
         elif l.wave_field == WaveField.incoming_only:
@@ -434,10 +439,15 @@ class LinearElasticCalculator(AbstractCalculator):
         # The numerator cannot be computed using wave_at_location() because
         # it is A - B.
         cterm = 1j * self._wave_nums[lout.index, :] * lout.depth_within
-        numer = (1j * self._wave_nums[lout.index, :] *
-                 (self._waves_a[lout.index, :] * np.exp(cterm) -
-                  self._waves_b[lout.index, :] * np.exp(-cterm)))
-        denom = -ang_freqs ** 2 * self.wave_at_location(lin)
+        numer = (
+            1j
+            * self._wave_nums[lout.index, :]
+            * (
+                self._waves_a[lout.index, :] * np.exp(cterm)
+                - self._waves_b[lout.index, :] * np.exp(-cterm)
+            )
+        )
+        denom = -(ang_freqs ** 2) * self.wave_at_location(lin)
 
         # Only compute transfer function for non-zero frequencies
         mask = ~np.isclose(ang_freqs, 0)
@@ -451,8 +461,9 @@ class LinearElasticCalculator(AbstractCalculator):
 class EquivalentLinearCalculator(LinearElasticCalculator):
     """Class for performing equivalent-linear elastic site response."""
 
-    def __init__(self, strain_ratio=0.65, tolerance=0.01, max_iterations=15,
-                 strain_limit=0.05):
+    def __init__(
+        self, strain_ratio=0.65, tolerance=0.01, max_iterations=15, strain_limit=0.05
+    ):
         """Initialize the class.
 
         Parameters
@@ -506,8 +517,7 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
             self._calc_waves(motion.angular_freqs, profile)
 
             for index, layer in enumerate(profile[:-1]):
-                loc_layer = Location(index, layer, 'within',
-                                     layer.thickness / 2)
+                loc_layer = Location(index, layer, "within", layer.thickness / 2)
 
                 # Compute the representative strain(s) within the layer. FDM
                 #  will provide a vector of strains.
@@ -533,9 +543,8 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
 
         # Compute the maximum strain within the profile.
         for index, layer in enumerate(profile[:-1]):
-            loc_layer = Location(index, layer, 'within', layer.thickness / 2)
-            layer.strain_max = self._calc_strain_max(loc_input, loc_layer,
-                                                     motion)
+            loc_layer = Location(index, layer, "within", layer.thickness / 2)
+            layer.strain_max = self._calc_strain_max(loc_input, loc_layer, motion)
 
     def _estimate_strains(self):
         """Compute an estimate of the strains."""
@@ -591,8 +600,7 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
 
     def _calc_strain_max(self, loc_input, loc_layer, motion, *args):
         """Compute the effective strain at the center of a layer."""
-        return motion.calc_peak(
-            self.calc_strain_tf(loc_input, loc_layer))
+        return motion.calc_peak(self.calc_strain_tf(loc_input, loc_layer))
 
 
 class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
@@ -622,11 +630,13 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         Engineering Mechanics, 128(1), 34-47.
     """
 
-    def __init__(self,
-                 use_smooth_spectrum=False,
-                 strain_ratio=1.0,
-                 tolerance=0.01,
-                 max_iterations=15):
+    def __init__(
+        self,
+        use_smooth_spectrum=False,
+        strain_ratio=1.0,
+        tolerance=0.01,
+        max_iterations=15,
+    ):
         """Initialize the class."""
         super().__init__(strain_ratio, tolerance, max_iterations)
 
@@ -651,13 +661,14 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
 
         if self._use_smooth_spectrum:
             # Equation (8)
-            freq_avg = (np.trapz(freqs * strain_fas, x=freqs) /
-                        np.trapz(strain_fas, x=freqs))
+            freq_avg = np.trapz(freqs * strain_fas, x=freqs) / np.trapz(
+                strain_fas, x=freqs
+            )
 
             # Find the average strain at frequencies less than the average
             # frequency
             # Equation (8)
-            mask = (freqs < freq_avg)
+            mask = freqs < freq_avg
             strain_avg = np.trapz(strain_fas[mask], x=freqs[mask]) / freq_avg
 
             # Normalize the frequency and strain by the average values
@@ -670,8 +681,9 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
             # This is a modification of the published method that ensures a
             # smooth transition in the strain. Make sure the frequencies are zero.
             shape = np.minimum(
-                1, np.exp(-a * freqs) /
-                   np.maximum(np.finfo(float).eps, np.power(freqs, b))
+                1,
+                np.exp(-a * freqs)
+                / np.maximum(np.finfo(float).eps, np.power(freqs, b)),
             )
             strains = strain_eff * shape
         else:

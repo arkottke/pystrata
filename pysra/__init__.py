@@ -28,10 +28,10 @@ from . import output
 from . import site
 from . import variation
 
-__all__ = ['motion', 'propagation', 'output', 'site', 'variation']
+__all__ = ["motion", "propagation", "output", "site", "variation"]
 
-__author__ = 'Albert Kottke'
-__copyright__ = 'Copyright 2016 Albert Kottke'
-__license__ = 'MIT'
-__title__ = 'pySRA'
-__version__ = get_distribution('pySRA').version
+__author__ = "Albert Kottke"
+__copyright__ = "Copyright 2016 Albert Kottke"
+__license__ = "MIT"
+__title__ = "pySRA"
+__version__ = get_distribution("pySRA").version

@@ -55,7 +55,7 @@ class TruncatedNorm:
         # deviations, the input standard deviation must be increased to
         # 1.136847 to maintain a unit standard deviation for the random
         # samples.
-        self._scale = 1 / np.sqrt(truncnorm.stats(-value, value, moments='v'))
+        self._scale = 1 / np.sqrt(truncnorm.stats(-value, value, moments="v"))
 
     @property
     def scale(self):
@@ -81,8 +81,7 @@ class TruncatedNorm:
         rvs : ndarray or scalar
             Random variates of given `size`.
         """
-        return truncnorm.rvs(
-            -self.limit, self.limit, scale=self._scale, size=size)
+        return truncnorm.rvs(-self.limit, self.limit, scale=self._scale, size=size)
 
     def correlated(self, correl):
         # Acceptance proportion
@@ -95,7 +94,8 @@ class TruncatedNorm:
             # specified standard deviation. Use twice the expected since
             # this calculation is fast and we don't want to loop.
             randvar = np.random.multivariate_normal(
-                [0, 0], [[1, correl], [correl, 1]], size=(2 * expected))
+                [0, 0], [[1, correl], [correl, 1]], size=(2 * expected)
+            )
             valid = np.all(np.abs(randvar) < self.limit, axis=1)
             if np.any(valid):
                 # Return the first valid value
@@ -108,7 +108,7 @@ randnorm = TruncatedNorm(2)
 
 
 class ToroThicknessVariation(object):
-    """ Toro (1995) [T95]_ thickness variation model.
+    """Toro (1995) [T95]_ thickness variation model.
 
     The recommended values are provided as defaults to this model.
 
@@ -178,14 +178,20 @@ class ToroThicknessVariation(object):
             total += np.random.exponential(1.0)
 
             # Convert between x and depth using the inverse of \Lambda(t)
-            depth = np.power(
-                (self.c_2 * total) / self.c_3 + total / self.c_3 + np.power(
-                    self.c_1, self.c_2 + 1), 1 / (self.c_2 + 1)) - self.c_1
+            depth = (
+                np.power(
+                    (self.c_2 * total) / self.c_3
+                    + total / self.c_3
+                    + np.power(self.c_1, self.c_2 + 1),
+                    1 / (self.c_2 + 1),
+                )
+                - self.c_1
+            )
 
             thickness = depth - depth_prev
 
             if depth > depth_total:
-                thickness = (depth_total - depth_prev)
+                thickness = depth_total - depth_prev
                 depth = depth_prev + thickness
 
             depth_mid = (depth_prev + depth) / 2
@@ -212,8 +218,7 @@ class ToroThicknessVariation(object):
             # Locate the proper layer and add it to the model
             for l in profile:
                 if l.depth < depth_mid <= l.depth_base:
-                    layers.append(
-                        site.Layer(l.soil_type, thick, l.initial_shear_vel))
+                    layers.append(site.Layer(l.soil_type, thick, l.initial_shear_vel))
                     break
             else:
                 raise LookupError
@@ -249,8 +254,7 @@ class VelocityVariation(object):
         mean = np.log([l.initial_shear_vel for l in profile])
         covar = self._calc_covar_matrix(profile)
 
-        ln_vel_rand = np.random.multivariate_normal(
-            mean, covar, check_valid='ignore')
+        ln_vel_rand = np.random.multivariate_normal(mean, covar, check_valid="ignore")
 
         # Limits based on the number of standard deviations
         offset = randnorm.limit * np.sqrt(np.diag(covar))
@@ -331,7 +335,7 @@ class VelocityVariation(object):
 
 
 class ToroVelocityVariation(VelocityVariation):
-    """ Toro (1995) [T95] velocity variation model.
+    """Toro (1995) [T95] velocity variation model.
 
     Default values can be selected with :meth:`.generic_model`.
 
@@ -352,74 +356,73 @@ class ToroVelocityVariation(VelocityVariation):
     """
 
     PARAMS = {
-        'Geomatrix AB': {
-            'ln_std': 0.46,
-            'rho_0': 0.96,
-            'delta': 13.1,
-            'rho_200': 0.96,
-            'h_0': 0.0,
-            'b': 0.095,
+        "Geomatrix AB": {
+            "ln_std": 0.46,
+            "rho_0": 0.96,
+            "delta": 13.1,
+            "rho_200": 0.96,
+            "h_0": 0.0,
+            "b": 0.095,
         },
-        'Geomatrix CD': {
-            'ln_std': 0.38,
-            'rho_0': 0.99,
-            'delta': 8.0,
-            'rho_200': 1.00,
-            'h_0': 0.0,
-            'b': 0.160,
+        "Geomatrix CD": {
+            "ln_std": 0.38,
+            "rho_0": 0.99,
+            "delta": 8.0,
+            "rho_200": 1.00,
+            "h_0": 0.0,
+            "b": 0.160,
         },
-        'USGS AB': {
-            'ln_std': 0.35,
-            'rho_0': 0.95,
-            'delta': 4.2,
-            'rho_200': 1.00,
-            'h_0': 0.0,
-            'b': 0.138,
+        "USGS AB": {
+            "ln_std": 0.35,
+            "rho_0": 0.95,
+            "delta": 4.2,
+            "rho_200": 1.00,
+            "h_0": 0.0,
+            "b": 0.138,
         },
-        'USGS CD': {
-            'ln_std': 0.36,
-            'rho_0': 0.99,
-            'delta': 3.9,
-            'rho_200': 1.00,
-            'h_0': 0.0,
-            'b': 0.293,
+        "USGS CD": {
+            "ln_std": 0.36,
+            "rho_0": 0.99,
+            "delta": 3.9,
+            "rho_200": 1.00,
+            "h_0": 0.0,
+            "b": 0.293,
         },
-        'USGS A': {
-            'ln_std': 0.36,
-            'rho_0': 0.95,
-            'delta': 3.4,
-            'rho_200': 0.42,
-            'h_0': 0.0,
-            'b': 0.063,
+        "USGS A": {
+            "ln_std": 0.36,
+            "rho_0": 0.95,
+            "delta": 3.4,
+            "rho_200": 0.42,
+            "h_0": 0.0,
+            "b": 0.063,
         },
-        'USGS B': {
-            'ln_std': 0.27,
-            'rho_0': 0.97,
-            'delta': 3.8,
-            'rho_200': 1.00,
-            'h_0': 0.0,
-            'b': 0.293,
+        "USGS B": {
+            "ln_std": 0.27,
+            "rho_0": 0.97,
+            "delta": 3.8,
+            "rho_200": 1.00,
+            "h_0": 0.0,
+            "b": 0.293,
         },
-        'USGS C': {
-            'ln_std': 0.31,
-            'rho_0': 0.99,
-            'delta': 3.9,
-            'rho_200': 0.98,
-            'h_0': 0.0,
-            'b': 0.344,
+        "USGS C": {
+            "ln_std": 0.31,
+            "rho_0": 0.99,
+            "delta": 3.9,
+            "rho_200": 0.98,
+            "h_0": 0.0,
+            "b": 0.344,
         },
-        'USGS D': {
-            'ln_std': 0.37,
-            'rho_0': 0.00,
-            'delta': 5.0,
-            'rho_200': 0.50,
-            'h_0': 0.0,
-            'b': 0.744,
+        "USGS D": {
+            "ln_std": 0.37,
+            "rho_0": 0.00,
+            "delta": 5.0,
+            "rho_200": 0.50,
+            "h_0": 0.0,
+            "b": 0.744,
         },
     }
 
-    def __init__(self, ln_std, rho_0, delta, rho_200, h_0, b,
-                 vary_bedrock=False):
+    def __init__(self, ln_std, rho_0, delta, rho_200, h_0, b, vary_bedrock=False):
         """Initialize the model."""
         super().__init__(vary_bedrock=vary_bedrock)
 
@@ -448,8 +451,9 @@ class ToroVelocityVariation(VelocityVariation):
         depth = depth[1:]
 
         # Depth dependent correlation
-        corr_depth = (self.rho_200 * np.power(
-            (depth + self.rho_0) / (200 + self.rho_0), self.b))
+        corr_depth = self.rho_200 * np.power(
+            (depth + self.rho_0) / (200 + self.rho_0), self.b
+        )
         corr_depth[depth > 200] = self.rho_200
 
         # Thickness dependent correlation
@@ -536,7 +540,7 @@ class ToroVelocityVariation(VelocityVariation):
 
 
 class DepthDependToroVelVariation(ToroVelocityVariation):
-    """ Toro (1995) [T95] velocity variation model modified for a depth
+    """Toro (1995) [T95] velocity variation model modified for a depth
     dependent standard deviation.
 
     Default values can be selected with :meth:`.generic_model`.
@@ -560,17 +564,21 @@ class DepthDependToroVelVariation(ToroVelocityVariation):
     b: float, optional
         :math:`b` model parameter.
     """
-    def __init__(self, depth, ln_std, rho_0, delta, rho_200, h_0, b,
-                 vary_bedrock=False):
+
+    def __init__(
+        self, depth, ln_std, rho_0, delta, rho_200, h_0, b, vary_bedrock=False
+    ):
         """Initialize the model."""
-        super().__init__(ln_std, rho_0, delta, rho_200, h_0, b,
-                         vary_bedrock=vary_bedrock)
+        super().__init__(
+            ln_std, rho_0, delta, rho_200, h_0, b, vary_bedrock=vary_bedrock
+        )
         self._depth = depth
 
     def _calc_ln_std(self, profile):
         ln_std = np.interp(
             [l.depth_mid for l in profile],
-            self.depth, self.ln_std,
+            self.depth,
+            self.ln_std,
             left=self.ln_std[0],
             right=self.ln_std[-1],
         )
@@ -617,20 +625,21 @@ class DepthDependToroVelVariation(ToroVelocityVariation):
         p = dict(cls.PARAMS[site_class])
         p.update(kwds)
 
-        if 'depth' not in kwds:
-            p['depth'] = [0, 15]
-            p['ln_std'] = [0.25, 0.15]
+        if "depth" not in kwds:
+            p["depth"] = [0, 15]
+            p["ln_std"] = [0.25, 0.15]
 
         return cls(**p)
 
 
-
 class SoilTypeVariation(object):
-    def __init__(self,
-                 correlation,
-                 limits_mod_reduc=[0.05, 1],
-                 limits_damping=[0, 0.15],
-                 vary_bedrock=False):
+    def __init__(
+        self,
+        correlation,
+        limits_mod_reduc=[0.05, 1],
+        limits_damping=[0, 0.15],
+        vary_bedrock=False,
+    ):
         self._vary_bedrock = vary_bedrock
         self._correlation = correlation
         self._limits_mod_reduc = list(limits_mod_reduc)
@@ -649,19 +658,21 @@ class SoilTypeVariation(object):
         # A pair of correlated random variables
         randvar = randnorm.correlated(self.correlation)
 
-        varied_mod_reduc, varied_damping = self._get_varied(randvar, mod_reduc,
-                                                            damping)
+        varied_mod_reduc, varied_damping = self._get_varied(randvar, mod_reduc, damping)
 
         # Clip the values to the specified min/max
-        varied_mod_reduc = np.clip(varied_mod_reduc, self.limits_mod_reduc[0],
-                                   self.limits_mod_reduc[1])
-        varied_damping = np.clip(varied_damping, self.limits_damping[0],
-                                 self.limits_damping[1])
+        varied_mod_reduc = np.clip(
+            varied_mod_reduc, self.limits_mod_reduc[0], self.limits_mod_reduc[1]
+        )
+        varied_damping = np.clip(
+            varied_damping, self.limits_damping[0], self.limits_damping[1]
+        )
 
         # Set the values
         realization = copy.deepcopy(soil_type)
-        for attr_name, values in zip(['mod_reduc', 'damping'],
-                                     [varied_mod_reduc, varied_damping]):
+        for attr_name, values in zip(
+            ["mod_reduc", "damping"], [varied_mod_reduc, varied_damping]
+        ):
             try:
                 getattr(realization, attr_name).values = values
             except AttributeError:
@@ -717,8 +728,9 @@ class DarendeliVariation(SoilTypeVariation):
             Standard deviation.
         """
         mod_reduc = np.asarray(mod_reduc).astype(float)
-        std = (np.exp(-4.23) + np.sqrt(0.25 / np.exp(3.62) - (mod_reduc - 0.5)
-                                       ** 2 / np.exp(3.62)))
+        std = np.exp(-4.23) + np.sqrt(
+            0.25 / np.exp(3.62) - (mod_reduc - 0.5) ** 2 / np.exp(3.62)
+        )
         return std
 
     @staticmethod
@@ -738,7 +750,7 @@ class DarendeliVariation(SoilTypeVariation):
             Standard deviation.
         """
         damping = np.asarray(damping).astype(float)
-        std = (np.exp(-5) + np.exp(-0.25) * np.sqrt(100 * damping)) / 100.
+        std = (np.exp(-5) + np.exp(-0.25) * np.sqrt(100 * damping)) / 100.0
         return std
 
 
@@ -746,12 +758,14 @@ class SpidVariation(SoilTypeVariation):
     """Variation defined by the EPRI SPID (2013) and documented in
     PNNL (2014)."""
 
-    def __init__(self,
-                 correlation,
-                 limits_mod_reduc=[0, 1],
-                 limits_damping=[0, 0.15],
-                 std_mod_reduc=0.15,
-                 std_damping=0.0030):
+    def __init__(
+        self,
+        correlation,
+        limits_mod_reduc=[0, 1],
+        limits_damping=[0, 0.15],
+        std_mod_reduc=0.15,
+        std_damping=0.0030,
+    ):
         super().__init__(correlation, limits_mod_reduc, limits_damping)
         self._std_mod_reduc = std_mod_reduc
         self._std_damping = std_damping
@@ -760,7 +774,7 @@ class SpidVariation(SoilTypeVariation):
         # Vary the G/Gmax in transformed space.
         # Equation 9.43 of PNNL (2014)
         # Here epsilon is added so that the denomiator doesn't go to zero.
-        f_mean = (mod_reduc / (1 - mod_reduc + np.finfo(float).eps))
+        f_mean = mod_reduc / (1 - mod_reduc + np.finfo(float).eps)
         # Instead of constraining the standard deviation at a specific
         # strain, then standard deviation is constrained at G/Gmax of 0.5.
         # This is modified from Equation 9.44 of PNNL (2014).
@@ -770,8 +784,7 @@ class SpidVariation(SoilTypeVariation):
         varied_mod_reduc = f_real / (1 + f_real)
 
         # Simple log distribution
-        varied_damping = \
-            np.exp(randvar[1] * self.std_damping) * damping
+        varied_damping = np.exp(randvar[1] * self.std_damping) * damping
 
         return varied_mod_reduc, varied_damping
 
@@ -784,11 +797,13 @@ class SpidVariation(SoilTypeVariation):
         return self._std_mod_reduc
 
 
-def iter_varied_profiles(profile,
-                         count,
-                         var_thickness: ToroThicknessVariation=None,
-                         var_velocity: VelocityVariation=None,
-                         var_soiltypes: SoilTypeVariation=None):
+def iter_varied_profiles(
+    profile,
+    count,
+    var_thickness: ToroThicknessVariation = None,
+    var_velocity: VelocityVariation = None,
+    var_soiltypes: SoilTypeVariation = None,
+):
     for i in range(count):
         # Copy the profile to form the realization
         p = profile
@@ -805,8 +820,8 @@ def iter_varied_profiles(profile,
             # Create new layers
             end = None if var_soiltypes.vary_bedrock else -1
             layers = [
-                site.Layer(varied[str(l.soil_type)], l.thickness,
-                           l.initial_shear_vel) for l in p[:end]
+                site.Layer(varied[str(l.soil_type)], l.thickness, l.initial_shear_vel)
+                for l in p[:end]
             ]
             # Add the unrandomized bedrock
             if not var_soiltypes.vary_bedrock:

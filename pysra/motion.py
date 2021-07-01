@@ -77,12 +77,7 @@ class Motion(object):
 
 
 class TimeSeriesMotion(Motion):
-    def __init__(self,
-                 filename,
-                 description,
-                 time_step,
-                 accels,
-                 fa_length=None):
+    def __init__(self, filename, description, time_step, accels, fa_length=None):
         Motion.__init__(self)
 
         self._filename = filename
@@ -164,10 +159,12 @@ class TimeSeriesMotion(Motion):
         else:
             tf = np.asarray(tf).astype(complex)
 
-        resp = np.array([
-            self.calc_peak(tf * self._calc_sdof_tf(of, osc_damping))
-            for of in osc_freqs
-        ])
+        resp = np.array(
+            [
+                self.calc_peak(tf * self._calc_sdof_tf(of, osc_damping))
+                for of in osc_freqs
+            ]
+        )
         return resp
 
     def _calc_fourier_spectrum(self, fa_length=None):
@@ -183,7 +180,7 @@ class TimeSeriesMotion(Motion):
 
         self._fourier_amps = np.fft.rfft(self._accels, n)
 
-        freq_step = 1. / (2 * self._time_step * (n / 2))
+        freq_step = 1.0 / (2 * self._time_step * (n / 2))
         self._freqs = freq_step * np.arange(1 + n / 2)
 
     def _calc_sdof_tf(self, osc_freq, damping=0.05):
@@ -205,11 +202,14 @@ class TimeSeriesMotion(Motion):
         tf : :class:`numpy.ndarray`
             Complex-valued transfer function with length equal to `self.freq`.
         """
-        return (-osc_freq ** 2. / (np.square(self.freqs) - np.square(osc_freq)
-                                   - 2.j * damping * osc_freq * self.freqs))
+        return -(osc_freq ** 2.0) / (
+            np.square(self.freqs)
+            - np.square(osc_freq)
+            - 2.0j * damping * osc_freq * self.freqs
+        )
 
     @classmethod
-    def load_at2_file(cls, filename, scale=1.):
+    def load_at2_file(cls, filename, scale=1.0):
         """Read an AT2 formatted time series.
 
         Parameters
@@ -232,7 +232,7 @@ class TimeSeriesMotion(Motion):
         return cls(filename, description, time_step, accels)
 
     @classmethod
-    def load_smc_file(cls, filename, scale=1.):
+    def load_smc_file(cls, filename, scale=1.0):
         """Read an SMC formatted time series.
 
         Format of the time series is provided by:
@@ -253,41 +253,46 @@ class TimeSeriesMotion(Motion):
         # 11 lines of strings
         lines_str = [lines.pop(0) for _ in range(11)]
 
-        if lines_str[0].strip() != '2 CORRECTED ACCELEROGRAM':
+        if lines_str[0].strip() != "2 CORRECTED ACCELEROGRAM":
             raise RuntimeWarning("Loading uncorrected SMC file.")
 
-        m = re.search('station =(.+)component=(.+)', lines_str[5])
-        description = '; '.join([g.strip() for g in m.groups()])
+        m = re.search("station =(.+)component=(.+)", lines_str[5])
+        description = "; ".join([g.strip() for g in m.groups()])
 
         # 6 lines of (8i10) formatted integers
-        values_int = parse_fixed_width(48 * [(10, int)],
-                                       [lines.pop(0) for _ in range(6)])
+        values_int = parse_fixed_width(
+            48 * [(10, int)], [lines.pop(0) for _ in range(6)]
+        )
         count_comment = values_int[15]
         count = values_int[16]
 
         # 10 lines of (5e15.7) formatted floats
-        values_float = parse_fixed_width(50 * [(15, float)],
-                                         [lines.pop(0) for _ in range(10)])
+        values_float = parse_fixed_width(
+            50 * [(15, float)], [lines.pop(0) for _ in range(10)]
+        )
         time_step = 1 / values_float[1]
 
         # Skip comments
         lines = lines[count_comment:]
 
-        accels = np.array(parse_fixed_width(count * [
-            (10, float),
-        ], lines))
+        accels = np.array(
+            parse_fixed_width(
+                count
+                * [
+                    (10, float),
+                ],
+                lines,
+            )
+        )
         accels *= scale
 
         return TimeSeriesMotion(filename, description, time_step, accels)
 
 
 class RvtMotion(pyrvt.motions.RvtMotion, Motion):
-    def __init__(self,
-                 freqs,
-                 fourier_amps,
-                 duration=None,
-                 peak_calculator=None,
-                 calc_kwds=None):
+    def __init__(
+        self, freqs, fourier_amps, duration=None, peak_calculator=None, calc_kwds=None
+    ):
         Motion.__init__(self)
         pyrvt.motions.RvtMotion.__init__(
             self,
@@ -295,19 +300,22 @@ class RvtMotion(pyrvt.motions.RvtMotion, Motion):
             fourier_amps,
             duration=duration,
             peak_calculator=peak_calculator,
-            calc_kwds=calc_kwds)
+            calc_kwds=calc_kwds,
+        )
 
 
 class CompatibleRvtMotion(pyrvt.motions.CompatibleRvtMotion, Motion):
-    def __init__(self,
-                 osc_freqs,
-                 osc_accels_target,
-                 duration=None,
-                 osc_damping=0.05,
-                 event_kwds=None,
-                 window_len=None,
-                 peak_calculator=None,
-                 calc_kwds=None):
+    def __init__(
+        self,
+        osc_freqs,
+        osc_accels_target,
+        duration=None,
+        osc_damping=0.05,
+        event_kwds=None,
+        window_len=None,
+        peak_calculator=None,
+        calc_kwds=None,
+    ):
         Motion.__init__(self)
         pyrvt.motions.CompatibleRvtMotion.__init__(
             self,
@@ -318,18 +326,21 @@ class CompatibleRvtMotion(pyrvt.motions.CompatibleRvtMotion, Motion):
             event_kwds=event_kwds,
             window_len=window_len,
             peak_calculator=peak_calculator,
-            calc_kwds=calc_kwds)
+            calc_kwds=calc_kwds,
+        )
 
 
 class SourceTheoryRvtMotion(pyrvt.motions.SourceTheoryMotion, Motion):
-    def __init__(self,
-                 magnitude,
-                 distance,
-                 region,
-                 stress_drop=None,
-                 depth=8,
-                 peak_calculator=None,
-                 calc_kwds=None):
+    def __init__(
+        self,
+        magnitude,
+        distance,
+        region,
+        stress_drop=None,
+        depth=8,
+        peak_calculator=None,
+        calc_kwds=None,
+    ):
         Motion.__init__(self)
         pyrvt.motions.SourceTheoryMotion.__init__(
             self,
@@ -339,4 +350,5 @@ class SourceTheoryRvtMotion(pyrvt.motions.SourceTheoryMotion, Motion):
             stress_drop,
             depth,
             peak_calculator=peak_calculator,
-            calc_kwds=calc_kwds)
+            calc_kwds=calc_kwds,
+        )
