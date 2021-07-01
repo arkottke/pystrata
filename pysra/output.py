@@ -30,63 +30,13 @@ import scipy.integrate
 from scipy.interpolate import interp1d
 
 try:
-    import cyko
-except ImportError:
-    cyko = None
-
-try:
     import pandas as pd
 except ImportError:
     pd = None
 
+import pykooh
+
 from .motion import TimeSeriesMotion, WaveField, GRAVITY
-
-
-@numba.jit
-def nuko_smooth(ko_freqs, freqs, spectrum, b):
-    max_ratio = pow(10.0, (3.0 / b))
-    min_ratio = 1.0 / max_ratio
-
-    ko_smooth = np.empty_like(ko_freqs)
-    for i, fc in enumerate(ko_freqs):
-        fc = ko_freqs[i]
-        if fc < 1e-6:
-            ko_smooth[i] = 0
-            continue
-
-        total = 0
-        window_total = 0
-        for j, freq in enumerate(freqs):
-            frat = freq / fc
-
-            if (freq < 1e-6 or frat > max_ratio or frat < min_ratio):
-                continue
-            elif np.abs(freq - fc) < 1e-6:
-                window = 1.
-            else:
-                x = b * np.log10(frat)
-                window = np.sin(x) / x
-                window *= window
-                window *= window
-
-            total += window * spectrum[j]
-            window_total += window
-
-        if window_total > 0:
-            ko_smooth[i] = total / window_total
-        else:
-            ko_smooth[i] = 0
-
-    return ko_smooth
-
-
-def ko_smooth(ko_freqs, freqs, spectrum, b):
-    if cyko:
-        smoothed = cyko.smooth(ko_freqs, freqs, spectrum, b)
-    else:
-        smoothed = nuko_smooth(ko_freqs, freqs, spectrum, b)
-
-    return smoothed
 
 
 class OutputCollection(collections.abc.Collection):
@@ -140,7 +90,10 @@ def append_arrays(many, single):
     if diff < 0:
         single = np.pad(single, (0, -diff), 'constant', constant_values=np.nan)
     elif diff > 0:
-        many = np.pad(many, ((0, diff), ), 'constant', constant_values=np.nan)
+        # Need different padding based on if many is 1d or 2d.
+        padding = ((0, diff), (0, 0)) if len(many.shape) > 1 else (0, diff)
+        many = np.pad(
+            many, padding, 'constant', constant_values=np.nan)
     else:
         # No padding needed
         pass
@@ -198,14 +151,9 @@ class Output(object):
 
     def _add_refs(self, refs):
         refs = np.asarray(refs)
-
-        if not self._refs.size:
-            self._refs = refs
-        elif refs.shape == self._refs.shape and np.allclose(refs, self._refs):
-            # Same values
-            pass
+        if len(self._refs) == 0:
+            self._refs = np.array(refs)
         else:
-            # Different values
             self._refs = append_arrays(self._refs, refs)
 
     def _add_values(self, values):
@@ -218,7 +166,7 @@ class Output(object):
     def calc_stats(self, as_dataframe=False):
         ln_values = np.log(self.values)
         median = np.exp(np.mean(ln_values, axis=1))
-        ln_std = np.std(ln_values)
+        ln_std = np.std(ln_values, axis=1)
 
         stats = {'ref': self.refs, 'median': median, 'ln_std': ln_std}
         if as_dataframe and pd:
@@ -227,27 +175,61 @@ class Output(object):
 
         return stats
 
+    def to_dataframe(self):
+        if not pd:
+            raise RuntimeError('Install `pandas` library.')
+
+        if isinstance(self.names[0], tuple):
+            columns = pd.MultiIndex.from_tuples(self.names)
+        else:
+            columns = self.names
+
+        df = pd.DataFrame(self.values, index=self.refs, columns=columns)
+
+        return df
+
     @staticmethod
     def _get_xy(refs, values):
         return refs, values
 
-    def plot(self, ax=None):
+    def plot(self, ax=None, style='indiv'):
+        assert style in ['stats', 'indiv']
+
         if ax is None:
             fig, ax = plt.subplots()
 
-        has_multi = self.values.shape[1] > 2
+        if (style == 'stats' and
+                len(self.values.shape) > 1 and self.values.shape[1] < 3):
+            raise RuntimeError("Unable to plot stats for less than 3 values.")
 
+        if style == 'stats':
+            kwds = {
+                'color': 'C0',
+                'alpha': 0.6,
+                'lw': 0.8,
+                'drawstyle': self.drawstyle
+            }
+        elif style == 'indiv':
+            kwds = {
+                'lw': 1.,
+                'drawstyle': self.drawstyle
+            }
+        else:
+            raise NotImplementedError('Valid options are: stats, indiv.')
+
+        # Add the data
         x, y = self._get_xy(self.refs, self.values)
-
-        kwds = {'color': 'C0', 'alpha': 0.6, 'lw': 0.8, 'drawstyle':
-                self.drawstyle} if has_multi else {}
         lines = ax.plot(x, y, **kwds)
 
-        if has_multi:
+        if style == 'stats':
             lines[0].set_label('Realization')
+        else:
+            for l, n in zip(lines, self.names):
+                l.set_label(n)
 
-        if has_multi:
+        if style == 'stats':
             stats = self.calc_stats()
+
             ax.plot(*self._get_xy(stats['ref'], stats['median']),
                     color='C1', lw=2, label='Median')
 
@@ -255,11 +237,11 @@ class Output(object):
             xlabel=self.xlabel, xscale=self.xscale,
             ylabel=self.ylabel, yscale=self.yscale
         )
-        ax.legend()
 
-        fig.tight_layout()
+        if len(lines) > 1:
+            ax.legend()
 
-        return fig, ax
+        return ax
 
 
 class OutputLocation(object):
@@ -307,7 +289,9 @@ class LocationBasedOutput(Output):
 
 class TimeSeriesOutput(LocationBasedOutput):
     xlabel = 'Time (sec)'
+    xscale = 'linear'
     ylabel = NotImplemented
+    yscale = 'linear'
 
     ref_name = 'time'
 
@@ -337,6 +321,9 @@ class TimeSeriesOutput(LocationBasedOutput):
 
     def _modify_values(self, calc, location, values):
         return values
+
+    def to_dataframe(self):
+        raise NotImplementedError
 
 
 class AccelerationTSOutput(TimeSeriesOutput):
@@ -430,13 +417,20 @@ class FourierAmplitudeSpectrumOutput(LocationBasedOutput):
         Output.__call__(self, calc, name)
         loc = self._get_location(calc)
         tf = calc.calc_accel_tf(calc.loc_input, loc)
+        
+        # Scale by the time step of the time series if needed
+        try:
+            tf *= calc.motion.time_step
+        except AttributeError:
+            pass
 
-        smoothed = ko_smooth(
-            self.freqs,
-            calc.motion.freqs,
-            np.abs(tf * calc.motion.fourier_amps),
-            self.ko_bandwidth
-        )
+        if self.ko_bandwidth:
+            smoothed = pykooh.smooth(
+                self.freqs,
+                calc.motion.freqs,
+                np.abs(tf * calc.motion.fourier_amps),
+                self.ko_bandwidth
+            )
 
         self._add_values(smoothed)
 
@@ -523,8 +517,12 @@ class AccelTransferFunctionOutput(RatioBasedOutput):
         if self._ko_bandwidth is None:
             tf = np.interp(self.freqs, calc.motion.freqs, tf)
         else:
-            tf = ko_smooth(
-                self.freqs, calc.motion.freqs, tf, self._ko_bandwidth)
+            tf = pykooh.smooth(
+                self.freqs,
+                calc.motion.freqs,
+                tf,
+                self._ko_bandwidth
+            )
 
         self._add_values(tf)
 
@@ -603,7 +601,7 @@ class ProfileBasedOutput(Output):
 
             if np.any(mask):
                 f = interp1d(_ref, _ln_values,
-                             kind='previous',
+                             kind='next',
                              fill_value=(_ln_values[0], _ln_values[-1]),
                              bounds_error=False)
                 _ln_interped = f(ref)
@@ -612,9 +610,11 @@ class ProfileBasedOutput(Output):
 
             return _ln_interped
 
-        ln_values = np.array([ln_interp(i) for i in range(n)]).T
-        median = np.exp(np.nanmean(ln_values, axis=1))
-        ln_std = np.nanstd(ln_values, axis=1)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            # Ignore zeros in the data
+            ln_values = np.array([ln_interp(i) for i in range(n)]).T
+            median = np.exp(np.nanmean(ln_values, axis=1))
+            ln_std = np.nanstd(ln_values, axis=1)
 
         stats = {'ref': ref, 'median': median, 'ln_std': ln_std}
         if as_dataframe and pd:
@@ -627,10 +627,13 @@ class ProfileBasedOutput(Output):
     def _get_xy(refs, values):
         return values, refs
 
-    def plot(self, ax=None):
-        fig, ax = Output.plot(self, ax)
+    def plot(self, ax=None, style='stats'):
+        ax = Output.plot(self, ax, style)
         ax.invert_yaxis()
-        return fig, ax
+        return ax
+
+    def to_dataframe(self):
+        raise NotImplementedError
 
 
 class MaxStrainProfile(ProfileBasedOutput):
@@ -644,6 +647,33 @@ class MaxStrainProfile(ProfileBasedOutput):
         values = [0] + [l.strain_max for l in calc.profile[:-1]]
         self._add_values(values)
 
+
+class DampingProfile(ProfileBasedOutput):
+    xlabel = 'Damping (dec)'
+
+    def __call__(self, calc, name=None):
+        Output.__call__(self, calc, name)
+        # Add depth at top of layer
+        self._add_refs(calc.profile.depth)
+
+        values = [l.damping for l in calc.profile[:-1]]
+        # Bring the first mid-layer value to the surface
+        values.insert(0, values[0])
+        self._add_values(values)
+
+
+class ShearModReducProfile(ProfileBasedOutput):
+    xlabel = 'G/Gmax'
+
+    def __call__(self, calc, name=None):
+        Output.__call__(self, calc, name)
+        # Add depth at top of layer
+        self._add_refs(calc.profile.depth)
+
+        values = [l.shear_mod_reduc for l in calc.profile[:-1]]
+        # Bring the first mid-layer value to the surface
+        values.insert(0, values[0])
+        self._add_values(values)
 
 class InitialVelProfile(ProfileBasedOutput):
     xlabel = 'Initial Velocity (m/s)'

@@ -294,15 +294,15 @@ class LinearElasticCalculator(AbstractCalculator):
         """
 
         # Compute the complex wave numbers of the system
-        wave_nums = np.empty((len(profile), len(angular_freqs)), np.complex)
+        wave_nums = np.empty((len(profile), len(angular_freqs)), complex)
         for i, l in enumerate(profile):
             wave_nums[i, :] = angular_freqs / l.comp_shear_vel
 
         # Compute the waves. In the top surface layer, the up-going and
         # down-going waves have an amplitude of 1 as they are completely
         # reflected at the surface.
-        waves_a = np.ones_like(wave_nums, np.complex)
-        waves_b = np.ones_like(wave_nums, np.complex)
+        waves_a = np.ones_like(wave_nums, complex)
+        waves_b = np.ones_like(wave_nums, complex)
         for i, l in enumerate(profile[:-1]):
             # Complex impedance -- wave number can be zero which causes an
             # error.
@@ -441,7 +441,7 @@ class LinearElasticCalculator(AbstractCalculator):
 
         # Only compute transfer function for non-zero frequencies
         mask = ~np.isclose(ang_freqs, 0)
-        tf = np.zeros_like(mask, dtype=np.complex)
+        tf = np.zeros_like(mask, dtype=complex)
         # Scale into units from gravity
         tf[mask] = GRAVITY * numer[mask] / denom[mask]
 
@@ -666,10 +666,13 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
 
             # Fit the smoothed model at frequencies greater than the average
             A = np.c_[-freqs[~mask], -np.log(freqs[~mask])]
-            a, b = np.linalg.lstsq(A, np.log(strain_fas[~mask]))[0]
+            a, b = np.linalg.lstsq(A, np.log(strain_fas[~mask]), rcond=None)[0]
             # This is a modification of the published method that ensures a
-            # smooth transition in the strain
-            shape = np.minimum(1, np.exp(-a * freqs) / np.power(freqs, b))
+            # smooth transition in the strain. Make sure the frequencies are zero.
+            shape = np.minimum(
+                1, np.exp(-a * freqs) /
+                   np.maximum(np.finfo(float).eps, np.power(freqs, b))
+            )
             strains = strain_eff * shape
         else:
             strains = strain_eff * strain_fas / np.max(strain_fas)

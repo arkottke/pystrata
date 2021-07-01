@@ -18,3 +18,4 @@ spectrum and site amplification functions.
 11. Extract soil properties from FDM site response calculations
 12. Show the impact of frequency dependent D_min on FDM methods.
 13. Show the impact of the strain limit on the EQL calculation.
+14. Example with multiple input motions and simulated soil profiles.
