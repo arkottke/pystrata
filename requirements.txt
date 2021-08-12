@@ -5,6 +5,7 @@ numpy
 numba
 pyexcel
 pyexcel-xlsx
+pykooh
 pyrvt
 scipy
 setuptools
