@@ -61,7 +61,7 @@ class Motion(object):
         if self._pgv is None:
             # Compute transfer function -- only over non-zero frequencies
             mask = ~np.isclose(self.angular_freqs, 0)
-            tf = np.zeros_like(mask, dtype=np.complex)
+            tf = np.zeros_like(mask, dtype=complex)
             tf[mask] = 1 / (self.angular_freqs[mask] * 1j)
             if centimeters:
                 self._pgv = GRAVITY * 100 * self.calc_peak(tf)
