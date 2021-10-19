@@ -1,6 +1,10 @@
 History
 =======
 
+v0.4.12 (2021-10-19)
+--------------------
+- Changed: Move site amplification to static functions on some GMPEs
+
 v0.4.11 (2020-03-31)
 --------------------
 - Added: Depth dependent velocity variation model
