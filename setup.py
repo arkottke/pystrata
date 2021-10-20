@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-
-from setuptools import setup, find_packages
+from setuptools import find_packages
+from setuptools import setup
 
 with open("README.rst") as fp:
     readme = fp.read()
@@ -11,7 +11,7 @@ with open("HISTORY.rst") as fp:
 
 setup(
     name="pySRA",
-    version="0.4.12",
+    version="0.4.11",
     description="Site Response Analysis with Python",
     long_description=readme + "\n\n" + history,
     author="Albert Kottke",
