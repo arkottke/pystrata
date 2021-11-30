@@ -12,13 +12,17 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
-# Copyright (C) Albert Kottke, 2013-2016
+# Copyright (C) Albert Kottke, 2013-2022
 import json
+import pathlib
 import string
 
+import matplotlib.gridspec as gridspec
+import matplotlib.pyplot as plt
 import numpy as np
 import pyexcel
 import pytest
+import scipy.constants as C
 
 import pysra
 from . import FPATH_DATA
@@ -431,6 +435,62 @@ def test_quarter_wavelength_fit():
 
     np.testing.assert_allclose(
         profile.initial_shear_vel, calc.profile.initial_shear_vel, rtol=0.2
+    )
+
+
+def test_linear_elastic_nrattle():
+    """Test against nrattle."""
+    ctl = pysra.tools.read_nrattle_ctl(FPATH_DATA / "nrattle.ctl")
+    results = np.rec.fromrecords(
+        np.loadtxt(
+            FPATH_DATA / "test_nrattle_02mar12.nrattle_amps4plot.out",
+            skiprows=19,
+            usecols=(0, 2),
+        ),
+        names="freq,amp",
+    )
+
+    # Create pysra objects
+    profile = pysra.tools.profile_from_nrattle_ctl(ctl)
+    motion = pysra.motion.Motion(freqs=results.freq)
+    calc = pysra.propagation.LinearElasticCalculator()
+
+    loc_in = profile.location("outcrop", index=(ctl["hs_layer"] - 1))
+    loc_out = profile.location("outcrop", depth=ctl["out_depth"])
+
+    calc(
+        motion,
+        profile,
+        # Need to convert to zero-based indices
+        profile.location("outcrop", index=(ctl["hs_layer"] - 1)),
+    )
+    trans_func = np.abs(calc.calc_accel_tf(loc_in, loc_out))
+    # Data is provided to 4 decimal places
+    rounded = np.round(trans_func, 4)
+
+    if 0:
+        # Make a plot for debugging
+        fig = plt.figure(constrained_layout=True)
+        spec = fig.add_gridspec(nrows=3)
+
+        ax = fig.add_subplot(spec[:2])
+        ax.plot(results.freq, results.amp, label="nRattle")
+        ax.plot(motion.freqs, trans_func, label="pysra", ls="--")
+
+        ax.legend()
+        ax.set(xscale="linear", ylabel="|Transfer Func.|")
+
+        ax = fig.add_subplot(spec[2])
+        ax.plot(results.freq, (rounded - results.amp) / results.amp)
+        ax.set_label("Rel. Diff.")
+        ax.set(xlabel="Frequency (Hz)", xscale="linear", ylabel="Rel. Diff.")
+
+        fig.savefig("scratch.png")
+
+    np.testing.assert_allclose(
+        results.amp,
+        rounded,
+        rtol=1e-4,
     )
 
 

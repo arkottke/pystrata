@@ -19,16 +19,16 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
 import collections
 import os
 import re
 
 import numpy as np
+import scipy.constants as C
 
-from . import site
 from . import motion
 from . import propagation
+from . import site
 
 
 def to_str(s):
@@ -56,6 +56,13 @@ def parse_fixed_width(types, lines):
         line = line[width:]
 
     return values
+
+
+def split_line(line, parsers, sep=" "):
+    """Split a line into pieces and parse the strings."""
+    parts = [part for part in line.split(sep) if part]
+    values = [parser(part) for parser, part in zip(parsers, parts)]
+    return values if len(values) > 1 else values[0]
 
 
 def _parse_curves(block, **kwargs):
@@ -247,3 +254,59 @@ def load_shake_inp(fname):
         input[key] = parser(block, **input)
 
     return input
+
+
+def read_nrattle_ctl(fpath):
+    """Read an nrattle control file."""
+    lines = list(fpath.open())
+    lines = [line for line in lines if line[0] != "!"]
+
+    d = {k: lines.pop(0) for k in ["revision", "prefix"]}
+    d["freq_count"], d["freq_max"] = split_line(lines.pop(0), [int, float])
+    d["out_depth"] = split_line(
+        lines.pop(0),
+        [
+            float,
+        ],
+    )
+
+    profile = []
+    while line := lines.pop(0):
+        try:
+            profile.append(split_line(line, [int, float, float, float, float]))
+        except ValueError:
+            break
+
+    d["profile"] = np.rec.fromrecords(
+        profile, names="layer,thick,vel_shear,density,inv_qual"
+    )
+    d["hs_vel_shear"], d["hs_density"] = split_line(line, [float, float])
+    d["hs_layer"], d["inci_angle"] = split_line(lines.pop(0), [int, float])
+
+    return d
+
+
+def profile_from_nrattle_ctl(ctl):
+    layers = []
+    for (i, thick, vel_shear, density, inv_qual) in ctl["profile"]:
+        if np.isclose(inv_qual, 0):
+            damping = 0
+        else:
+            damping = 0.5 * 1 / (inv_qual if inv_qual > 1 else 1 / inv_qual)
+        layers.append(
+            site.Layer(
+                site.SoilType(unit_wt=C.g * density, mod_reduc=None, damping=damping),
+                1000 * thick,
+                1000 * vel_shear,
+            )
+        )
+
+    layers.append(
+        site.Layer(
+            site.SoilType(unit_wt=C.g * ctl["hs_density"], mod_reduc=None, damping=0),
+            0,
+            1000 * ctl["hs_vel_shear"],
+        )
+    )
+    profile = site.Profile(layers)
+    return profile
