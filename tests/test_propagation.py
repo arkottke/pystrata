@@ -14,7 +14,6 @@
 #
 # Copyright (C) Albert Kottke, 2013-2022
 import json
-import pathlib
 import string
 
 import matplotlib.gridspec as gridspec
@@ -22,7 +21,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pyexcel
 import pytest
-import scipy.constants as C
 
 import pysra
 from . import FPATH_DATA
@@ -485,7 +483,7 @@ def test_linear_elastic_nrattle():
         ax.set_label("Rel. Diff.")
         ax.set(xlabel="Frequency (Hz)", xscale="linear", ylabel="Rel. Diff.")
 
-        fig.savefig("scratch.png")
+        fig.savefig("test_propagation-test_linear_elastic_nrattle.png", dpi=200)
 
     np.testing.assert_allclose(
         results.amp,

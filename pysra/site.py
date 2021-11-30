@@ -19,15 +19,14 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
 import collections
 
 import numpy as np
-
 import scipy.constants
 from scipy.interpolate import interp1d
 
-from .motion import WaveField, GRAVITY
+from .motion import GRAVITY
+from .motion import WaveField
 
 COMP_MODULUS_MODEL = "dormieux"
 
@@ -926,6 +925,30 @@ class Profile(collections.abc.Container):
         self.wt_depth = wt_depth
         if layers:
             self.update_layers()
+
+    @classmethod
+    def from_dataframe(cls, df, wt_depth=0):
+        """Create a profile based on a table with columns:
+        - thickness (m)
+        - vel_shear (m)
+        - unit_wt (kN/m³)
+        - damping (dec)
+        """
+
+        layers = []
+        for i, row in df.iterrows():
+            layers.append(
+                Layer(
+                    SoilType(
+                        unit_wt=row["unit_wt"],
+                        mod_reduc=None,
+                        damping=row["damping"],
+                    ),
+                    row["thickness"],
+                    row["vel_shear"],
+                )
+            )
+        return cls(layers, wt_depth)
 
     def __iter__(self):
         return iter(self.layers)

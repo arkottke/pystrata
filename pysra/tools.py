@@ -24,6 +24,7 @@ import os
 import re
 
 import numpy as np
+import pandas as pd
 import scipy.constants as C
 
 from . import motion
@@ -278,7 +279,7 @@ def read_nrattle_ctl(fpath):
             break
 
     d["profile"] = np.rec.fromrecords(
-        profile, names="layer,thick,vel_shear,density,inv_qual"
+        profile, names="layer,thickness,vel_shear,density,inv_qual"
     )
     d["hs_vel_shear"], d["hs_density"] = split_line(line, [float, float])
     d["hs_layer"], d["inci_angle"] = split_line(lines.pop(0), [int, float])
@@ -287,26 +288,17 @@ def read_nrattle_ctl(fpath):
 
 
 def profile_from_nrattle_ctl(ctl):
-    layers = []
-    for (i, thick, vel_shear, density, inv_qual) in ctl["profile"]:
-        if np.isclose(inv_qual, 0):
-            damping = 0
-        else:
-            damping = 0.5 * 1 / (inv_qual if inv_qual > 1 else 1 / inv_qual)
-        layers.append(
-            site.Layer(
-                site.SoilType(unit_wt=C.g * density, mod_reduc=None, damping=damping),
-                1000 * thick,
-                1000 * vel_shear,
-            )
-        )
+    df = pd.DataFrame(ctl["profile"]).set_index("layer")
+    # Here the index is based on layer number which starts at 1 in Fortran
+    # convention.
+    df.loc[len(df) + 1] = [0, ctl["hs_vel_shear"], ctl["hs_density"], 0]
 
-    layers.append(
-        site.Layer(
-            site.SoilType(unit_wt=C.g * ctl["hs_density"], mod_reduc=None, damping=0),
-            0,
-            1000 * ctl["hs_vel_shear"],
-        )
+    # Scale from km to m
+    df["vel_shear"] *= 1000
+    df["thickness"] *= 1000
+    df["damping"] = df["inv_qual"].apply(
+        lambda iq: 0 if np.isclose(iq, 0) else 0.5 * 1 / (iq if iq > 1 else 1 / iq)
     )
-    profile = site.Profile(layers)
-    return profile
+    df["unit_wt"] = C.g * df["density"]
+
+    return site.Profile.from_dataframe(df, 0)
