@@ -16,7 +16,6 @@ help:
 	@echo "clean-build - remove build artifacts"
 	@echo "clean-pyc - remove Python file artifacts"
 	@echo "clean-test - remove test and coverage artifacts"
-	@echo "lint - check style with flake8"
 	@echo "test - run tests quickly with the default Python"
 	@echo "examples - run all examples"
 	@echo "coverage - check code coverage quickly with the default Python"
@@ -46,12 +45,9 @@ clean-test:
 	rm -fr .pytest_cache
 	rm -fr .cache
 
-lint:
-	flake8 pysra tests examples
-
 test:
 	rstcheck --report warning *.rst
-	pytest --flake8 --cov-report html --cov=pysra tests/
+	pytest --cov-report html --cov=pysra tests/
 
 examples:
 	find examples -name 'example*.py' -exec python {} \;
