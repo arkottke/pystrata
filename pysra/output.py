@@ -19,14 +19,11 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
 import collections
 
 import matplotlib.pyplot as plt
-import numba
 import numpy as np
 import scipy.integrate
-
 from scipy.interpolate import interp1d
 
 try:
@@ -213,8 +210,8 @@ class Output(object):
         if style == "stats":
             lines[0].set_label("Realization")
         else:
-            for l, n in zip(lines, self.names):
-                l.set_label(n)
+            for layer, name in zip(lines, self.names):
+                layer.set_label(name)
 
         if style == "stats":
             stats = self.calc_stats()
@@ -571,7 +568,7 @@ class ProfileBasedOutput(Output):
 
     def __call__(self, calc, name=None):
         Output.__call__(self, calc, name)
-        depths = [0] + [l.depth_mid for l in calc.profile[:-1]]
+        depths = [0] + [layer.depth_mid for layer in calc.profile[:-1]]
         self._add_refs(depths)
 
     def calc_stats(self, as_dataframe=False):
@@ -636,7 +633,7 @@ class MaxStrainProfile(ProfileBasedOutput):
 
     def __call__(self, calc, name=None):
         ProfileBasedOutput.__call__(self, calc, name)
-        values = [0] + [l.strain_max for l in calc.profile[:-1]]
+        values = [0] + [layer.strain_max for layer in calc.profile[:-1]]
         self._add_values(values)
 
 
@@ -648,7 +645,7 @@ class DampingProfile(ProfileBasedOutput):
         # Add depth at top of layer
         self._add_refs(calc.profile.depth)
 
-        values = [l.damping for l in calc.profile[:-1]]
+        values = [layer.damping for layer in calc.profile[:-1]]
         # Bring the first mid-layer value to the surface
         values.insert(0, values[0])
         self._add_values(values)
@@ -662,7 +659,7 @@ class ShearModReducProfile(ProfileBasedOutput):
         # Add depth at top of layer
         self._add_refs(calc.profile.depth)
 
-        values = [l.shear_mod_reduc for l in calc.profile[:-1]]
+        values = [layer.shear_mod_reduc for layer in calc.profile[:-1]]
         # Bring the first mid-layer value to the surface
         values.insert(0, values[0])
         self._add_values(values)
@@ -679,7 +676,7 @@ class InitialVelProfile(ProfileBasedOutput):
         # Add depth at top of layer
         self._add_refs(calc.profile.depth)
 
-        values = [l.initial_shear_vel for l in calc.profile[:-1]]
+        values = [layer.initial_shear_vel for layer in calc.profile[:-1]]
         values.insert(0, values[0])
         self._add_values(values)
 
@@ -695,7 +692,7 @@ class CompatVelProfile(ProfileBasedOutput):
         # Add depth at top of layer
         self._add_refs(calc.profile.depth)
 
-        values = [np.min(l.shear_vel) for l in calc.profile[:-1]]
+        values = [np.min(layer.shear_vel) for layer in calc.profile[:-1]]
         values.insert(0, values[0])
         self._add_values(values)
 
@@ -714,9 +711,28 @@ class CyclicStressRatioProfile(ProfileBasedOutput):
     def __call__(self, calc, name=None):
         ProfileBasedOutput.__call__(self, calc, name)
         values = [
-            l.stress_shear_max / l.stress_vert(l.thickness / 2, True)
-            for l in calc.profile[:-1]
+            layer.stress_shear_max / layer.stress_vert(layer.thickness / 2, True)
+            for layer in calc.profile[:-1]
         ]
         # Repeat the first value for the surface
         values = self._stress_level * np.array([values[0]] + values)
         self._add_values(values)
+
+
+class MaxAccelProfile(ProfileBasedOutput):
+    xlabel = "Max. Accel. (g)"
+
+    def __call__(self, calc, name=None):
+        Output.__call__(self, calc, name)
+        # Add depth at top of layer
+        depths = calc.profile.depth
+        values = [self._calc_accel(calc, depth) for depth in depths]
+        self._add_refs(depths)
+        self._add_values(values)
+
+    def _calc_accel(self, calc, depth):
+        return calc.motion.calc_peak(
+            calc.calc_accel_tf(
+                calc.loc_input, calc.profile.location("within", depth=depth)
+            )
+        )
