@@ -936,7 +936,7 @@ class Profile(collections.abc.Container):
         """
 
         layers = []
-        for i, row in df.iterrows():
+        for row in df.itertuples(index=False):
             layers.append(
                 Layer(
                     SoilType(
