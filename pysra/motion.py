@@ -19,18 +19,15 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
 """Classes used to define input motions."""
-
 import enum
 import re
 
 import numpy as np
-
 import pyrvt
+from scipy.constants import g as GRAVITY
 
 # Gravity in m/sec²
-from scipy.constants import g as GRAVITY
 
 
 class WaveField(enum.Enum):
@@ -121,13 +118,14 @@ class TimeSeriesMotion(Motion):
         if self._fourier_amps is None:
             self._calc_fourier_spectrum()
 
-        return self._fourier_amps
+        # Normalize the Fourier amplitude by the time step
+        return self.time_step * self._fourier_amps
 
     def calc_time_series(self, tf=None):
         if tf is None:
-            ts = np.fft.irfft(self.fourier_amps)
+            ts = np.fft.irfft(self.fourier_amps / self.time_step)
         else:
-            ts = np.fft.irfft(tf * self.fourier_amps)
+            ts = np.fft.irfft(tf * self.fourier_amps / self.time_step)
         return ts
 
     def calc_peak(self, tf=None, **kwargs):

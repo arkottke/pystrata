@@ -409,12 +409,6 @@ class FourierAmplitudeSpectrumOutput(LocationBasedOutput):
         loc = self._get_location(calc)
         tf = calc.calc_accel_tf(calc.loc_input, loc)
 
-        # Scale by the time step of the time series if needed
-        try:
-            tf *= calc.motion.time_step
-        except AttributeError:
-            pass
-
         if self.ko_bandwidth:
             smoothed = pykooh.smooth(
                 self.freqs,

@@ -17,6 +17,7 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 from numpy.testing import assert_equal
+from scipy.integrate import trapz
 
 from . import FPATH_DATA
 from pysra import motion
@@ -52,6 +53,11 @@ def test_ts_freqs(tsm):
     assert_allclose(freqs[-1], 50.0)
 
 
+def test_ts_max(tsm):
+    """Check that maximum is consistent with the time domain maximum (PGA)."""
+    assert_allclose(tsm.pga, tsm.calc_peak())
+
+
 def test_ts_fft(tsm):
     """Test FFT with no transfer function."""
     assert_allclose(
@@ -65,6 +71,14 @@ def test_ts_fft_with_tf(tsm):
     assert_allclose(
         tsm.accels,
         tsm.calc_time_series(2 * np.ones_like(tsm.freqs)) / 2,
+    )
+
+
+def test_ts_fa_normalize(tsm):
+    """Test the normalization of the Fourier amplitudes with Parsevla's theorem."""
+    assert_allclose(
+        trapz(tsm.accels ** 2, dx=tsm.time_step),
+        2 * trapz(np.abs(tsm.fourier_amps) ** 2, tsm.freqs),
     )
 
 
