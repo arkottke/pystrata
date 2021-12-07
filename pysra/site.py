@@ -1125,9 +1125,9 @@ class Profile(collections.abc.Container):
             Equivalent shear-wave velocity.
         """
         # FIXME: What if last layer has no thickness?
-        thicks = np.array([l.thickness for l in self])
-        depths_mid = np.array([l.depth_mid for l in self])
-        shear_vels = np.array([l.shear_vel for l in self])
+        thicks = self.thickness
+        depths_mid = self.depth_mid
+        shear_vels = self.initial_shear_vel
 
         mode_incr = depths_mid * thicks / shear_vels ** 2
         # Mode shape is computed as the sumation from the base of
@@ -1135,15 +1135,13 @@ class Profile(collections.abc.Container):
         # step
         shape = np.r_[np.cumsum(mode_incr[::-1])[::-1], 0]
 
+        # Roll is used to offset the mode_shape so that the sum
+        # can be calculated for two adjacent layers
         freq_fund = np.sqrt(
             4
             * np.sum(thicks * depths_mid ** 2 / shear_vels ** 2)
             / np.sum(
-                thicks
-                *
-                # Roll is used to offset the mode_shape so that the sum
-                # can be calculated for two adjacent layers
-                np.sum(np.c_[shape, np.roll(shape, -1)], axis=1)[:-1] ** 2
+                thicks * np.sum(np.c_[shape, np.roll(shape, -1)], axis=1)[:-1] ** 2
             )
         )
         period_fun = 2 * np.pi / freq_fund
@@ -1159,6 +1157,10 @@ class Profile(collections.abc.Container):
         return self._get_values("depth")
 
     @property
+    def depth_mid(self):
+        return self._get_values("depth_mid")
+
+    @property
     def thickness(self):
         return self._get_values("thickness")
 
@@ -1170,5 +1172,9 @@ class Profile(collections.abc.Container):
     def initial_shear_vel(self):
         return self._get_values("initial_shear_vel")
 
+    @property
+    def shear_vel(self):
+        return self._get_values("shear_vel")
+
     def _get_values(self, attr):
-        return np.array([getattr(l, attr) for l in self])
+        return np.array([getattr(layer, attr) for layer in self])
