@@ -535,7 +535,7 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
                 layer.strain = strain
 
             # Maximum error (damping and shear modulus) over all layers
-            max_error = max(l.max_error for l in profile)
+            max_error = max(profile.max_error)
             if max_error < self.tolerance:
                 break
 

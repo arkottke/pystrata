@@ -296,6 +296,8 @@ def profile_from_nrattle_ctl(ctl):
     # Scale from km to m
     df["vel_shear"] *= 1000
     df["thickness"] *= 1000
+    # Convert Q to damping:
+    # damping (dec) = 0.5 * 1 / Q = 1 / (2 * Q)
     df["damping"] = df["inv_qual"].apply(
         lambda iq: 0 if np.isclose(iq, 0) else 0.5 * 1 / (iq if iq > 1 else 1 / iq)
     )

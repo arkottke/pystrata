@@ -19,13 +19,12 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
 import copy
 
 import numpy as np
-
-from scipy.stats import truncnorm, norm
 from scipy.sparse import diags
+from scipy.stats import norm
+from scipy.stats import truncnorm
 
 from . import site
 
@@ -251,7 +250,7 @@ class VelocityVariation(object):
             Varied site profile.
         """
 
-        mean = np.log([l.initial_shear_vel for l in profile])
+        mean = np.log(profile.initial_shear_vel)
         covar = self._calc_covar_matrix(profile)
 
         ln_vel_rand = np.random.multivariate_normal(mean, covar, check_valid="ignore")
@@ -446,7 +445,7 @@ class ToroVelocityVariation(VelocityVariation):
         corr : :class:`numpy.array`
             Adjacent-layer correlations
         """
-        depth = np.array([l.depth_mid for l in profile[:-1]])
+        depth = profile.depth_mid[:-1]
         thick = np.diff(depth)
         depth = depth[1:]
 
@@ -576,7 +575,7 @@ class DepthDependToroVelVariation(ToroVelocityVariation):
 
     def _calc_ln_std(self, profile):
         ln_std = np.interp(
-            [l.depth_mid for l in profile],
+            profile.depth_mid,
             self.depth,
             self.ln_std,
             left=self.ln_std[0],

@@ -562,7 +562,7 @@ class ProfileBasedOutput(Output):
 
     def __call__(self, calc, name=None):
         Output.__call__(self, calc, name)
-        depths = [0] + [layer.depth_mid for layer in calc.profile[:-1]]
+        depths = np.r_[0, calc.profile.depth_mid[:-1]]
         self._add_refs(depths)
 
     def calc_stats(self, as_dataframe=False):

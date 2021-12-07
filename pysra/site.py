@@ -199,6 +199,10 @@ class SoilType(object):
             return self.damping
 
     @property
+    def quality(self):
+        return 1 / (2 * self.damping_min)
+
+    @property
     def unit_wt(self):
         return self._unit_wt
 
@@ -1101,9 +1105,9 @@ class Profile(collections.abc.Container):
         avg_vel: float
             Time averaged velocity.
         """
-        depths = [l.depth for l in self]
+        depths = self.depth
         # Final layer is infinite and is treated separately
-        travel_times = [0] + [l.travel_time for l in self[:-1]]
+        travel_times = np.r_[0, self.travel_time[:-1]]
         # If needed, add the final layer to the required depth
         if depths[-1] < depth:
             depths.append(depth)
@@ -1163,6 +1167,14 @@ class Profile(collections.abc.Container):
     @property
     def thickness(self):
         return self._get_values("thickness")
+
+    @property
+    def max_error(self):
+        return self._get_values("max_error")
+
+    @property
+    def travel_time(self):
+        return self._get_values("travel_time")
 
     @property
     def slowness(self):
