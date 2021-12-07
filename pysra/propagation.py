@@ -19,14 +19,15 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
-import numpy as np
 import numba
-
+import numpy as np
 from scipy.optimize import minimize
 
-from .site import Location, Layer, Profile
-from .motion import WaveField, GRAVITY
+from .motion import GRAVITY
+from .motion import WaveField
+from .site import Layer
+from .site import Location
+from .site import Profile
 
 
 class AbstractCalculator(object):
@@ -86,6 +87,8 @@ class QuarterWaveLenCalculator(AbstractCalculator):
 
     No consideration for nolninearity is made by this calculator.
     """
+
+    name = "QWL"
 
     def __init__(self, site_atten=None):
         super().__init__()
@@ -254,6 +257,8 @@ class QuarterWaveLenCalculator(AbstractCalculator):
 
 class LinearElasticCalculator(AbstractCalculator):
     """Class for performing linear elastic site response."""
+
+    name = "LE"
 
     def __init__(self):
         super().__init__()
@@ -461,6 +466,8 @@ class LinearElasticCalculator(AbstractCalculator):
 class EquivalentLinearCalculator(LinearElasticCalculator):
     """Class for performing equivalent-linear elastic site response."""
 
+    name = "EQL"
+
     def __init__(
         self, strain_ratio=0.65, tolerance=0.01, max_iterations=15, strain_limit=0.05
     ):
@@ -629,6 +636,8 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         soils via frequency-dependent moduli and damping. Journal of
         Engineering Mechanics, 128(1), 34-47.
     """
+
+    name = "FDM-KA"
 
     def __init__(
         self,
