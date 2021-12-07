@@ -1110,8 +1110,10 @@ class Profile(collections.abc.Container):
         travel_times = np.r_[0, self.travel_time[:-1]]
         # If needed, add the final layer to the required depth
         if depths[-1] < depth:
-            depths.append(depth)
-            travel_times.append((depth - self[-1].depth) / self[-1].shear_vel)
+            depths = np.r_[depths, depth]
+            travel_times = np.r_[
+                travel_times, (depth - self[-1].depth) / self[-1].shear_vel
+            ]
 
         total_travel_times = np.cumsum(travel_times)
         # Interpolate the travel time to the depth of interest

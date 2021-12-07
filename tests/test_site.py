@@ -178,7 +178,7 @@ def test_time_average_vel(depth, expected):
         [
             site.Layer(st, 10, 300),
             site.Layer(st, 10, 600),
-            site.Layer(st, None, 900),
+            site.Layer(st, 0, 900),
         ]
     )
     assert_allclose(p.time_average_vel(depth), expected, atol=0.001)
