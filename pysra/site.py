@@ -21,6 +21,7 @@
 # SOFTWARE.
 import collections
 
+import matplotlib.pyplot as plt
 import numpy as np
 import scipy.constants
 from scipy.interpolate import interp1d
@@ -1153,6 +1154,34 @@ class Profile(collections.abc.Container):
         period_fun = 2 * np.pi / freq_fund
         rayleigh_vel = 4 * thicks.sum() / period_fun
         return rayleigh_vel
+
+    def plot(self, prop, ax=None, plot_kwds=None, axis_kwds=None):
+        # Defaults
+        xlabels = {
+            "density": "Density (kN/m³)",
+            "max_error": "Max. Error (%)",
+            "travel_time": "Travel time (sec)",
+            "slowness": "Slowness (1/s)",
+            "initial_shear_vel": "Initial $V_s$ (m/s)",
+            "shear_vel": "$V_s$ (m/s)",
+        }
+        _axis_kwds = {
+            "ylabel": "Depth (m)",
+            "ylim": (1.1 * self.depth[-1], 0),
+            "xlabel": xlabels[prop],
+            "xlim": (0, None),
+        }
+
+        plot_kwds = plot_kwds or dict()
+        axis_kwds = _axis_kwds | (axis_kwds or dict())
+
+        if ax is None:
+            fig, ax = plt.subplots()
+
+        ax.step(getattr(self, prop), self.depth, where="pre", **plot_kwds)
+        ax.set(**axis_kwds)
+
+        return ax
 
     @property
     def density(self):
