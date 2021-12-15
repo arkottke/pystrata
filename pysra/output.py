@@ -1,6 +1,6 @@
 # The MIT License (MIT)
 #
-# Copyright (c) 2016-2018 Albert Kottke
+# Copyright (c) 2016-2021 Albert Kottke
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -24,6 +24,8 @@ import collections
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.integrate
+from matplotlib.colors import LogNorm
+from matplotlib.colors import TwoSlopeNorm
 from scipy.interpolate import interp1d
 
 try:
@@ -34,6 +36,81 @@ except ImportError:
 import pykooh
 
 from .motion import TimeSeriesMotion, WaveField, GRAVITY
+
+
+def plot_amplification_evolv(
+    calc,
+    metric="accel_tf",
+    depths=None,
+    freqs=None,
+    normalized=False,
+    wave_field_out="within",
+    diverging_cmap=True,
+    include_vs_profile=False,
+    ax=None,
+    **kwds,
+):
+    # Default plotting kwds. Combine both set of plot keywords and prefer the provided
+    kwds = {
+        "cmap": "RdBu" if diverging_cmap else "magma_r",
+        "shading": "gouraud",
+        "norm": TwoSlopeNorm(vmin=0, vcenter=1) if diverging_cmap else LogNorm(),
+    } | kwds
+
+    if freqs is None:
+        freqs = np.logspace(-1, 2, num=301)
+
+    osc_damping = 0.05 if "osc_damping" not in kwds else kwds["osc_damping"]
+
+    ln_freqs = np.log(freqs)
+    ln_freqs_mot = np.log(calc.motion.freqs)
+
+    def get_amp(metric, depth):
+        loc_output = calc.profile.location(wave_field_out, depth=depth)
+        if metric == "accel_tf":
+            y = np.abs(calc.calc_accel_tf(calc.loc_input, loc_output))
+            # Interpolate the specific frequencies
+            y = np.interp(ln_freqs, ln_freqs_mot, y)
+        elif metric == "site_amp":
+            if get_amp.in_ars is None:
+                get_amp.in_ars = calc.motion.calc_osc_accels(freqs, osc_damping)
+
+            out_ars = calc.motion.calc_osc_accels(
+                freqs, osc_damping, calc.calc_accel_tf(calc.loc_input, loc_output)
+            )
+            y = out_ars / get_amp.in_ars
+        else:
+            raise NotImplementedError
+
+        return y
+
+    # Initialize static variable
+    get_amp.in_ars = None
+
+    if depths is None:
+        depths = np.linspace(0, calc.profile[-1].depth)
+
+    if ax is None:
+        fig, ax = plt.subplots()
+
+    amps = np.array([get_amp(metric, d) for d in depths])
+    if normalized:
+        amps /= amps[-1, :]
+
+    cf = ax.pcolormesh(freqs, depths, amps, **kwds)
+
+    cb = plt.colorbar(cf, ax=ax)
+    cb.set_label("|TF|" if metric == "accel_tf" else "Site Ampl.")
+
+    ax.set(
+        xlabel="Frequency (Hz)",
+        xscale="log",
+        ylabel="Depth (m)",
+        yscale="linear",
+        ylim=(depths[0], 0),
+    )
+
+    return ax
 
 
 class OutputCollection(collections.abc.Collection):
@@ -455,6 +532,8 @@ class ResponseSpectrumOutput(LocationBasedOutput):
 
 
 class RatioBasedOutput(Output):
+    _const_ref = True
+
     def __init__(self, refs, location_in, location_out):
         super().__init__(refs)
         self._location_in = location_in
@@ -512,7 +591,6 @@ class AccelTransferFunctionOutput(RatioBasedOutput):
 
 
 class ResponseSpectrumRatioOutput(RatioBasedOutput):
-    _const_ref = True
     xlabel = "Frequency (Hz)"
 
     ref_name = "freq"
