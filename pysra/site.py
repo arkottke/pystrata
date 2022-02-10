@@ -1041,7 +1041,7 @@ class Profile(collections.abc.Container):
         """
         layers = []
         for l in self:
-            if l.soil_type.is_nonlinear:
+            if l.soil_type.is_nonlinear or max_thick:
                 opt_thickness = l.shear_vel / max_freq * wave_frac
                 if max_thick:
                     opt_thickness = min(opt_thickness, max_thick)
