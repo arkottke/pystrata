@@ -19,7 +19,11 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import annotations
+
 import collections
+from typing import Optional
+from typing import Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -185,6 +189,9 @@ class SoilType(object):
         self._unit_wt = unit_wt
         self.mod_reduc = mod_reduc
         self.damping = damping
+
+    def copy(self):
+        return SoilType(self.name, self.unit_wt, self.mod_reduc, self.damping)
 
     @property
     def density(self):
@@ -945,6 +952,7 @@ class Profile(collections.abc.Container):
             layers.append(
                 Layer(
                     SoilType(
+                        name=row.get("name", ""),
                         unit_wt=row["unit_wt"],
                         mod_reduc=None,
                         damping=row["damping"],
@@ -1007,7 +1015,12 @@ class Profile(collections.abc.Container):
                 yielded.add(layer)
                 yield layer.soil_type
 
-    def auto_discretize(self, max_freq=50.0, wave_frac=0.2):
+    def auto_discretize(
+        self,
+        max_freq: float = 50.0,
+        wave_frac: float = 0.2,
+        max_thick: Optional[float] = None,
+    ) -> Profile:
         """Subdivide the layers to capture strain variation.
 
         Parameters
@@ -1016,6 +1029,10 @@ class Profile(collections.abc.Container):
             Maximum frequency of interest [Hz].
         wave_frac: float
             Fraction of wavelength required. Typically 1/3 to 1/5.
+
+        max_thick: float *optional*
+            If provided, layers are limited to be at most that thick. This is applied to
+            all layers regardless of nonlinearity.
 
         Returns
         -------
@@ -1026,6 +1043,9 @@ class Profile(collections.abc.Container):
         for l in self:
             if l.soil_type.is_nonlinear:
                 opt_thickness = l.shear_vel / max_freq * wave_frac
+                if max_thick:
+                    opt_thickness = min(opt_thickness, max_thick)
+
                 count = np.ceil(l.thickness / opt_thickness).astype(int)
                 thickness = l.thickness / count
                 for _ in range(count):
@@ -1049,7 +1069,38 @@ class Profile(collections.abc.Container):
         return GRAVITY * max(depth - self.wt_depth, 0)
 
     def site_attenuation(self):
-        return sum(l.incr_site_atten for l in self)
+        return sum(layer.incr_site_atten for layer in self)
+
+    def lookup_depth(self, depth: float) -> Tuple[int, float]:
+        """Look up the layer and the depth within the layer for a specific depth.
+
+        Parameters
+        ----------
+        depth: float
+            Depth corresponding to the location of interest.
+
+        Returns
+        -------
+        index: int
+            Layer index
+
+        depth_within: float
+            Depth from the top of the layer to achieve the specific depth.
+        """
+
+        # Make sure all of the depths to updated
+        self.update_layers()
+
+        for i, layer in enumerate(self[:-1]):
+            if layer.depth <= depth < layer.depth_base:
+                depth_within = depth - layer.depth
+                break
+        else:
+            # Bedrock
+            i = len(self) - 1
+            depth_within = depth - self[-1].depth
+
+        return i, depth_within
 
     def location(self, wave_field, depth=None, index=None):
         """Create a Location for a specific depth.
@@ -1075,15 +1126,8 @@ class Profile(collections.abc.Container):
             wave_field = WaveField[wave_field]
 
         if index is None and depth is not None:
-            for i, layer in enumerate(self[:-1]):
-                if layer.depth <= depth < layer.depth_base:
-                    depth_within = depth - layer.depth
-                    break
-            else:
-                # Bedrock
-                i = len(self) - 1
-                layer = self[-1]
-                depth_within = 0
+            i, depth_within = self.lookup_depth(depth)
+            layer = self[index]
         elif index is not None and depth is None:
             layer = self[index]
             i = self.index(layer)
