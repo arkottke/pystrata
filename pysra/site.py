@@ -1267,6 +1267,8 @@ class Profile(collections.abc.Container):
             "slowness": "Slowness (1/s)",
             "initial_shear_vel": "Initial $V_s$ (m/s)",
             "shear_vel": "$V_s$ (m/s)",
+            "strain": "Strain (dec)",
+            "damping": "Damping (dec)",
         }
         _axis_kwds = {
             "ylabel": "Depth (m)",
@@ -1325,6 +1327,10 @@ class Profile(collections.abc.Container):
     @property
     def shear_vel(self):
         return self._get_values("shear_vel")
+
+    @property
+    def strain(self):
+        return self._get_values("strain")
 
     def _get_values(self, attr):
         return np.array([getattr(layer, attr) for layer in self])
