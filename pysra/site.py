@@ -27,6 +27,7 @@ from typing import Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import scipy.constants
 from scipy.interpolate import interp1d
 
@@ -311,6 +312,65 @@ class ModifiedHyperbolicSoilType(SoilType):
     def strain_ref(self):
         """Reference strain."""
         return NotImplementedError
+
+
+class TwoParamModifiedHyperbolicSoilType(SoilType):
+    _a = 1.04
+    _b1 = 0.438
+    _b2 = -0.007
+    _g1 = 0.011
+    _g2 = 0.318
+    _d0 = 1.47
+    _d1 = -0.2
+    _d = 13.125
+    _c = 1.187
+    _gd1 = 0.11
+    _gd2 = 0.23
+
+    def __init__(
+        self,
+        name: str = "",
+        unit_wt: float = 0,
+        stress_mean: float = 101.3,
+        strains: Optional[npt.ArrayLike] = None,
+    ):
+        """
+
+        Parameters
+        ----------
+        name: str, optional
+        used for identification
+        unit_wt:  float
+            unit weight of the material in [kN/m³]
+        stress_mean: float, default=101.3
+            mean effective stress [kN/m²]
+        damping_min: float
+            Minimum damping at low strains [decimal]
+        strains: `array_like`, default: np.logspace(-6, -1.5, num=20)
+            shear strains levels [decimal]
+        """
+        if strains is None:
+            strains = np.logspace(-6, -1.5, num=20)  # in decimal
+        else:
+            strains = np.asarray(strains)
+
+        self._stress_mean = stress_mean
+        stress_mean_atm = stress_mean * KPA_TO_ATM
+
+        # Convert from percent to decimal strain
+        strain_mr = self._g1 * stress_mean_atm ** self._g2 / 100
+        b = self._b1 + self._b2 * stress_mean_atm
+        values_mr = 1 / ((1 + (strains / strain_mr) ** self._a)) ** b
+        mod_reduc = NonlinearProperty(name, strains, values_mr)
+
+        d_min = self._d0 * stress_mean_atm ** self._d1
+        strain_dr = (self._gd1 * stress_mean_atm ** self._gd2) / 100
+        term = (strains / strain_dr) ** self._c
+        # Convert to damping in decimal
+        values_d = (self._d * term + d_min) / (term + 1) / 100
+        damping = NonlinearProperty(name, strains, values_d)
+
+        super().__init__(name, unit_wt, mod_reduc, damping)
 
 
 class DarendeliSoilType(ModifiedHyperbolicSoilType):
@@ -1019,7 +1079,7 @@ class Profile(collections.abc.Container):
         self,
         max_freq: float = 50.0,
         wave_frac: float = 0.2,
-        max_thick: Optional[float] = None,
+        nonlinear_only: bool = True,
     ) -> Profile:
         """Subdivide the layers to capture strain variation.
 
@@ -1040,18 +1100,17 @@ class Profile(collections.abc.Container):
             A new profile with modified layer thicknesses
         """
         layers = []
-        for l in self:
-            if l.soil_type.is_nonlinear or max_thick:
+        for l in self[:-1]:
+            if not nonlinear_only or l.soil_type.is_nonlinear:
                 opt_thickness = l.shear_vel / max_freq * wave_frac
-                if max_thick:
-                    opt_thickness = min(opt_thickness, max_thick)
-
-                count = np.ceil(l.thickness / opt_thickness).astype(int)
+                count = max(np.ceil(l.thickness / opt_thickness).astype(int), 1)
                 thickness = l.thickness / count
                 for _ in range(count):
                     layers.append(Layer(l.soil_type, thickness, l.shear_vel))
             else:
                 layers.append(l)
+        # Add the halfspace
+        layers.append(self[-1])
 
         return Profile(layers, wt_depth=self.wt_depth)
 
@@ -1226,6 +1285,10 @@ class Profile(collections.abc.Container):
         ax.set(**axis_kwds)
 
         return ax
+
+    @property
+    def damping(self):
+        return self._get_values("damping")
 
     @property
     def density(self):
