@@ -1186,7 +1186,7 @@ class Profile(collections.abc.Container):
 
         if index is None and depth is not None:
             i, depth_within = self.lookup_depth(depth)
-            layer = self[index]
+            layer = self[i]
         elif index is not None and depth is None:
             layer = self[index]
             i = self.index(layer)
