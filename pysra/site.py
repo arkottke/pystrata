@@ -847,7 +847,8 @@ class Layer(object):
     def reset(self):
         self._shear_mod = IterativeValue(self.initial_shear_mod)
         self._damping = IterativeValue(self.soil_type.damping_min)
-        self._strain = IterativeValue(None)
+        # Use a small initial value
+        self._strain = IterativeValue(1e-6)
 
     @property
     def shear_mod(self):
