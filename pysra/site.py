@@ -699,7 +699,7 @@ class KishidaSoilType(SoilType):
 class IterativeValue(object):
     def __init__(self, value):
         self._value = value
-        self._previous = None
+        self._previous = 1e-9
 
     @property
     def value(self):
