@@ -22,6 +22,7 @@
 from __future__ import annotations
 
 import collections
+from dataclasses import dataclass
 from typing import Optional
 from typing import Tuple
 
@@ -314,25 +315,29 @@ class ModifiedHyperbolicSoilType(SoilType):
         return NotImplementedError
 
 
-class TwoParamModifiedHyperbolicSoilType(SoilType):
-    _a = 1.04
-    _b1 = 0.438
-    _b2 = -0.007
-    _g1 = 0.011
-    _g2 = 0.318
-    _d0 = 1.47
-    _d1 = -0.2
-    _d = 13.125
-    _c = 1.187
-    _gd1 = 0.11
-    _gd2 = 0.23
+@dataclass
+class TwoParamModifiedHyperbolicCoeffs:
+    a: float
+    b1: float
+    b2: float
+    g1: float
+    g2: float
+    d0: float
+    d1: float
+    d: float
+    c: float
+    gd1: float
+    gd2: float
 
+
+class TwoParamModifiedHyperbolicSoilType(SoilType):
     def __init__(
         self,
         name: str = "",
         unit_wt: float = 0,
         stress_mean: float = 101.3,
         strains: Optional[npt.ArrayLike] = None,
+        coeffs: Optional[TwoParamModifiedHyperbolicCoeffs] = None,
     ):
         """
 
@@ -349,6 +354,14 @@ class TwoParamModifiedHyperbolicSoilType(SoilType):
         strains: `array_like`, default: np.logspace(-6, -1.5, num=20)
             shear strains levels [decimal]
         """
+
+        if coeffs is None:
+            C = TwoParamModifiedHyperbolicCoeffs(
+                1.04, 0.438, -0.007, 0.011, 0.318, 1.47, -0.2, 13.125, 1.187, 0.11, 0.23
+            )
+        else:
+            C = coeffs
+
         if strains is None:
             strains = np.logspace(-6, -1.5, num=20)  # in decimal
         else:
@@ -358,16 +371,17 @@ class TwoParamModifiedHyperbolicSoilType(SoilType):
         stress_mean_atm = stress_mean * KPA_TO_ATM
 
         # Convert from percent to decimal strain
-        strain_mr = self._g1 * stress_mean_atm ** self._g2 / 100
-        b = self._b1 + self._b2 * stress_mean_atm
-        values_mr = 1 / ((1 + (strains / strain_mr) ** self._a)) ** b
+        strain_mr = C.g1 * stress_mean_atm ** C.g2 / 100
+        b = C.b1 + C.b2 * stress_mean_atm
+        values_mr = 1 / ((1 + (strains / strain_mr) ** C.a)) ** b
         mod_reduc = NonlinearProperty(name, strains, values_mr)
 
-        d_min = self._d0 * stress_mean_atm ** self._d1
-        strain_dr = (self._gd1 * stress_mean_atm ** self._gd2) / 100
-        term = (strains / strain_dr) ** self._c
+        d_min = C.d0 * stress_mean_atm ** C.d1
+        # Convert from percent to decimal strain
+        strain_dr = (C.gd1 * stress_mean_atm ** C.gd2) / 100
+        term = (strains / strain_dr) ** C.c
         # Convert to damping in decimal
-        values_d = (self._d * term + d_min) / (term + 1) / 100
+        values_d = (C.d * term + d_min) / (term + 1) / 100
         damping = NonlinearProperty(name, strains, values_d)
 
         super().__init__(name, unit_wt, mod_reduc, damping)
@@ -1048,6 +1062,11 @@ class Profile(collections.abc.Container):
         self.layers.insert(index, layer)
         self.update_layers(index)
 
+    def reset_layers(self):
+        """Set initial properties from the soil types."""
+        for layer in self:
+            layer.reset()
+
     def update_layers(self, start_layer=0):
         if start_layer < 1:
             depth = 0
@@ -1332,6 +1351,10 @@ class Profile(collections.abc.Container):
     @property
     def strain(self):
         return self._get_values("strain")
+
+    @property
+    def unit_wt(self):
+        return self._get_values("unit_wt")
 
     def _get_values(self, attr):
         return np.array([getattr(layer, attr) for layer in self])
