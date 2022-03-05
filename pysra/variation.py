@@ -20,13 +20,20 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import copy
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Union
 
 import numpy as np
+from scipy import stats
 from scipy.sparse import diags
-from scipy.stats import norm
-from scipy.stats import truncnorm
 
 from . import site
+
+# Used to define the random state. A specific state can be set with:
+# random_state.set_seed(42)
+random_state = np.random.RandomState()
 
 
 class TruncatedNorm:
@@ -54,7 +61,7 @@ class TruncatedNorm:
         # deviations, the input standard deviation must be increased to
         # 1.136847 to maintain a unit standard deviation for the random
         # samples.
-        self._scale = 1 / np.sqrt(truncnorm.stats(-value, value, moments="v"))
+        self._scale = 1 / np.sqrt(stats.truncnorm.stats(-value, value, moments="v"))
 
     @property
     def scale(self):
@@ -80,11 +87,13 @@ class TruncatedNorm:
         rvs : ndarray or scalar
             Random variates of given `size`.
         """
-        return truncnorm.rvs(-self.limit, self.limit, scale=self._scale, size=size)
+        return stats.truncnorm.rvs(
+            -self.limit, self.limit, scale=self._scale, size=size
+        )
 
     def correlated(self, correl):
         # Acceptance proportion
-        accept = np.diff(norm.cdf([-self.limit, self.limit]))[0]
+        accept = np.diff(stats.norm.cdf([-self.limit, self.limit]))[0]
         # The expected number of tries required
         expected = np.ceil(1 / accept).astype(int)
 
@@ -103,6 +112,7 @@ class TruncatedNorm:
 
 # Random number generator used for all random number. Limited to +/- 2,
 # and the standard deviation is scaled to maintain the standard deviation
+# FIXME
 randnorm = TruncatedNorm(2)
 
 
@@ -230,13 +240,44 @@ class ToroThicknessVariation(object):
         return varied
 
 
+class BedrockDepthVariation(object):
+    def __init__(
+        self,
+        dist: stats.rv_continuous,
+        discretize_kwds: Optional[Dict[str, float]] = None,
+    ):
+        self._dist = dist
+        self._discretize_kwds = discretize_kwds or dict(max_freq=50, wave_frac=2)
+
+    def __call__(self, profile: site.Profile) -> site.Profile:
+        varied_depth = self._dist.rvs()
+
+        index, depth_within = profile.lookup_depth(varied_depth)
+
+        _profile = site.Profile([layer for layer in profile[: (index + 1)]])
+        _profile[-1].thickness = depth_within
+
+        return _profile.auto_discretize(**self._discretize_kwds)
+
+
+class LayerThicknessVariation(object):
+    def __init__(
+        self,
+        models: Union[List[stats.rv_continuous], Dict[int, stats.rv_continuous]],
+        discretize_kwds: Optional[Dict[str, float]] = None,
+    ) -> None:
+
+        self._models = models
+        self._discretize_kwds = discretize_kwds
+
+
 class VelocityVariation(object):
     """Abstract model for varying the velocity."""
 
     def __init__(self, vary_bedrock=False):
         self._vary_bedrock = vary_bedrock
 
-    def __call__(self, profile):
+    def __call__(self, profile: site.Profile) -> site.Profile:
         """Calculate a varied shear-wave velocity profile.
 
         Parameters
@@ -262,6 +303,7 @@ class VelocityVariation(object):
 
         # Create the new layers
         end = None if self.vary_bedrock else -1
+        # FIXME: Can we use .copy()?
         layers = [
             site.Layer(l.soil_type, l.thickness, vel[i])
             for i, l in enumerate(profile[:end])
@@ -421,7 +463,16 @@ class ToroVelocityVariation(VelocityVariation):
         },
     }
 
-    def __init__(self, ln_std, rho_0, delta, rho_200, h_0, b, vary_bedrock=False):
+    def __init__(
+        self,
+        ln_std: float,
+        rho_0: float,
+        delta: float,
+        rho_200: float,
+        h_0: float,
+        b: float,
+        vary_bedrock: bool = False,
+    ):
         """Initialize the model."""
         super().__init__(vary_bedrock=vary_bedrock)
 
@@ -432,7 +483,7 @@ class ToroVelocityVariation(VelocityVariation):
         self._h_0 = h_0
         self._b = b
 
-    def _calc_corr(self, profile):
+    def _calc_corr(self, profile: site.Profile) -> np.ndarray:
         """Compute the adjacent-layer correlations
 
         Parameters
@@ -763,7 +814,7 @@ class SpidVariation(SoilTypeVariation):
         limits_mod_reduc=[0, 1],
         limits_damping=[0, 0.15],
         std_mod_reduc=0.15,
-        std_damping=0.0030,
+        std_damping=0.30,
     ):
         super().__init__(correlation, limits_mod_reduc, limits_damping)
         self._std_mod_reduc = std_mod_reduc
