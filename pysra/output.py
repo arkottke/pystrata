@@ -643,37 +643,14 @@ class ProfileBasedOutput(Output):
         depths = np.r_[0, calc.profile.depth_mid[:-1]]
         self._add_refs(depths)
 
-    def calc_stats(self, as_dataframe=False):
-        ref = np.linspace(0, np.nanmax(self.refs) * 1.05)
+    def calc_stats(self, as_dataframe=False, ref=None):
+        if ref is None:
+            ref = np.linspace(0, np.nanmax(self.refs) * 1.05, num=512)
 
         n = self.values.shape[1]
-        nans = np.empty_like(ref)
-        nans[:] = np.nan
-
-        def ln_interp(i):
-            _ref = self.refs[:, i]
-            # Only select points with valid entries
-            mask = np.isfinite(_ref)
-            _ref = _ref[mask]
-            _ln_values = np.log(self.values[mask, i])
-
-            if np.any(mask):
-                f = interp1d(
-                    _ref,
-                    _ln_values,
-                    kind="next",
-                    fill_value=(_ln_values[0], _ln_values[-1]),
-                    bounds_error=False,
-                )
-                _ln_interped = f(ref)
-            else:
-                _ln_interped = np.array(nans)
-
-            return _ln_interped
-
         with np.errstate(divide="ignore", invalid="ignore"):
             # Ignore zeros in the data
-            ln_values = np.array([ln_interp(i) for i in range(n)]).T
+            ln_values = np.array([self._ln_interp(i, ref) for i in range(n)]).T
             median = np.exp(np.nanmean(ln_values, axis=1))
             ln_std = np.nanstd(ln_values, axis=1)
 
@@ -693,8 +670,50 @@ class ProfileBasedOutput(Output):
         ax.invert_yaxis()
         return ax
 
-    def to_dataframe(self):
-        raise NotImplementedError
+    def _ln_interp(self, i, ref):
+        """Interpolate the values in log-y space."""
+
+        _ref = self.refs[:, i]
+        # Only select points with valid entries
+        mask = np.isfinite(_ref)
+        _ref = _ref[mask]
+        _ln_values = np.log(self.values[mask, i])
+
+        if np.any(mask):
+            f = interp1d(
+                _ref,
+                _ln_values,
+                kind="next",
+                fill_value=(_ln_values[0], _ln_values[-1]),
+                bounds_error=False,
+            )
+            _ln_interped = f(ref)
+        else:
+            nans = np.empty_like(ref)
+            nans[:] = np.nan
+            _ln_interped = np.array(nans)
+
+        return _ln_interped
+
+    def to_dataframe(self, ref=None):
+        if not pd:
+            raise RuntimeError("Install `pandas` library.")
+
+        if ref is None:
+            ref = np.linspace(0, np.nanmax(self.refs))
+
+        if isinstance(self.names[0], tuple):
+            columns = pd.MultiIndex.from_tuples(self.names)
+        else:
+            columns = self.names
+
+        # Ignore zeros in the data
+        n = self.values.shape[1]
+        values = np.exp(np.array([self._ln_interp(i, ref) for i in range(n)])).T
+
+        df = pd.DataFrame(values, index=ref, columns=columns)
+
+        return df
 
 
 class MaxStrainProfile(ProfileBasedOutput):
