@@ -1298,7 +1298,7 @@ class Profile(collections.abc.Container):
         }
 
         plot_kwds = plot_kwds or dict()
-        axis_kwds = _axis_kwds | (axis_kwds or dict())
+        axis_kwds = {**_axis_kwds, **(axis_kwds or dict())}
 
         if ax is None:
             fig, ax = plt.subplots()
