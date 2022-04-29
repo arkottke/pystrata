@@ -22,6 +22,7 @@ setup(
         'matplotlib',
         'numpy',
         'pyrvt',
+        'pykooh',
         'scipy',
         'setuptools',
         'typing',
