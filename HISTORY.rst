@@ -1,6 +1,10 @@
 History
 =======
 
+v0.5.0 (2022-06-14)
+-------------------
+- Renamed to `pyStrata`.
+
 v0.4.11 (2020-03-31)
 --------------------
 - Added: Depth dependent velocity variation model
