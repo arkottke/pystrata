@@ -46,7 +46,7 @@ clean-test:
 	rm -fr .cache
 
 test:
-	rstcheck --report warning *.rst
+	rstcheck *.rst
 	pytest --cov-report html --cov=pystrata tests/
 
 examples:
