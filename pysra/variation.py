@@ -332,7 +332,7 @@ class VelocityVariation(object):
         # Modify the standard deviation by the truncated norm scale
         std *= randnorm.scale
 
-        var = std ** 2
+        var = std**2
         covar = corr * std[:-1] * std[1:]
 
         # Main diagonal is the variance
@@ -591,12 +591,14 @@ class ToroVelocityVariation(VelocityVariation):
 
 class DepthDependToroVelVariation(ToroVelocityVariation):
     """Toro (1995) [T95] velocity variation model modified for a depth
-    dependent standard deviation.
+    dependent standard deviation that can be overridden by the soil_type name.
 
     Default values can be selected with :meth:`.generic_model`.
 
     Parameters
     ----------
+    ln_std_map: dict[str, float], optional
+        Mapping between the soil_type and the defined ln_std. Default is *None*.
     depth: array_like, optional
         Depths defining the standard deviation model. Default is [0, 15]
         following the SPID model.
@@ -616,30 +618,37 @@ class DepthDependToroVelVariation(ToroVelocityVariation):
     """
 
     def __init__(
-        self, depth, ln_std, rho_0, delta, rho_200, h_0, b, vary_bedrock=False
+        self,
+        ln_std_map,
+        depth,
+        ln_std,
+        rho_0,
+        delta,
+        rho_200,
+        h_0,
+        b,
+        vary_bedrock=False,
     ):
         """Initialize the model."""
         super().__init__(
-            ln_std, rho_0, delta, rho_200, h_0, b, vary_bedrock=vary_bedrock
+            depth, ln_std, rho_0, delta, rho_200, h_0, b, vary_bedrock=vary_bedrock
         )
-        self._depth = depth
+        self._ln_std_map = ln_std_map or dict()
 
     def _calc_ln_std(self, profile):
-        ln_std = np.interp(
-            profile.depth_mid,
-            self.depth,
-            self.ln_std,
-            left=self.ln_std[0],
-            right=self.ln_std[-1],
-        )
+        # Depth based values
+        ln_std = super()._calc_ln_std(profile)
+
+        # Update based on soil_type name
+        for name, value in self._ln_std_map.items():
+            for i, l in enumerate(profile):
+                if name in l.soil_type.name:
+                    ln_std[i] = value
+
         return ln_std
 
-    @property
-    def depth(self):
-        return self._depth
-
     @classmethod
-    def generic_model(cls, site_class, **kwds):
+    def generic_model(cls, site_class, ln_std_map=None, **kwds):
         """Use generic model parameters based on site class.
 
         Parameters
@@ -667,9 +676,12 @@ class DepthDependToroVelVariation(ToroVelocityVariation):
             D           <180 m/s
             =========== =====================
 
+        ln_std_map: dict[str, float], optional
+            Mapping between the soil_type and the defined ln_std. Default is *None*.
+
         Returns
         -------
-        DepthDependToroVelVariation
+        DepthAndSoilTypeDependToroVelVariation
             Initialized :class:`DepthDependToroVelVariation` with generic parameters.
         """
         p = dict(cls.PARAMS[site_class])
@@ -679,6 +691,7 @@ class DepthDependToroVelVariation(ToroVelocityVariation):
             p["depth"] = [0, 15]
             p["ln_std"] = [0.25, 0.15]
 
+        p["ln_std_map"] = ln_std_map
         return cls(**p)
 
 
