@@ -59,8 +59,9 @@ directory`_. An interactive Jupyter interface of these examples is available on
 
 .. |PyPi Cheese Shop| image:: https://img.shields.io/pypi/v/pystrata.svg
    :target: https://pypi.python.org/pypi/pystrata
-.. |Build Status| image:: https://img.shields.io/travis/arkottke/pystrata.svg
-   :target: https://travis-ci.org/arkottke/pystrata
+.. |Build Status| image:: https://img.shields.io/github/workflow/status/arkottke/pystrata/Python%20application
+   :alt: GitHub Workflow Status
+   :target: https://github.com/arkottke/pystrata/actions/workflows/python-app.yml
 .. |Documentation Status| image:: https://readthedocs.org/projects/pystrata/badge/?version=latest&style=flat
    :target: https://pystrata.readthedocs.org
 .. |Code Quality| image:: https://api.codacy.com/project/badge/Grade/6dbbb3a4279744d697b9bfe08af19ded
