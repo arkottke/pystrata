@@ -10,7 +10,7 @@ API reference
 Site
 ----
 
-.. currentmodule:: pysra.site
+.. currentmodule:: pystrata.site
 
 .. autosummary::
     :toctree: generated/
@@ -22,6 +22,3 @@ Site
     DarendeliNonlinearProperty
     Location
     IterativeValue
-
-
-    

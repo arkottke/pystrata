@@ -1,53 +1,53 @@
-pysra package
+pystrata package
 =============
 
 Submodules
 ----------
 
-pysra.motion module
+pystrata.motion module
 -------------------
 
-.. automodule:: pysra.motion
+.. automodule:: pystrata.motion
     :members:
     :undoc-members:
     :show-inheritance:
 
-pysra.output module
+pystrata.output module
 -------------------
 
-.. automodule:: pysra.output
+.. automodule:: pystrata.output
     :members:
     :undoc-members:
     :show-inheritance:
 
-pysra.propagation module
+pystrata.propagation module
 ------------------------
 
-.. automodule:: pysra.propagation
+.. automodule:: pystrata.propagation
     :members:
     :undoc-members:
     :show-inheritance:
 
-pysra.site module
+pystrata.site module
 -----------------
 
-.. automodule:: pysra.site
+.. automodule:: pystrata.site
     :members:
     :undoc-members:
     :show-inheritance:
 
-pysra.tools module
+pystrata.tools module
 ------------------
 
-.. automodule:: pysra.tools
+.. automodule:: pystrata.tools
     :members:
     :undoc-members:
     :show-inheritance:
 
-pysra.variation module
+pystrata.variation module
 ----------------------
 
-.. automodule:: pysra.variation
+.. automodule:: pystrata.variation
     :members:
     :undoc-members:
     :show-inheritance:
@@ -56,7 +56,7 @@ pysra.variation module
 Module contents
 ---------------
 
-.. automodule:: pysra
+.. automodule:: pystrata
     :members:
     :undoc-members:
     :show-inheritance:

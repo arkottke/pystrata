@@ -19,11 +19,11 @@ import numpy as np
 from numpy.testing import assert_allclose
 from scipy.stats import pearsonr
 
-from pysra import motion
-from pysra import output
-from pysra import propagation
-from pysra import site
-from pysra import variation
+from pystrata import motion
+from pystrata import output
+from pystrata import propagation
+from pystrata import site
+from pystrata import variation
 
 
 def test_randnorm():

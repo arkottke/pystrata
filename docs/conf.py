@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# pySRA documentation build configuration file, created by
+# pyStrata documentation build configuration file, created by
 # sphinx-quickstart on Mon Nov  2 15:41:52 2015.
 #
 # This file is execfile()d with the current directory set to its
@@ -12,7 +12,7 @@
 #
 # All configuration values have a default; values that are commented out
 # serve to show the default.
-import pysra
+import pystrata
 
 # If extensions (or modules to document with autodoc) are in another
 # directory, add these directories to sys.path here. If the directory is
@@ -66,16 +66,16 @@ source_suffix = ".rst"
 master_doc = "index"
 
 # General information about the project.
-project = pysra.__title__
-copyright = pysra.__copyright__
-author = pysra.__author__
+project = pystrata.__title__
+copyright = pystrata.__copyright__
+author = pystrata.__author__
 
 # The version info for the project you're documenting, acts as replacement
 # for |version| and |release|, also used in various other places throughout
 # the built documents.
 #
 # The short X.Y version.
-version = pysra.__version__
+version = pystrata.__version__
 # The full version, including alpha/beta/rc tags.
 release = version
 
@@ -203,7 +203,7 @@ html_static_path = ["_static"]
 # html_file_suffix = None
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = "pySRAdoc"
+htmlhelp_basename = "pyStrataDoc"
 
 
 # -- Options for LaTeX output ------------------------------------------
@@ -223,7 +223,13 @@ latex_elements = {
 # (source start file, target name, title, author, documentclass
 # [howto/manual]).
 latex_documents = [
-    (master_doc, "pysra.tex", "pySRA Documentation", "Albert R. Kottke", "manual"),
+    (
+        master_doc,
+        "pystrata.tex",
+        "pyStrata Documentation",
+        "Albert R. Kottke",
+        "manual",
+    ),
 ]
 
 # The name of an image file (relative to this directory) to place at
@@ -250,7 +256,7 @@ latex_documents = [
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [(master_doc, "pySRA", "pySRA Documentation", [author], 1)]
+man_pages = [(master_doc, "pyStrata", "pyStrata Documentation", [author], 1)]
 
 # If true, show URL addresses after external links.
 # man_show_urls = False
@@ -263,10 +269,10 @@ man_pages = [(master_doc, "pySRA", "pySRA Documentation", [author], 1)]
 texinfo_documents = [
     (
         master_doc,
-        "pySRA",
-        "pySRA Documentation",
+        "pyStrata",
+        "pyStrata Documentation",
         author,
-        "pySRA",
+        "pyStrata",
         "Python site response analysis.",
         "Miscellaneous",
     ),

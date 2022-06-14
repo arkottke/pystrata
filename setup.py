@@ -10,16 +10,16 @@ with open("HISTORY.rst") as fp:
     history = fp.read()
 
 setup(
-    name="pySRA",
+    name="pyStrata",
     version="0.5.0",
     description="Site Response Analysis with Python",
     long_description=readme + "\n\n" + history,
+    long_description_content_type="text/x-rst",
     author="Albert Kottke",
     author_email="albert.kottke@gmail.com",
-    url="http://github.com/arkottke/pysra",
+    url="http://github.com/arkottke/pystrata",
     packages=find_packages(),
     install_requires=[
-        "pystrata",
         "matplotlib",
         "numpy",
         "pyrvt",

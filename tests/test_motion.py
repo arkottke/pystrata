@@ -20,7 +20,7 @@ from numpy.testing import assert_equal
 from scipy.integrate import trapz
 
 from . import FPATH_DATA
-from pysra import motion
+from pystrata import motion
 
 
 @pytest.fixture
@@ -77,7 +77,7 @@ def test_ts_fft_with_tf(tsm):
 def test_ts_fa_normalize(tsm):
     """Test the normalization of the Fourier amplitudes with Parsevla's theorem."""
     assert_allclose(
-        trapz(tsm.accels ** 2, dx=tsm.time_step),
+        trapz(tsm.accels**2, dx=tsm.time_step),
         2 * trapz(np.abs(tsm.fourier_amps) ** 2, tsm.freqs),
     )
 

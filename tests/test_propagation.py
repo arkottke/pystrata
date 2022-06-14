@@ -22,7 +22,7 @@ import numpy as np
 import pyexcel
 import pytest
 
-import pysra
+import pystrata
 from . import FPATH_DATA
 
 
@@ -69,7 +69,7 @@ def load_ts():
         time_step = float(parts[1])
         accels = [float(line.split()[1]) for line in fp]
 
-    return pysra.motion.TimeSeriesMotion(
+    return pystrata.motion.TimeSeriesMotion(
         fpath.name, "ChiChi.txt from DeepSoil v6.1", time_step, accels
     )
 
@@ -87,21 +87,21 @@ class DeepSoilComparison:
         cls.ref = read_deepsoil_results(cls.ref_name)
         # Perform the calculation
         cls.calc(load_ts(), cls.profile, cls.profile.location("outcrop", index=-1))
-        cls.outputs = pysra.output.OutputCollection(
+        cls.outputs = pystrata.output.OutputCollection(
             [
-                pysra.output.AccelerationTSOutput(
-                    pysra.output.OutputLocation("outcrop", depth=0)
+                pystrata.output.AccelerationTSOutput(
+                    pystrata.output.OutputLocation("outcrop", depth=0)
                 ),
-                pysra.output.AriasIntensityTSOutput(
-                    pysra.output.OutputLocation("outcrop", depth=0)
+                pystrata.output.AriasIntensityTSOutput(
+                    pystrata.output.OutputLocation("outcrop", depth=0)
                 ),
-                pysra.output.StrainTSOutput(
-                    pysra.output.OutputLocation("within", depth=10), in_percent=True
+                pystrata.output.StrainTSOutput(
+                    pystrata.output.OutputLocation("within", depth=10), in_percent=True
                 ),
-                pysra.output.StressTSOutput(
-                    pysra.output.OutputLocation("within", depth=10), normalized=True
+                pystrata.output.StressTSOutput(
+                    pystrata.output.OutputLocation("within", depth=10), normalized=True
                 ),
-                pysra.output.ResponseSpectrumOutput(
+                pystrata.output.ResponseSpectrumOutput(
                     [
                         100.0000,
                         93.9744,
@@ -217,7 +217,7 @@ class DeepSoilComparison:
                         0.1010,
                         0.1000,
                     ],
-                    pysra.output.OutputLocation("outcrop", depth=0),
+                    pystrata.output.OutputLocation("outcrop", depth=0),
                     0.05,
                 ),
             ]
@@ -287,14 +287,16 @@ class DeepSoilComparison:
 class TestExample02LE(DeepSoilComparison):
     # Test the linear elastic wave propagation
     ref_name = "ds-example-2a-le"
-    calc = pysra.propagation.LinearElasticCalculator()
-    profile = pysra.site.Profile(
+    calc = pystrata.propagation.LinearElasticCalculator()
+    profile = pystrata.site.Profile(
         [
-            pysra.site.Layer(
-                pysra.site.SoilType("Soil", 20.0, mod_reduc=None, damping=0), 20, 500
+            pystrata.site.Layer(
+                pystrata.site.SoilType("Soil", 20.0, mod_reduc=None, damping=0), 20, 500
             ),
-            pysra.site.Layer(
-                pysra.site.SoilType("Rock", 25.0, mod_reduc=None, damping=0.02), 0, 760
+            pystrata.site.Layer(
+                pystrata.site.SoilType("Rock", 25.0, mod_reduc=None, damping=0.02),
+                0,
+                760,
             ),
         ]
     )
@@ -303,14 +305,16 @@ class TestExample02LE(DeepSoilComparison):
 class TestExample02EL(DeepSoilComparison):
     # Run the linear elastic test with the EL calculator.
     ref_name = "ds-example-2a-le"
-    calc = pysra.propagation.EquivalentLinearCalculator()
-    profile = pysra.site.Profile(
+    calc = pystrata.propagation.EquivalentLinearCalculator()
+    profile = pystrata.site.Profile(
         [
-            pysra.site.Layer(
-                pysra.site.SoilType("Soil", 20.0, mod_reduc=None, damping=0), 20, 500
+            pystrata.site.Layer(
+                pystrata.site.SoilType("Soil", 20.0, mod_reduc=None, damping=0), 20, 500
             ),
-            pysra.site.Layer(
-                pysra.site.SoilType("Rock", 25.0, mod_reduc=None, damping=0.02), 0, 760
+            pystrata.site.Layer(
+                pystrata.site.SoilType("Rock", 25.0, mod_reduc=None, damping=0.02),
+                0,
+                760,
             ),
         ]
     )
@@ -318,14 +322,18 @@ class TestExample02EL(DeepSoilComparison):
 
 class TestExample04EL(DeepSoilComparison):
     ref_name = "ds-example-4-eql"
-    calc = pysra.propagation.EquivalentLinearCalculator()
-    profile = pysra.site.Profile(
+    calc = pystrata.propagation.EquivalentLinearCalculator()
+    profile = pystrata.site.Profile(
         [
-            pysra.site.Layer(
-                pysra.site.SoilType("Soil", 20.0, mod_reduc=None, damping=0.05), 20, 500
+            pystrata.site.Layer(
+                pystrata.site.SoilType("Soil", 20.0, mod_reduc=None, damping=0.05),
+                20,
+                500,
             ),
-            pysra.site.Layer(
-                pysra.site.SoilType("Rock", 25.0, mod_reduc=None, damping=0.02), 0, 760
+            pystrata.site.Layer(
+                pystrata.site.SoilType("Rock", 25.0, mod_reduc=None, damping=0.02),
+                0,
+                760,
             ),
         ]
     )
@@ -344,7 +352,7 @@ class QWLComparison:
 
         thickness = np.diff(data["site"]["depth"])
 
-        profile = pysra.site.Profile()
+        profile = pystrata.site.Profile()
         for i, thick in enumerate(thickness):
             if "damping" in data["site"]:
                 damping = data["site"]["damping"][i]
@@ -352,10 +360,10 @@ class QWLComparison:
                 damping = None
 
             profile.append(
-                pysra.site.Layer(
-                    pysra.site.SoilType(
+                pystrata.site.Layer(
+                    pystrata.site.SoilType(
                         f"{i}",
-                        data["site"]["density"][i] * pysra.motion.GRAVITY,
+                        data["site"]["density"][i] * pystrata.motion.GRAVITY,
                         damping=damping,
                     ),
                     thick * 1000,
@@ -370,8 +378,8 @@ class QWLComparison:
         else:
             site_atten = profile.site_attenuation()
 
-        cls.motion = pysra.motion.Motion(data["freqs"])
-        cls.calc = pysra.propagation.QuarterWaveLenCalculator(site_atten=site_atten)
+        cls.motion = pystrata.motion.Motion(data["freqs"])
+        cls.calc = pystrata.propagation.QuarterWaveLenCalculator(site_atten=site_atten)
         cls.calc(cls.motion, profile, profile.location("outcrop", index=-1))
         cls.data = data
 
@@ -409,13 +417,13 @@ def test_quarter_wavelength_fit():
     data = json.load(fpath.open())[0]
     thickness = np.diff(data["site"]["depth"])
 
-    profile = pysra.site.Profile()
+    profile = pystrata.site.Profile()
     for i, (thick, vel, density) in enumerate(
         zip(thickness, data["site"]["velocity"], data["site"]["density"])
     ):
         profile.append(
-            pysra.site.Layer(
-                pysra.site.SoilType(f"{i}", density * pysra.motion.GRAVITY),
+            pystrata.site.Layer(
+                pystrata.site.SoilType(f"{i}", density * pystrata.motion.GRAVITY),
                 thick * 1000,
                 vel * 1000,
             )
@@ -423,8 +431,8 @@ def test_quarter_wavelength_fit():
 
     profile.update_layers()
 
-    motion = pysra.motion.Motion(data["freqs"])
-    calc = pysra.propagation.QuarterWaveLenCalculator(
+    motion = pystrata.motion.Motion(data["freqs"])
+    calc = pystrata.propagation.QuarterWaveLenCalculator(
         site_atten=data["site"]["site_atten"]
     )
     calc(motion, profile, profile.location("outcrop", index=-1))
@@ -438,7 +446,7 @@ def test_quarter_wavelength_fit():
 
 def test_linear_elastic_nrattle():
     """Test against nrattle."""
-    ctl = pysra.tools.read_nrattle_ctl(FPATH_DATA / "nrattle.ctl")
+    ctl = pystrata.tools.read_nrattle_ctl(FPATH_DATA / "nrattle.ctl")
     results = np.rec.fromrecords(
         np.loadtxt(
             FPATH_DATA / "test_nrattle_02mar12.nrattle_amps4plot.out",
@@ -448,10 +456,10 @@ def test_linear_elastic_nrattle():
         names="freq,amp",
     )
 
-    # Create pysra objects
-    profile = pysra.tools.profile_from_nrattle_ctl(ctl)
-    motion = pysra.motion.Motion(freqs=results.freq)
-    calc = pysra.propagation.LinearElasticCalculator()
+    # Create pystrata objects
+    profile = pystrata.tools.profile_from_nrattle_ctl(ctl)
+    motion = pystrata.motion.Motion(freqs=results.freq)
+    calc = pystrata.propagation.LinearElasticCalculator()
 
     loc_in = profile.location("outcrop", index=(ctl["hs_layer"] - 1))
     loc_out = profile.location("outcrop", depth=ctl["out_depth"])
@@ -473,7 +481,7 @@ def test_linear_elastic_nrattle():
 
         ax = fig.add_subplot(spec[:2])
         ax.plot(results.freq, results.amp, label="nRattle")
-        ax.plot(motion.freqs, trans_func, label="pysra", ls="--")
+        ax.plot(motion.freqs, trans_func, label="pystrata", ls="--")
 
         ax.legend()
         ax.set(xscale="linear", ylabel="|Transfer Func.|")
@@ -500,15 +508,15 @@ def test_linear_elastic_nrattle():
 #     # Only compare the number of values in the DeepSoil results,
 #     # which doesn't include the zero padding added by the FFT.
 #     n = len(ref_soil['time_series']['accel'])
-#     loc_surface = pysra.output.OutputLocation('outcrop', index=0)
-#     loc_midheight = pysra.output.OutputLocation(
+#     loc_surface = pystrata.output.OutputLocation('outcrop', index=0)
+#     loc_midheight = pystrata.output.OutputLocation(
 #         'within', depth=(calc.profile[0].thickness / 2))
 #     for key, output in [
 #         ('accel',),
 #         ('arias_int',
-#          pysra.output.AriasIntensityTSOutput(loc_surface)),
-#         ('strain', pysra.output.StrainTSOutput(loc_midheight)),
-#         ('stress', pysra.output.StressTSOutput(loc_midheight, damped=False)),
+#          pystrata.output.AriasIntensityTSOutput(loc_surface)),
+#         ('strain', pystrata.output.StrainTSOutput(loc_midheight)),
+#         ('stress', pystrata.output.StressTSOutput(loc_midheight, damped=False)),
 #     ]:
 #         output(calc)
 #         import matplotlib.pyplot as plt

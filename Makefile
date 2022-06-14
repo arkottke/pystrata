@@ -47,7 +47,7 @@ clean-test:
 
 test:
 	rstcheck --report warning *.rst
-	pytest --cov-report html --cov=pysra tests/
+	pytest --cov-report html --cov=pystrata tests/
 
 examples:
 	find examples -name 'example*.py' -exec python {} \;
@@ -58,9 +58,9 @@ coverage: test
 	$(BROWSER) htmlcov/index.html
 
 docs:
-	rm -f docs/pysra.rst
+	rm -f docs/pystrata.rst
 	rm -f docs/modules.rst
-	sphinx-apidoc -o docs/ pysra
+	sphinx-apidoc -o docs/ pystrata
 	$(MAKE) -C docs clean
 	$(MAKE) -C docs html
 	$(BROWSER) docs/_build/html/index.html
@@ -68,14 +68,14 @@ docs:
 servedocs: docs
 	watchmedo shell-command -p '*.rst' -c '$(MAKE) -C docs html' -R -D .
 
-release: clean
-	python setup.py sdist upload
-	python setup.py bdist_wheel upload
+test-release: clean
+	python -m build
+	python -m twine check dist/*
+	python -m twine upload --repository testpypi dist/*
 
-dist: clean
-	python setup.py sdist
-	python setup.py bdist_wheel
-	ls -l dist
+release: clean
+	python -m build
+	python -m twine upload dist/*
 
 install: clean
 	python setup.py install

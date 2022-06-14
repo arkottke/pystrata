@@ -87,9 +87,9 @@ qthelp:
 	@echo
 	@echo "Build finished; now you can run "qcollectiongenerator" with the" \
 	      ".qhcp project file in $(BUILDDIR)/qthelp, like this:"
-	@echo "# qcollectiongenerator $(BUILDDIR)/qthelp/pysra.qhcp"
+	@echo "# qcollectiongenerator $(BUILDDIR)/qthelp/pystrata.qhcp"
 	@echo "To view the help file:"
-	@echo "# assistant -collectionFile $(BUILDDIR)/qthelp/pysra.qhc"
+	@echo "# assistant -collectionFile $(BUILDDIR)/qthelp/pystrata.qhc"
 
 applehelp:
 	$(SPHINXBUILD) -b applehelp $(ALLSPHINXOPTS) $(BUILDDIR)/applehelp
@@ -104,8 +104,8 @@ devhelp:
 	@echo
 	@echo "Build finished."
 	@echo "To view the help file:"
-	@echo "# mkdir -p $$HOME/.local/share/devhelp/pysra"
-	@echo "# ln -s $(BUILDDIR)/devhelp $$HOME/.local/share/devhelp/pysra"
+	@echo "# mkdir -p $$HOME/.local/share/devhelp/pystrata"
+	@echo "# ln -s $(BUILDDIR)/devhelp $$HOME/.local/share/devhelp/pystrata"
 	@echo "# devhelp"
 
 epub:
@@ -193,7 +193,7 @@ pseudoxml:
 
 livehtml:
 	sphinx-autobuild -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html\
-	    --watch ../pysra \
+	    --watch ../pystrata \
 	    -i "*.swp" \
 	    -i "*~" \
 	    -i "\.*" \

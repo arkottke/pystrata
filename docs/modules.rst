@@ -1,7 +1,7 @@
-pysra
+pystrata
 =====
 
 .. toctree::
    :maxdepth: 4
 
-   pysra
+   pystrata

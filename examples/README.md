@@ -1,6 +1,6 @@
 # Examples
 
-The examples included here are used to demonstrate the capabilities of `pysra`.
+The examples included here are used to demonstrate the capabilities of `pystrata`.
 The following a brief summaries of the examples:
 
 1. Time series analysis to compute surface response spectrum and site

@@ -24,7 +24,7 @@ import scipy.constants
 from numpy.testing import assert_allclose
 
 from . import FPATH_DATA
-from pysra import site
+from pystrata import site
 
 
 @pytest.fixture
