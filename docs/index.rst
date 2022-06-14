@@ -4,7 +4,7 @@
    contain the root `toctree` directive.
 
 Welcome to pystrata's documentation!
-=================================
+====================================
 
 Release v\ |version|
 

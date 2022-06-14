@@ -121,6 +121,7 @@ pygments_style = "sphinx"
 
 # -- Options for HTML output -------------------------------------------
 
+bibtex_bibfiles = ["refs.bib"]
 # Natbib references file
 natbib = {"file": "references.bib"}
 
