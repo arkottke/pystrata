@@ -53,6 +53,9 @@ intersphinx_mappings = {
 autosummary_generate = True
 numpydoc_show_class_members = False
 
+# References for bibtex entries
+bibtex_bibfiles = ["refs.bib"]
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
 
@@ -120,10 +123,6 @@ pygments_style = "sphinx"
 
 
 # -- Options for HTML output -------------------------------------------
-
-bibtex_bibfiles = ["refs.bib"]
-# Natbib references file
-natbib = {"file": "references.bib"}
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
