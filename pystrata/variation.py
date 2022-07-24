@@ -875,7 +875,7 @@ def iter_varied_profiles(
     var_velocity: VelocityVariation = None,
     var_soiltypes: SoilTypeVariation = None,
 ):
-    for i in range(count):
+    for _ in range(count):
         # Copy the profile to form the realization
         p = profile
 
