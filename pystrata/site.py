@@ -227,7 +227,7 @@ class SoilType(object):
         # return all(
         #     getattr(self, attr) == getattr(other, attr)
         #     for attr in ['name', 'unit_wt', 'mod_reduc', 'damping'])
-        return self.__dict__ == other.__dict__
+        return (type(self) == type(other)) and (self.__dict__ == other.__dict__)
 
     def __hash__(self):
         return hash(self.__dict__.values())
@@ -758,13 +758,7 @@ class Layer(object):
 
         self._soil_type = soil_type
         self._thickness = thickness
-        self._initial_shear_vel = shear_vel
-
-        self._damping = None
-        self._shear_mod = None
-        self._strain = None
-        self.strain_max = None
-        self.reset()
+        self.initial_shear_vel = shear_vel
 
         self._depth = 0
         self._stress_vert = 0
@@ -781,6 +775,20 @@ class Layer(object):
             f"soil_type={st_name})>"
         )
 
+    def __eq__(self, other):
+        attrs = ["_soil_type", "_thickness", "initial_shear_vel"]
+        return (type(self) == type(other)) and all(
+            [getattr(self, a) == getattr(other, a) for a in attrs]
+        )
+
+    def __hash__(self):
+        return hash(self.__dict__.values())
+
+    @classmethod
+    def copy_of(cls, other):
+        """Return a copy of the Layer instance with previously defined SoilType."""
+        return cls(other.soil_type, other.thickness, other.shear_vel)
+
     @property
     def depth(self):
         """Depth to the top of the layer [m]."""
@@ -795,11 +803,6 @@ class Layer(object):
     def depth_base(self):
         """Depth to the base of the layer [m]."""
         return self._depth + self._thickness
-
-    @classmethod
-    def duplicate(cls, other):
-        """Create a copy of the layer."""
-        return cls(other.soil_type, other.thickness, other.shear_vel)
 
     @property
     def density(self):
@@ -824,6 +827,14 @@ class Layer(object):
     def initial_shear_vel(self):
         """Initial (small-strain) shear-wave velocity [m/s]."""
         return self._initial_shear_vel
+
+    @initial_shear_vel.setter
+    def initial_shear_vel(self, value: float):
+        """Set initial (small-strain) shear-wave velocity [m/s]."""
+
+        self._initial_shear_vel = value
+        # Reset the iterated values
+        self.reset()
 
     @property
     def comp_shear_mod(self):
@@ -863,6 +874,8 @@ class Layer(object):
         self._damping = IterativeValue(self.soil_type.damping_min)
         # Use a small initial value
         self._strain = IterativeValue(1e-6)
+
+        self.strain_max = None
 
     @property
     def shear_mod(self):
@@ -933,7 +946,7 @@ class Layer(object):
     @thickness.setter
     def thickness(self, thickness):
         self._thickness = thickness
-        self._profile.update_layers(self, self._profile.index(self) + 1)
+        self._profile.update_layers(self._profile.index(self) + 1)
 
     @property
     def travel_time(self):
@@ -1049,6 +1062,11 @@ class Profile(collections.abc.Container):
 
     def __getitem__(self, key):
         return self.layers[key]
+
+    @classmethod
+    def copy_of(cls, other):
+        """Return a copy of the profile with new Layer instances."""
+        return cls([Layer.copy_of(layer) for layer in other], other.wt_depth)
 
     def index(self, layer):
         return self.layers.index(layer)
