@@ -16,7 +16,10 @@
 #
 # Copyright (C) Albert Kottke, 2013-2016
 import numpy as np
+import pytest
 from numpy.testing import assert_allclose
+from scipy.stats import lognorm
+from scipy.stats import norm
 from scipy.stats import pearsonr
 
 from pystrata import motion
@@ -144,16 +147,25 @@ class TestSpidVariation:
         )
 
 
-def test_iter_variations():
-    m = motion.SourceTheoryRvtMotion(6.0, 30, "wna")
-    m.calc_fourier_amps()
-
-    profile = site.Profile(
+@pytest.fixture
+def profile():
+    """Simple profile for tests."""
+    return site.Profile(
         [
             site.Layer(
                 site.DarendeliSoilType(18.0, plas_index=0, ocr=1, stress_mean=200),
                 10,
+                300,
+            ),
+            site.Layer(
+                site.DarendeliSoilType(18.0, plas_index=0, ocr=1, stress_mean=200),
+                10,
                 400,
+            ),
+            site.Layer(
+                site.DarendeliSoilType(18.0, plas_index=0, ocr=1, stress_mean=200),
+                10,
+                500,
             ),
             site.Layer(
                 site.DarendeliSoilType(18.0, plas_index=0, ocr=1, stress_mean=200),
@@ -163,6 +175,32 @@ def test_iter_variations():
             site.Layer(site.SoilType("Rock", 24.0, None, 0.01), 0, 1200),
         ]
     )
+
+
+@pytest.mark.parametrize("dist", [norm(scale=2, loc=50), lognorm(s=0.2, scale=50)])
+def test_halfspace_depth_variation(dist, profile):
+    varier = variation.HalfSpaceDepthVariation(dist)
+    count = 500
+
+    varied = varier(profile)
+    # Check the surface and bedrock is the same
+    assert profile[0] == varied[0]
+    assert profile[-1] == varied[-1]
+
+    for _ in range(10):
+        v = varier(profile)
+        assert all(layer.thickness >= 0 for layer in v)
+
+    # Sample to the half-space from the varied profiles
+    depths = [varier(profile)[-1].depth for _ in range(count)]
+
+    assert_allclose(dist.mean(), np.mean(depths), rtol=0.2)
+    assert_allclose(dist.std(), np.std(depths), rtol=0.2)
+
+
+def test_iter_variations(profile):
+    m = motion.SourceTheoryRvtMotion(6.0, 30, "wna")
+    m.calc_fourier_amps()
 
     calc = propagation.EquivalentLinearCalculator()
     var_thickness = variation.ToroThicknessVariation()

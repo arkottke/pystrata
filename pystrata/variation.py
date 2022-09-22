@@ -20,6 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import copy
+from abc import abstractmethod
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -241,24 +242,47 @@ class ToroThicknessVariation(object):
         return varied
 
 
-class BedrockDepthVariation(object):
-    def __init__(
-        self,
-        dist: stats.rv_continuous,
-        discretize_kwds: Optional[Dict[str, float]] = None,
-    ):
+class HalfSpaceDepthVariation(object):
+    def __init__(self, dist: stats.rv_continuous):
         self._dist = dist
-        self._discretize_kwds = discretize_kwds or dict(max_freq=50, wave_frac=2)
 
     def __call__(self, profile: site.Profile) -> site.Profile:
+        # Update the distribution with the central value of the profile
         varied_depth = self._dist.rvs()
 
+        # Find the layer
         index, depth_within = profile.lookup_depth(varied_depth)
 
-        _profile = site.Profile([layer for layer in profile[: (index + 1)]])
-        _profile[-1].thickness = depth_within
+        print(varied_depth, profile[-1].depth, index, depth_within)
 
-        return _profile.auto_discretize(**self._discretize_kwds)
+        half_space = profile[-1]
+
+        if index < (len(profile) - 1):
+            # Variation is within the layers
+            layers = [site.Layer.copy_of(layer) for layer in profile[: (index + 1)]]
+            # Reduce the thickness of the layer above the half-space
+            layers[-1]._thickness = depth_within
+        else:
+            # Variation extends past the depth of the model
+            orig_thick = profile[-2].thickness
+            total_thick = orig_thick + depth_within
+            count = np.ceil(total_thick // orig_thick).astype(int)
+
+            thick = total_thick / count
+
+            print(count, thick)
+
+            # Don't copy half-space
+            layers = [site.Layer.copy_of(layer) for layer in profile[:-1]]
+            # Don't call the setter function as it needs a profile defined
+            layers[-1]._thickness = thick
+            parent = layers[-1]
+            for _ in range(count - 1):
+                layers.append(site.Layer.copy_of(parent))
+
+        layers.append(half_space)
+
+        return site.Profile(layers, profile.wt_depth)
 
 
 class LayerThicknessVariation(object):
@@ -302,17 +326,12 @@ class VelocityVariation(object):
         ln_vel = np.clip(ln_vel_rand, mean - offset, mean + offset)
         vel = np.exp(ln_vel)
 
-        # Create the new layers
+        varied = site.Profile.copy_of(profile)
+        # Update the velocities
         end = None if self.vary_bedrock else -1
-        # FIXME: Can we use .copy()?
-        layers = [
-            site.Layer(l.soil_type, l.thickness, vel[i])
-            for i, l in enumerate(profile[:end])
-        ]
-        if not self.vary_bedrock:
-            layers.append(profile[-1])
+        for i, v in enumerate(vel[:end]):
+            varied[i].initial_shear_vel = v
 
-        varied = site.Profile(layers, profile.wt_depth)
         return varied
 
     def _calc_covar_matrix(self, profile):
@@ -341,6 +360,7 @@ class VelocityVariation(object):
 
         return mat
 
+    @abstractmethod
     def _calc_corr(self, profile):
         """Compute the adjacent-layer correlations.
 
@@ -356,6 +376,7 @@ class VelocityVariation(object):
         """
         raise NotImplementedError
 
+    @abstractmethod
     def _calc_ln_std(self, profile):
         """Compute the standard deviation for each layer.
 
@@ -884,7 +905,7 @@ def iter_varied_profiles(
 ):
     for _ in range(count):
         # Copy the profile to form the realization
-        p = profile
+        p = site.Profile.copy_of(profile)
 
         if var_thickness:
             p = var_thickness(p)
