@@ -55,7 +55,7 @@ directory`_. An interactive Jupyter interface of these examples is available on
 
 .. _Strata: https://github.com/arkottke/strata
 .. _DOI: https://zenodo.org/badge/latestdoi/8959678
-.. _`examples directory`: https://github.com/arkottke/pystrata/tree/master/examples
+.. _`examples directory`: https://github.com/arkottke/pystrata/tree/main/examples
 
 .. |PyPi Cheese Shop| image:: https://img.shields.io/pypi/v/pystrata.svg
    :target: https://pypi.python.org/pypi/pystrata
@@ -72,4 +72,4 @@ directory`_. An interactive Jupyter interface of these examples is available on
 .. |Zenodo| image:: https://zenodo.org/badge/8959678.svg
    :target: https://zenodo.org/badge/latestdoi/8959678
 .. |MyBinder| image:: https://mybinder.org/badge_logo.svg
-   :target: https://mybinder.org/v2/gh/arkottke/pystrata/master?filepath=examples
+   :target: https://mybinder.org/v2/gh/arkottke/pystrata/main?filepath=examples
