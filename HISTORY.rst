@@ -1,6 +1,13 @@
 History
 =======
 
+v0.5.1 (2022-09-22)
+-------------------
+- Fixed: Correlation model from Toro. Previously used rho_0 instead of d_0, and the
+  wrong depth
+- Renamed: BedrockDepthVariation to HalfSpaceDepthVariation
+- Fixed: HalfSpaceDepthVariation was removing the last layer
+
 v0.5.0 (2022-06-14)
 -------------------
 - Renamed to `pyStrata`.

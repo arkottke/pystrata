@@ -11,7 +11,7 @@ with open("HISTORY.rst") as fp:
 
 setup(
     name="pyStrata",
-    version="0.5.0",
+    version="0.5.1",
     description="Site Response Analysis with Python",
     long_description=readme + "\n\n" + history,
     long_description_content_type="text/x-rst",
