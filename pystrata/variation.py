@@ -497,13 +497,20 @@ class ToroVelocityVariation(VelocityVariation):
         corr : :class:`numpy.array`
             Adjacent-layer correlations
         """
-        depth = profile.depth_mid[:-1]
+
+        # Toro defines the depth as the average midpoint depths of layers i and i-1.
+        depths_mid = np.array(profile.depth_mid)
+        depth = np.mean(np.c_[depths_mid[:-1], depths_mid[1:]], axis=1)
+
+        # t variable from Toro; defined as the difference of the midpoint depths
         thick = np.diff(depth)
-        depth = depth[1:]
+        # Remove the depth associated with the final layer. We will set that it is
+        # perfectly correlated later.
+        depth = depth[:-1]
 
         # Depth dependent correlation
         corr_depth = self.rho_200 * np.power(
-            (depth + self.rho_0) / (200 + self.rho_0), self.b
+            (depth + self.h_0) / (200 + self.h_0), self.b
         )
         corr_depth[depth > 200] = self.rho_200
 
