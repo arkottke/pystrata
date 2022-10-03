@@ -22,7 +22,10 @@
 from __future__ import annotations
 
 import collections
+import warnings
 from dataclasses import dataclass
+from pathlib import Path
+from typing import List
 from typing import Optional
 from typing import Tuple
 
@@ -30,6 +33,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import scipy.constants
+import toml
 from scipy.interpolate import interp1d
 
 from .motion import GRAVITY
@@ -38,6 +42,32 @@ from .motion import WaveField
 COMP_MODULUS_MODEL = "dormieux"
 
 KPA_TO_ATM = scipy.constants.kilo / scipy.constants.atm
+
+PUBLISHED_CURVES = None
+
+
+def _load_published_curves():
+    """Load published nonlinear curves."""
+    global PUBLISHED_CURVES
+
+    fpath = Path(__file__).parent / "data" / "published_curves.toml"
+    with fpath.open() as fp:
+        models = toml.load(fp)["models"]
+
+    # Count to make sure there aren't repeated names
+    counts = collections.Counter([m["name"] for m in models])
+    if max(counts.values()) > 1:
+        names = ", ".join([k for k, v in counts.items() if v > 1])
+        warnings.warn(f"Repeated names in {fpath}: " + names)
+
+    PUBLISHED_CURVES = {m["name"]: m for m in models}
+
+
+def known_published_curves() -> List[str]:
+    """List of published curves in the database."""
+    if not PUBLISHED_CURVES:
+        _load_published_curves()
+    return list(PUBLISHED_CURVES.keys())
 
 
 class NonlinearProperty(object):
@@ -75,6 +105,18 @@ class NonlinearProperty(object):
         self.param = param
 
         self._update()
+
+    @classmethod
+    def from_published(cls, name, param):
+        assert param in cls.PARAMS
+        if not PUBLISHED_CURVES:
+            _load_published_curves()
+
+        selected = PUBLISHED_CURVES[name][param]
+
+        return cls(
+            name, strains=selected["strains"], values=selected["values"], param=param
+        )
 
     def __call__(self, strains):
         """Return the nonlinear property at a specific strain.
@@ -191,6 +233,21 @@ class SoilType(object):
         self._unit_wt = unit_wt
         self.mod_reduc = mod_reduc
         self.damping = damping
+
+    @classmethod
+    def from_published(cls, name, unit_wt, *args):
+        if not PUBLISHED_CURVES:
+            _load_published_curves()
+
+        model_mr = args[0]
+        model_d = args[1] if len(args) > 1 else args[0]
+
+        return cls(
+            name,
+            unit_wt=unit_wt,
+            mod_reduc=NonlinearProperty.from_published(model_mr, "mod_reduc"),
+            damping=NonlinearProperty.from_published(model_d, "damping"),
+        )
 
     def copy(self):
         return SoilType(self.name, self.unit_wt, self.mod_reduc, self.damping)

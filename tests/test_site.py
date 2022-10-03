@@ -27,6 +27,26 @@ from . import FPATH_DATA
 from pystrata import site
 
 
+def test_published_nonlinear_property():
+    site.NonlinearProperty.from_published("Vucetic & Dobry (91), PI=0", "damping")
+
+
+def test_published_soiltype_same():
+    model = "Vucetic & Dobry (91), PI=0"
+
+    st = site.SoilType.from_published("test", 14, model)
+    assert st.mod_reduc.name == model
+
+
+def test_published_soiltype_same():
+    model_mr = "Vucetic & Dobry (91), PI=0"
+    model_d = "Vucetic & Dobry (91), PI=15"
+
+    st = site.SoilType.from_published("test", 14, model_mr, model_d)
+    assert st.mod_reduc.name == model_mr
+    assert st.damping.name == model_d
+
+
 @pytest.fixture
 def nlp():
     """Create an example NonlinearProperty."""
