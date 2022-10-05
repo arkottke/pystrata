@@ -63,7 +63,7 @@ def _load_published_curves():
     PUBLISHED_CURVES = {m["name"]: m for m in models}
 
 
-def known_published_curves() -> List[str]:
+def known_published_curves() -> List[dict]:
     """List of published curves in the database."""
     if not PUBLISHED_CURVES:
         _load_published_curves()
