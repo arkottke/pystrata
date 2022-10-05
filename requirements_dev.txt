@@ -6,14 +6,15 @@ cryptography
 flake8
 ipykernel
 jupyter_client
+nb_black
 nbconvert
 nbformat
 pandas
 pre-commit
 pydocstyle
+pytest>=3.5
 pytest-cov
 pytest-runner
-pytest>=3.5
 rstcheck
 watchdog
 wheel
