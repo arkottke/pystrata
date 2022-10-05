@@ -17,9 +17,20 @@ Strata_. These features include:
     - equivalent-linear with frequency dependent properties
     - quarter wavelength
 - Nonlinear curve models:
-    - Darendeli (2001)
-    - Menq (2004)
-    - Kishida (2012)
+    - Predictive models:
+        - Darendeli (2001)
+        - Menq (2004)
+        - Kishida (2012)
+    - Curves:
+        - Vucetic & Dobry (1991)
+        - EPRI (1993)
+        - GEI (1983)
+        - GeoMatrix (1990)
+        - Idriss (1990)
+        - Imperial Valley Soils
+        - Iwasaki
+        - Peninsular Range
+        - Seed & Idriss
 - Site and soil property uncertainty:
     - Toro (1994) Vs correlation model
     - G/Gmax and D uncertainty:
