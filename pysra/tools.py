@@ -26,7 +26,13 @@ import re
 
 import numpy as np
 
+<<<<<<< Updated upstream:pysra/tools.py
 from . import site
+=======
+from typing import List
+from typing import Optional
+
+>>>>>>> Stashed changes:pystrata/tools.py
 from . import motion
 from . import propagation
 
@@ -228,3 +234,157 @@ def load_shake_inp(fname):
         input[key] = parser(block, **input)
 
     return input
+<<<<<<< Updated upstream:pysra/tools.py
+=======
+
+
+def read_nrattle_ctl(fpath):
+    """Read an nrattle control file."""
+    lines = list(fpath.open())
+    lines = [line for line in lines if line[0] != "!"]
+
+    d = {k: lines.pop(0) for k in ["revision", "prefix"]}
+    d["freq_count"], d["freq_max"] = split_line(lines.pop(0), [int, float])
+    d["out_depth"] = split_line(
+        lines.pop(0),
+        [
+            float,
+        ],
+    )
+
+    profile = []
+    while line := lines.pop(0):
+        try:
+            profile.append(split_line(line, [int, float, float, float, float]))
+        except ValueError:
+            break
+
+    d["profile"] = np.rec.fromrecords(
+        profile, names="layer,thickness,vel_shear,density,inv_qual"
+    )
+    d["hs_vel_shear"], d["hs_density"] = split_line(line, [float, float])
+    d["hs_layer"], d["inci_angle"] = split_line(lines.pop(0), [int, float])
+
+    return d
+
+
+def profile_from_nrattle_ctl(ctl):
+    df = pd.DataFrame(ctl["profile"]).set_index("layer")
+    # Here the index is based on layer number which starts at 1 in Fortran
+    # convention.
+    df.loc[len(df) + 1] = [0, ctl["hs_vel_shear"], ctl["hs_density"], 0]
+
+    # Scale from km to m
+    df["vel_shear"] *= 1000
+    df["thickness"] *= 1000
+    # Convert Q to damping:
+    # damping (dec) = 0.5 * 1 / Q = 1 / (2 * Q)
+    df["damping"] = df["inv_qual"].apply(
+        lambda iq: 0 if np.isclose(iq, 0) else 0.5 * 1 / (iq if iq > 1 else 1 / iq)
+    )
+    df["unit_wt"] = C.g * df["density"]
+
+    return site.Profile.from_dataframe(df, 0)
+
+
+def calc_tf_site_atten(profile: site.Profile) -> float:
+    # Create a profile with fixed damping
+    p = site.Profile(
+        [
+            site.Layer(
+                site.SoilType(
+                    l.soil_type.name,
+                    l.soil_type.unit_wt,
+                    0,
+                    (0.01) if l.depth < 200 else (0.002),
+                ),
+                l.thickness,
+                l.shear_vel,
+            )
+            for l in profile
+        ]
+    )
+
+    site_atten_p = p.site_attenuation()
+
+    # Compute the slope of the transfer function
+    mot = motion.Motion(freqs=np.linspace(50, 200, num=256))
+    calc = propagation.LinearElasticCalculator()
+    calc(mot, p, p.location("outcrop", index=-1))
+
+    tf = calc.calc_accel_tf(
+        profile.location("outcrop", index=-1),
+        profile.location("outcrop", index=0),
+    )
+    fit = np.polyfit(mot.freqs, np.log(np.abs(tf)), 1)
+    site_atten_tf = -fit[0] / np.pi
+
+    # Scattering effect
+    site_atten_scatter = max(site_atten_tf - site_atten_p, 0)
+    return site_atten_scatter
+
+
+# FIXME: Move to Layer?
+def set_min_damping(layer: site.Layer, damping: float) -> None:
+    try:
+        # Limit the increased damping to 15%
+        shift = damping - layer.soil_type.damping.values[0]
+        layer.soil_type.damping.values = np.minimum(
+            layer.soil_type.damping.values + shift, 0.15
+        )
+        # Need to update the strain to relook up the damping values
+        layer.strain = 1e-6
+    except AttributeError:
+        layer.soil_type.damping = damping
+
+
+def adjust_damping_values(
+    profile: site.Profile,
+    target_site_atten: float,
+    excluded: Optional[List[str]] = None,
+):
+    profile = site.Profile.copy_of(profile)
+
+    # Site attenuation considering the site propagation and scattering
+    site_atten_scatter = calc_tf_site_atten(profile)
+
+    # Remove the soil layers from the subsequent calculation. The kappa estimates are
+    # based on profiles without soil. Therefore, any contribution of the soil is
+    # computed from the nonlinear curves.
+
+    # Exclude the half-space and the excluded soil types
+    layers = [l for l in profile[:-1]]
+    if excluded:
+        layers = [l for l in layers if not any(e in l.soil_type.name for e in excluded)]
+
+    # FIXME: Need more iterations?
+    for i in range(5):
+        # Site attenuation of the remains layers
+        site_atten = sum(l.incr_site_atten for l in layers)
+
+        # Adjust the target by the scattering and initial attenuation
+        remainder = target_site_atten - (site_atten + site_atten_scatter)
+        if remainder <= 0:
+            print(f"Reducing damping {i}...")
+            for l in profile:
+                if l.damping > 0:
+                    set_min_damping(l, l.damping / 2)
+            profile.reset_layers()
+        else:
+            break
+
+    # Collect the properties
+    vel_shear = np.array([l.initial_shear_vel for l in layers])
+    depth = np.array([l.depth for l in layers])
+    thick = np.r_[np.diff(depth), 0]
+
+    gamma = np.sum(thick / vel_shear**2) / remainder
+    damping = 1 / (2 * gamma * vel_shear)
+
+    # Copy over the damping values. Damping might not be the full length
+    # because of the crust truncation
+    for d, l in zip(damping, layers):
+        set_min_damping(l, d)
+
+    return profile, gamma, damping
+>>>>>>> Stashed changes:pystrata/tools.py
