@@ -20,5 +20,7 @@ The examples included here are used to demonstrate the capabilities of
 12. Show the impact of frequency dependent D_min on FDM methods.
 13. Show the impact of the strain limit on the EQL calculation.
 14. Example with multiple input motions and simulated soil profiles.
-15. Impact of peak factor on site reponse transfer function
-16. List of provided nonlinear curves.
+15. List of provided nonlinear curves.
+
+To be added:
+- Impact of peak factor on site reponse transfer function
