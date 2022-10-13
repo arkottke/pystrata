@@ -25,6 +25,8 @@ import os
 import re
 from typing import List
 from typing import Optional
+from typing import Tuple
+from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -364,11 +366,52 @@ def adjust_damping_values(
     profile: site.Profile,
     target_site_atten: float,
     excluded: Optional[List[str]] = None,
-):
+    include_scatter: bool = True,
+    ret_full: bool = False,
+) -> Union[site.Profile, Tuple[site.Profile, float, float]]:
+    """Return a copy of the profile with the damping values adjusted to achieve a target site attenuation.
+
+
+    Parameters
+    ----------
+    profile : site.Profile
+        Input site profile
+    target_site_atten: float
+        Target site attenuation parameter (κ₀) [sec]
+    excluded: optional, List[str]
+        Soiltype names of layers that should be excluded from the calculation. For
+        example, this could be used to remove soil layers from the calculation.
+    include_scatter: optional, default *True*
+        If scattering attenuation calculated by the transfer function should be included.
+    ret_full: optional, bool
+        If additional information should be returned
+
+    Returns
+    -------
+    if ret_full is *False*
+
+    profile: site.Profile
+        Adjusted site profile
+
+    if ret_full is *True*
+
+    profile: site.Profile
+        Adjusted site profile
+
+    gamma: float
+        Factor used to compute damping from velocity
+
+    site_atten_scatter: float
+        Attenuation contribution from scattering
+
+    """
     profile = site.Profile.copy_of(profile)
 
     # Site attenuation considering the site propagation and scattering
-    site_atten_scatter = calc_tf_site_atten(profile)
+    if include_scatter:
+        site_atten_scatter = calc_tf_site_atten(profile)
+    else:
+        site_atten_scatter = 0
 
     # Remove the soil layers from the subsequent calculation. The kappa estimates are
     # based on profiles without soil. Therefore, any contribution of the soil is
@@ -408,4 +451,7 @@ def adjust_damping_values(
     for d, l in zip(damping, layers):
         set_min_damping(l, d)
 
-    return profile, gamma, damping
+    if ret_full:
+        return profile, gamma, site_atten_scatter
+    else:
+        return profile
