@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # encoding: utf-8
-
 """Test site module."""
-
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 2 of the License, or
@@ -18,36 +16,57 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
 # Copyright (C) Albert Kottke, 2013-2015
-
 import json
 
+import numpy as np
 import pytest
 import scipy.constants
-import numpy as np
 from numpy.testing import assert_allclose
 
-from pysra import site
-
 from . import FPATH_DATA
+from pystrata import site
+
+
+def test_published_nonlinear_property():
+    site.NonlinearProperty.from_published("Vucetic & Dobry (91), PI=0", "damping")
+
+
+def test_published_soiltype_same():
+    model = "Vucetic & Dobry (91), PI=0"
+
+    st = site.SoilType.from_published("test", 14, model)
+    assert st.mod_reduc.name == model
+
+
+def test_published_soiltype_same():
+    model_mr = "Vucetic & Dobry (91), PI=0"
+    model_d = "Vucetic & Dobry (91), PI=15"
+
+    st = site.SoilType.from_published("test", 14, model_mr, model_d)
+    assert st.mod_reduc.name == model_mr
+    assert st.damping.name == model_d
 
 
 @pytest.fixture
 def nlp():
     """Create an example NonlinearProperty."""
-    return site.NonlinearProperty('', [0.01, 1], [0., 1.])
+    return site.NonlinearProperty("", [0.01, 1], [0.0, 1.0])
 
 
-@pytest.mark.parametrize('strain,expected', [
-    (0.001, 0.),
-    (2., 1.),
-    (0.1, 0.5),
-])
+@pytest.mark.parametrize(
+    "strain,expected",
+    [
+        (0.001, 0.0),
+        (2.0, 1.0),
+        (0.1, 0.5),
+    ],
+)
 def test_nlp(nlp, strain, expected):
     """Test NonlinearProperty interpolation."""
     assert_allclose(nlp(strain), expected)
 
 
-@pytest.mark.parametrize('strains', [0.1, [0.1, 10]])
+@pytest.mark.parametrize("strains", [0.1, [0.1, 10]])
 def test_nlp_update(nlp, strains):
     """Test if strains are saved."""
     nlp.strains = strains
@@ -64,13 +83,17 @@ def soil_type_darendeli():
         stress_mean=stress_mean,
         freq=1,
         num_cycles=10,
-        strains=[1E-7, 2.2E-5, 1E-2], )
+        strains=[1e-7, 2.2e-5, 1e-2],
+    )
 
 
-@pytest.mark.parametrize('attr,expected', [
-    ('mod_reduc', [1.0, 0.936, 0.050]),
-    ('damping', [0.01778, 0.02476, 0.21542]),
-])
+@pytest.mark.parametrize(
+    "attr,expected",
+    [
+        ("mod_reduc", [1.0, 0.936, 0.050]),
+        ("damping", [0.01778, 0.02476, 0.21542]),
+    ],
+)
 def test_darendeli(soil_type_darendeli, attr, expected):
     """Test calculated values of the DarendeliSoilType."""
     # Reference values taken from Tables 10.13 and 10.14 of the Darendeli
@@ -85,13 +108,13 @@ def test_iterative_value():
     value = 10
     iv.value = value
     assert_allclose(iv.value, value)
-    assert_allclose(iv.relative_error, 10.)
+    assert_allclose(iv.relative_error, 10.0)
 
 
 def test_soil_type_linear():
     """Test the soil type update process on a linear material."""
     damping = 1.0
-    layer = site.Layer(site.SoilType('', 18.0, None, damping), 2., 500.)
+    layer = site.Layer(site.SoilType("", 18.0, None, damping), 2.0, 500.0)
     layer.strain = 0.1
 
     assert_allclose(layer.shear_mod, layer.initial_shear_mod)
@@ -100,11 +123,11 @@ def test_soil_type_linear():
 
 def test_soil_type_iterative():
     """Test the soil type update process on a nonlinear property."""
-    mod_reduc = site.NonlinearProperty('', [0.0001, 0.01], [1, 0])
-    damping = site.NonlinearProperty('', [0.0001, 0.01], [0, 0.10])
+    mod_reduc = site.NonlinearProperty("", [0.0001, 0.01], [1, 0])
+    damping = site.NonlinearProperty("", [0.0001, 0.01], [0, 0.10])
 
-    st = site.SoilType('', 18.0, mod_reduc, damping)
-    layer = site.Layer(st, 2., 500.)
+    st = site.SoilType("", 18.0, mod_reduc, damping)
+    layer = site.Layer(st, 2.0, 500.0)
 
     strain = 0.001
     layer.strain = strain
@@ -114,13 +137,11 @@ def test_soil_type_iterative():
     assert_allclose(layer.damping, 0.05)
 
 
-with (FPATH_DATA / 'kishida_2009.json').open() as fp:
+with (FPATH_DATA / "kishida_2009.json").open() as fp:
     kishida_cases = json.load(fp)
     for i in range(len(kishida_cases)):
-        kishida_cases[i]["strains"] = \
-            np.array(kishida_cases[i]["strains"]) / 100
-        kishida_cases[i]["dampings"] = \
-            np.array(kishida_cases[i]["dampings"]) / 100
+        kishida_cases[i]["strains"] = np.array(kishida_cases[i]["strains"]) / 100
+        kishida_cases[i]["dampings"] = np.array(kishida_cases[i]["dampings"]) / 100
 
 
 def format_kishida_case_id(case):
@@ -129,66 +150,58 @@ def format_kishida_case_id(case):
     return fmt.format(**case)
 
 
-@pytest.mark.parametrize('case', kishida_cases, ids=format_kishida_case_id)
+@pytest.mark.parametrize("case", kishida_cases, ids=format_kishida_case_id)
 def test_kishida_unit_wt(case):
     """Test calculation of Unit Wt. by KishidaSoilType."""
     st = site.KishidaSoilType(
-        'test',
+        "test",
         unit_wt=None,
-        stress_vert=case['stress_vert'],
-        organic_content=case['organic_content'],
-        strains=case['strains'])
-    assert_allclose(
-        st.unit_wt, scipy.constants.g * case['density'], rtol=0.005)
+        stress_vert=case["stress_vert"],
+        organic_content=case["organic_content"],
+        strains=case["strains"],
+    )
+    assert_allclose(st.unit_wt, scipy.constants.g * case["density"], rtol=0.005)
 
 
-@pytest.mark.parametrize('case', kishida_cases, ids=format_kishida_case_id)
-@pytest.mark.parametrize('curve,attr,key', [
-    ('mod_reduc', 'strains', 'strains'),
-    ('mod_reduc', 'values', 'mod_reducs'),
-    ('damping', 'strains', 'strains'),
-    ('damping', 'values', 'dampings'),
-])
+@pytest.mark.parametrize("case", kishida_cases, ids=format_kishida_case_id)
+@pytest.mark.parametrize(
+    "curve,attr,key",
+    [
+        ("mod_reduc", "strains", "strains"),
+        ("mod_reduc", "values", "mod_reducs"),
+        ("damping", "strains", "strains"),
+        ("damping", "values", "dampings"),
+    ],
+)
 def test_kishida_nlc(case, curve, attr, key):
     """Test properties calculated by KishidaSoilType."""
     st = site.KishidaSoilType(
-        'test',
+        "test",
         unit_wt=None,
-        stress_vert=case['stress_vert'],
-        organic_content=case['organic_content'],
-        strains=case['strains'])
+        stress_vert=case["stress_vert"],
+        organic_content=case["organic_content"],
+        strains=case["strains"],
+    )
     # Decimal damping used inside PYSRA
-    scale = 100 if key == 'dampings' else 1
+    scale = 100 if key == "dampings" else 1
     scale = 1
     assert_allclose(
-        scale * getattr(getattr(st, curve), attr),
-        case[key],
-        rtol=0.005,
-        atol=0.0005
+        scale * getattr(getattr(st, curve), attr), case[key], rtol=0.005, atol=0.0005
     )
 
 
-@pytest.mark.parametrize(
-    'depth,expected',
-    [
-        (10, 300),
-        (20, 400),
-        (30, 490.909)
-    ]
-)
+@pytest.mark.parametrize("depth,expected", [(10, 300), (20, 400), (30, 490.909)])
 def test_time_average_vel(depth, expected):
     """Test time averaged shear-wave velocity."""
     st = site.SoilType(unit_wt=17)
-    p = site.Profile([
-        site.Layer(st, 10, 300),
-        site.Layer(st, 10, 600),
-        site.Layer(st, None, 900),
-    ])
-    assert_allclose(
-        p.time_average_vel(depth),
-        expected,
-        atol=0.001
+    p = site.Profile(
+        [
+            site.Layer(st, 10, 300),
+            site.Layer(st, 10, 600),
+            site.Layer(st, 0, 900),
+        ]
     )
+    assert_allclose(p.time_average_vel(depth), expected, atol=0.001)
 
 
 def test_simplified_rayleigh_vel():
@@ -208,8 +221,12 @@ def test_simplified_rayleigh_vel():
         (21, 1223, 138),
         (25, 2777, 140),
     ]
-    p = site.Profile([site.Layer(site.SoilType(unit_wt=unit_wt), thick, vs)
-                      for thick, vs, unit_wt in layers])
+    p = site.Profile(
+        [
+            site.Layer(site.SoilType(unit_wt=unit_wt), thick, vs)
+            for thick, vs, unit_wt in layers
+        ]
+    )
 
     assert_allclose(
         p.simplified_rayliegh_vel(),

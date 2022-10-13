@@ -16,7 +16,6 @@ help:
 	@echo "clean-build - remove build artifacts"
 	@echo "clean-pyc - remove Python file artifacts"
 	@echo "clean-test - remove test and coverage artifacts"
-	@echo "lint - check style with flake8"
 	@echo "test - run tests quickly with the default Python"
 	@echo "examples - run all examples"
 	@echo "coverage - check code coverage quickly with the default Python"
@@ -46,12 +45,9 @@ clean-test:
 	rm -fr .pytest_cache
 	rm -fr .cache
 
-lint:
-	flake8 pysra tests examples
-
 test:
-	rstcheck --report warning *.rst
-	pytest --flake8 --cov-report html --cov=pysra tests/
+	rstcheck *.rst
+	pytest --cov-report html --cov=pystrata tests/
 
 examples:
 	find examples -name 'example*.py' -exec python {} \;
@@ -62,9 +58,8 @@ coverage: test
 	$(BROWSER) htmlcov/index.html
 
 docs:
-	rm -f docs/pysra.rst
+	rm -f docs/pystrata.rst
 	rm -f docs/modules.rst
-	sphinx-apidoc -o docs/ pysra
 	$(MAKE) -C docs clean
 	$(MAKE) -C docs html
 	$(BROWSER) docs/_build/html/index.html
@@ -72,14 +67,14 @@ docs:
 servedocs: docs
 	watchmedo shell-command -p '*.rst' -c '$(MAKE) -C docs html' -R -D .
 
-release: clean
-	python setup.py sdist upload
-	python setup.py bdist_wheel upload
+test-release: clean
+	python -m build
+	python -m twine check dist/*
+	python -m twine upload --repository testpypi dist/*
 
-dist: clean
-	python setup.py sdist
-	python setup.py bdist_wheel
-	ls -l dist
+release: clean
+	python -m build
+	python -m twine upload dist/*
 
 install: clean
 	python setup.py install

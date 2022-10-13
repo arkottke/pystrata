@@ -3,7 +3,7 @@
 Installation
 ============
 
-Prior to using pysra, Python and a number of packages need to be installed. In
+Prior to using pystrata, Python and a number of packages need to be installed. In
 addition to Python, the following packages need to be installed:
 
 *Required:*
@@ -30,7 +30,7 @@ While pyRVT has support Python27, Python3 is preferred.
 After the installer is finished, install the required dependencies by opening a
 terminal. On Windows, this is best accomplished with ``Windows Key + r``, enter
 ``cmd``. Next enter the following command::
- 
+
   conda install --yes setuptools numpy scipy matplotlib nose
 
 On Windows, the text can copied and pasted if "Quick Edit" mode is enabled. To
@@ -40,10 +40,9 @@ within the "Edit Options" group. Copy the text, and then paste it by click the
 right mouse button.
 
 Now that the dependencies have been installed, install or upgrade pyRVT and
-pysra using pip::
+pystrata using pip::
 
-  pip install --upgrade pyrvt pysra
+  pip install --upgrade pyrvt pystrata
 
-You should now have pysra completely installed. Next, read about
-:ref:`using <usage>` pysra.
-
+You should now have pystrata completely installed. Next, read about
+:ref:`using <usage>` pystrata.

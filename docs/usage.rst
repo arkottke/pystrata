@@ -1,4 +1,4 @@
 .. _usage:
 
-Using pysra
------------
+Using pystrata
+--------------

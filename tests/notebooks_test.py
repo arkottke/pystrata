@@ -13,17 +13,16 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
 # Copyright (C) Albert Kottke, 2013-2019
-
 import pathlib
 
 import nbformat
 import pytest
+from nbconvert.preprocessors import CellExecutionError
+from nbconvert.preprocessors import ExecutePreprocessor
 
-from nbconvert.preprocessors import ExecutePreprocessor, CellExecutionError
 
-
-root = pathlib.Path(__file__).parent / '../examples'
-fpaths = sorted(root.glob('*.ipynb'))
+root = pathlib.Path(__file__).parent / "../examples"
+fpaths = sorted(root.glob("*.ipynb"))
 
 
 def idfn(val):
@@ -31,24 +30,23 @@ def idfn(val):
         return val.name
 
 
-@pytest.mark.parametrize('fpath', fpaths, ids=idfn)
+@pytest.mark.parametrize("fpath", fpaths, ids=idfn)
 def test_notebook(fpath):
     """Execute each notebook."""
-
     # Information on running notebooks is found here
     # https://nbconvert.readthedocs.io/en/latest/execute_api.html
     with fpath.open() as fp:
         nb = nbformat.read(fp, as_version=4)
 
-    ep = ExecutePreprocessor(timeout=600)
+    ep = ExecutePreprocessor(timeout=600, kernel_name="python3")
 
     try:
-        ep.preprocess(nb, {'metadata': {'path': fpath.parent}})
+        ep.preprocess(nb, {"metadata": {"path": fpath.parent}})
     except CellExecutionError:
         msg = 'Error executing the notebook "%s".\n\n' % fpath
         msg += 'See notebook "%s" for the traceback.' % fpath
         print(msg)
         raise
     finally:
-        with fpath.open(mode='w', encoding='utf-8') as fp:
+        with fpath.open(mode="w", encoding="utf-8") as fp:
             nbformat.write(nb, fp)

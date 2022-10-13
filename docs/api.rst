@@ -7,21 +7,40 @@ API reference
 
 .. _site_api:
 
+
 Site
 ----
 
-.. currentmodule:: pysra.site
+.. automodule:: pystrata.site
+   :members:
 
-.. autosummary::
-    :toctree: generated/
+Variation
+---------
 
-    Profile
-    Layer
-    SoilType
-    NonlinearProperty
-    DarendeliNonlinearProperty
-    Location
-    IterativeValue
+.. automodule:: pystrata.variation
+   :members:
+
+Motion
+------
+
+.. automodule:: pystrata.motion
+   :members:
+
+Propagation
+-----------
+
+.. automodule:: pystrata.propagation
+   :members:
+
+Output
+-----------
+
+.. automodule:: pystrata.output
+   :members:
 
 
-    
+Tools
+---------
+
+.. automodule:: pystrata.tools
+   :members:

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # The MIT License (MIT)
 #
 # Copyright (c) 2016-2018 Albert Kottke
@@ -19,22 +20,19 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
 import collections
 import os
 import re
-
-import numpy as np
-
-<<<<<<< Updated upstream:pysra/tools.py
-from . import site
-=======
 from typing import List
 from typing import Optional
 
->>>>>>> Stashed changes:pystrata/tools.py
+import numpy as np
+import pandas as pd
+import scipy.constants as C
+
 from . import motion
 from . import propagation
+from . import site
 
 
 def to_str(s):
@@ -56,12 +54,19 @@ def parse_fixed_width(types, lines):
     line = []
     for width, parser in types:
         if not line:
-            line = lines.pop(0).replace('\n', '')
+            line = lines.pop(0).replace("\n", "")
 
         values.append(parser(line[:width]))
         line = line[width:]
 
     return values
+
+
+def split_line(line, parsers, sep=" "):
+    """Split a line into pieces and parse the strings."""
+    parts = [part for part in line.split(sep) if part]
+    values = [parser(part) for parser, part in zip(parsers, parts)]
+    return values if len(values) > 1 else values[0]
 
 
 def _parse_curves(block, **kwargs):
@@ -70,13 +75,16 @@ def _parse_curves(block, **kwargs):
 
     curves = []
     for i in range(count):
-        for param in ['mod_reduc', 'damping']:
+        for param in ["mod_reduc", "damping"]:
             length, name = parse_fixed_width([(5, int), (65, to_str)], block)
             curves.append(
                 site.NonlinearProperty(
                     name,
                     parse_fixed_width(length * [(10, float)], block),
-                    parse_fixed_width(length * [(10, float)], block), param))
+                    parse_fixed_width(length * [(10, float)], block),
+                    param,
+                )
+            )
 
     length = int(block[0][:5])
     soil_types = parse_fixed_width((length + 1) * [(5, int)], block)[1:]
@@ -88,22 +96,30 @@ def _parse_curves(block, **kwargs):
 def _parse_soil_profile(block, units, curves, **kwargs):
     """Parse soil profile block."""
     wt_layer, length, _, name = parse_fixed_width(
-        3 * [(5, int)] + [(55, to_str)], block)
+        3 * [(5, int)] + [(55, to_str)], block
+    )
 
     layers = []
     soil_types = []
     for i in range(length):
-        index, soil_idx, thickness, shear_mod, damping, unit_wt, shear_vel = \
-            parse_fixed_width(
-                [(5, int), (5, int), (15, to_float)] + 4 * [(10, to_float)],
-                block
-            )
+        (
+            index,
+            soil_idx,
+            thickness,
+            shear_mod,
+            damping,
+            unit_wt,
+            shear_vel,
+        ) = parse_fixed_width(
+            [(5, int), (5, int), (15, to_float)] + 4 * [(10, to_float)], block
+        )
 
         st = site.SoilType(
             soil_idx,
             unit_wt,
-            curves[(soil_idx, 'mod_reduc')],
-            curves[(soil_idx, 'damping')], )
+            curves[(soil_idx, "mod_reduc")],
+            curves[(soil_idx, "damping")],
+        )
         try:
             # Try to find previously added soil type
             st = soil_types[soil_types.index(st)]
@@ -112,7 +128,7 @@ def _parse_soil_profile(block, units, curves, **kwargs):
 
         layers.append(site.Layer(st, thickness, shear_vel))
 
-    if units == 'english':
+    if units == "english":
         # Convert from English to metric
         for st in soil_types:
             st.unit_wt *= 0.00015708746
@@ -131,30 +147,33 @@ def _parse_soil_profile(block, units, curves, **kwargs):
 def _parse_motion(block, **kwargs):
     """Parse motin specification block."""
     _, fa_length, time_step, name, fmt = parse_fixed_width(
-        [(5, int), (5, int), (10, float), (30, to_str), (30, to_str)], block)
+        [(5, int), (5, int), (10, float), (30, to_str), (30, to_str)], block
+    )
 
     scale, pga, _, header_lines, _ = parse_fixed_width(
-        3 * [(10, to_float)] + 2 * [(5, int)], block)
+        3 * [(10, to_float)] + 2 * [(5, int)], block
+    )
 
-    m = re.search(r'(\d+)\w(\d+)\.\d+', fmt)
+    m = re.search(r"(\d+)\w(\d+)\.\d+", fmt)
     count_per_line = int(m.group(1))
     width = int(m.group(2))
 
-    fname = os.path.join(os.path.dirname(kwargs['fname']), name)
+    fname = os.path.join(os.path.dirname(kwargs["fname"]), name)
     accels = np.genfromtxt(
         fname,
         delimiter=(count_per_line * [width]),
-        skip_header=header_lines, )
+        skip_header=header_lines,
+    )
 
     if np.isfinite(scale):
         pass
     elif np.isfinite(pga):
         scale = pga / np.abs(accels).max()
     else:
-        scale = 1.
+        scale = 1.0
 
     accels *= scale
-    m = motion.TimeSeriesMotion(fname, '', time_step, accels, fa_length)
+    m = motion.TimeSeriesMotion(fname, "", time_step, accels, fa_length)
 
     return m
 
@@ -165,16 +184,19 @@ def _parse_input_loc(block, profile, **kwargs):
 
     return profile.location(
         motion.WaveField[wave_field],
-        index=(layer - 1), )
+        index=(layer - 1),
+    )
 
 
 def _parse_run_control(block):
     """Parse run control block."""
     _, max_iterations, strain_ratio, _, _ = parse_fixed_width(
-        2 * [(5, int)] + [(10, float)] + 2 * [(5, int)], block)
+        2 * [(5, int)] + [(10, float)] + 2 * [(5, int)], block
+    )
 
     return propagation.EquivalentLinearCalculation(
-        strain_ratio, max_iterations, tolerance=10.)
+        strain_ratio, max_iterations, tolerance=10.0
+    )
 
 
 def _parse_output_accel(block):
@@ -200,7 +222,7 @@ def load_shake_inp(fname):
     option, block = None, []
     options = []
     for l in lines:
-        m = re.match(r'^\s+(\d+)$', l)
+        m = re.match(r"^\s+(\d+)$", l)
 
         if m:
             if option and not block:
@@ -215,27 +237,27 @@ def load_shake_inp(fname):
             block.append(l)
 
     parsers = {
-        1: ('curves', _parse_curves),
-        2: ('profile', _parse_soil_profile),
-        3: ('motion', _parse_motion),
-        4: ('input_loc', _parse_input_loc),
-        5: ('run_control', _parse_run_control),
-        6: ('output', _parse_output_accel),
-        7: ('output', _parse_output_stress),
-        9: ('output', _parse_output_spectra),
+        1: ("curves", _parse_curves),
+        2: ("profile", _parse_soil_profile),
+        3: ("motion", _parse_motion),
+        4: ("input_loc", _parse_input_loc),
+        5: ("run_control", _parse_run_control),
+        6: ("output", _parse_output_accel),
+        7: ("output", _parse_output_stress),
+        9: ("output", _parse_output_spectra),
     }
 
-    input = collections.OrderedDict({
-        'fname': fname,
-        'units': units,
-    })
+    input = collections.OrderedDict(
+        {
+            "fname": fname,
+            "units": units,
+        }
+    )
     for option, block in options:
         key, parser = parsers[option]
         input[key] = parser(block, **input)
 
     return input
-<<<<<<< Updated upstream:pysra/tools.py
-=======
 
 
 def read_nrattle_ctl(fpath):
@@ -387,4 +409,3 @@ def adjust_damping_values(
         set_min_damping(l, d)
 
     return profile, gamma, damping
->>>>>>> Stashed changes:pystrata/tools.py

@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # encoding: utf-8
-
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 2 of the License, or
@@ -16,17 +15,15 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
 # Copyright (C) Albert Kottke, 2013-2016
-
 import numpy as np
 import pytest
-
 from numpy.testing import assert_allclose
 
-import pysra
+import pystrata
 
 
 def test_add_refs():
-    output = pysra.output.Output()
+    output = pystrata.output.Output()
     refs = [1.1, 2, 3]
     output._add_refs(refs)
     assert_allclose(refs, output.refs)
@@ -35,7 +32,7 @@ def test_add_refs():
 # FIXME: Is this important?
 @pytest.mark.xfail
 def test_add_refs_same():
-    output = pysra.output.Output()
+    output = pystrata.output.Output()
     # Force float arrays
     a = [1.1, 2, 3]
     b = [1.1, 2, 3]
@@ -48,7 +45,7 @@ def test_add_refs_same():
 
 
 def test_add_refs_diff():
-    output = pysra.output.Output()
+    output = pystrata.output.Output()
     # Force float arrays
     a = [1.1, 2, 3]
     b = [1.1, 2, 3, 4, 5]

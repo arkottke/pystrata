@@ -13,7 +13,6 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
 # Copyright (C) Albert Kottke, 2013-2019
-
 import pathlib
 
-FPATH_DATA = pathlib.Path(__file__).parent / 'data'
+FPATH_DATA = pathlib.Path(__file__).parent / "data"

@@ -1,6 +1,6 @@
 # The MIT License (MIT)
 #
-# Copyright (c) 2016-2018 Albert Kottke
+# Copyright (c) 2016-2022 Albert Kottke
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -19,19 +19,19 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
 from pkg_resources import get_distribution
 
 from . import motion
-from . import propagation
 from . import output
+from . import propagation
 from . import site
+from . import tools
 from . import variation
 
-__all__ = ['motion', 'propagation', 'output', 'site', 'variation']
+__all__ = ["motion", "propagation", "output", "site", "tools", "variation"]
 
-__author__ = 'Albert Kottke'
-__copyright__ = 'Copyright 2016 Albert Kottke'
-__license__ = 'MIT'
-__title__ = 'pySRA'
-__version__ = get_distribution('pySRA').version
+__author__ = "Albert Kottke"
+__copyright__ = "Copyright 2016-2022 Albert Kottke"
+__license__ = "MIT"
+__title__ = "pyStrata"
+__version__ = get_distribution("pyStrata").version
