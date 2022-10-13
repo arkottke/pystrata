@@ -14,11 +14,11 @@ repos:
       - id: requirements-txt-fixer
       - id: trailing-whitespace
   - repo: https://github.com/asottile/reorder_python_imports
-    rev: v3.8.3
+    rev: v3.8.4
     hooks:
       - id: reorder-python-imports
   - repo: https://github.com/psf/black
-    rev: 22.8.0 # Replace by any tag/version: https://github.com/psf/black/tags
+    rev: 22.10.0 # Replace by any tag/version: https://github.com/psf/black/tags
     hooks:
       - id: black
         language_version: python3 # Should be a command that runs python3.6+
@@ -28,3 +28,7 @@ repos:
 #     rev: 6.1.1  # pick a git hash / tag to point to
 #     hooks:
 #       - id: pydocstyle
+  - repo: https://github.com/datarootsio/databooks
+    rev: 1.1.1
+    hooks:
+      - id: databooks-meta
