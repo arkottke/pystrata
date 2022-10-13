@@ -75,10 +75,10 @@ directory`_. An interactive Jupyter interface of these examples is available on
    :target: https://github.com/arkottke/pystrata/actions/workflows/python-app.yml
 .. |Documentation Status| image:: https://readthedocs.org/projects/pystrata/badge/?version=latest&style=flat
    :target: https://pystrata.readthedocs.org
-.. |Code Quality| image:: https://api.codacy.com/project/badge/Grade/6dbbb3a4279744d697b9bfe08af19ded
-   :target: https://www.codacy.com/app/arkottke/pystrata
-.. |Test Coverage| image:: https://api.codacy.com/project/badge/Coverage/6dbbb3a4279744d697b9bfe08af19ded
-   :target: https://www.codacy.com/app/arkottke/pystrata
+.. |Code Quality| image:: https://app.codacy.com/project/badge/Grade/6dbbb3a4279744d697b9bfe08af19ded
+   :target: https://www.codacy.com/gh/arkottke/pystrata/dashboard
+.. |Test Coverage| image:: https://app.codacy.com/project/badge/Coverage/6dbbb3a4279744d697b9bfe08af19ded
+   :target: https://www.codacy.com/gh/arkottke/pystrata/dashboard
 .. |License| image:: https://img.shields.io/badge/license-MIT-blue.svg
 .. |Zenodo| image:: https://zenodo.org/badge/8959678.svg
    :target: https://zenodo.org/badge/latestdoi/8959678
