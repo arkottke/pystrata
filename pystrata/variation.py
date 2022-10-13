@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # The MIT License (MIT)
 #
 # Copyright (c) 2016-2018 Albert Kottke
@@ -416,6 +417,8 @@ class ToroVelocityVariation(VelocityVariation):
         :math:`h_0` model parameter.
     b: float, optional
         :math:`b` model parameter.
+    vary_bedrock: bool, optional
+        If the velocity of the bedrock (half-space) should be varied.
     """
 
     PARAMS = {
@@ -642,6 +645,8 @@ class DepthDependToroVelVariation(ToroVelocityVariation):
         :math:`h_0` model parameter.
     b: float, optional
         :math:`b` model parameter.
+    vary_bedrock: bool, optional
+        If the velocity of the bedrock (half-space) should be varied.
     ln_std_map: dict[str, float], optional
         Mapping between the soil_type and the defined ln_std. Default is *None*.
     """
@@ -655,8 +660,8 @@ class DepthDependToroVelVariation(ToroVelocityVariation):
         rho_200: float,
         h_0: float,
         b: float,
-        ln_std_map=Optional[Dict[str, float]],
-        vary_bedrock=False,
+        vary_bedrock: bool = False,
+        ln_std_map: Optional[Dict[str, float]] = None,
     ):
         """Initialize the model."""
         super().__init__(
