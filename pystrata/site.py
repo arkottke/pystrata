@@ -521,7 +521,7 @@ class DarendeliSoilType(ModifiedHyperbolicSoilType):
         return fmt.format(self._plas_index, self._ocr, self._stress_mean)
 
 
-class MenqSoilType(DarendeliSoilType):
+class MenqSoilType(ModifiedHyperbolicSoilType):
     """
     Menq SoilType for gravelly soils.
 
@@ -572,6 +572,11 @@ class MenqSoilType(DarendeliSoilType):
             * (self._stress_mean * KPA_TO_ATM) ** -0.08
         ) / 100
 
+    @property
+    def masing_scaling(self):
+        # Masing correction factor
+        return 0.6329 - 0.00566 * np.log(self._num_cycles)
+    
     @property
     def strain_ref(self):
         return (
