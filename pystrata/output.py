@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # The MIT License (MIT)
 #
 # Copyright (c) 2016-2021 Albert Kottke
@@ -487,14 +488,14 @@ class FourierAmplitudeSpectrumOutput(LocationBasedOutput):
         tf = calc.calc_accel_tf(calc.loc_input, loc)
 
         if self.ko_bandwidth:
-            smoothed = pykooh.smooth(
+            tf = pykooh.smooth(
                 self.freqs,
                 calc.motion.freqs,
                 np.abs(tf * calc.motion.fourier_amps),
                 self.ko_bandwidth,
             )
 
-        self._add_values(smoothed)
+        self._add_values(tf)
 
 
 class ResponseSpectrumOutput(LocationBasedOutput):
