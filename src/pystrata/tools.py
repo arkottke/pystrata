@@ -415,6 +415,7 @@ def adjust_damping_values(
         layers = [l for l in layers if not any(e in l.soil_type.name for e in excluded)]
 
     # FIXME: Need more iterations?
+    # Revisit the purpose of this part
     for i in range(5):
         # Site attenuation of the remains layers
         site_atten = sum(l.incr_site_atten for l in layers)
