@@ -53,7 +53,7 @@ def _load_published_curves():
 
     fpath = Path(__file__).parent / "data" / "published_curves.toml"
     with fpath.open() as fp:
-        models = toml.load(fp)["models"]
+        models = tomli.load(fp)["models"]
 
     # Count to make sure there aren't repeated names
     counts = collections.Counter([m["name"] for m in models])
