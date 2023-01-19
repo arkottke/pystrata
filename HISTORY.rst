@@ -1,6 +1,10 @@
 History
 =======
 
+v0.5.2 (2023-01-18)
+-------------------
+- Fixed: Providing unsmoothed transfer function output
+
 v0.5.1 (2022-09-22)
 -------------------
 - Fixed: Correlation model from Toro. Previously used rho_0 instead of d_0, and the
