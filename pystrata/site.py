@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # The MIT License (MIT)
 #
 # Copyright (c) 2016-2018 Albert Kottke
@@ -576,7 +577,7 @@ class MenqSoilType(ModifiedHyperbolicSoilType):
     def masing_scaling(self):
         # Masing correction factor
         return 0.6329 - 0.00566 * np.log(self._num_cycles)
-    
+
     @property
     def strain_ref(self):
         return (
