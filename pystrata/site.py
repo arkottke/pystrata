@@ -34,7 +34,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import scipy.constants
-import toml
+import tomli
 from scipy.interpolate import interp1d
 
 from .motion import GRAVITY
