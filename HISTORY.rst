@@ -4,6 +4,7 @@ History
 v0.5.2 (2023-01-18)
 -------------------
 - Fixed: Providing unsmoothed transfer function output
+- Fixed: MenqSoilType
 
 v0.5.1 (2022-09-22)
 -------------------
