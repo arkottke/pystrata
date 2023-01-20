@@ -1,14 +1,11 @@
 # pyStrata
 
-[![PyPi Cheese
-Shop](https://img.shields.io/pypi/v/pystrata.svg)](https://pypi.python.org/pypi/pystrata)
-[![Build Status](https://github.com/arkottke/pystrata/actions/workflows/python-app.yml/badge.svg)](https://github.com/arkottke/pystrata/actions/workflows/python-app.yml)
-[![Documentation
-Status](https://readthedocs.org/projects/pystrata/badge/?version=latest&style=flat)](https://pystrata.readthedocs.org)
-[![Code
-Quality](https://app.codacy.com/project/badge/Grade/6dbbb3a4279744d697b9bfe08af19ded)](https://www.codacy.com/gh/arkottke/pystrata/dashboard)
-[![Test
-Coverage](https://app.codacy.com/project/badge/Coverage/6dbbb3a4279744d697b9bfe08af19ded)](https://www.codacy.com/gh/arkottke/pystrata/dashboard)
+Python library for site response analysis.
+
+![PyPI](https://img.shields.io/pypi/v/pystrata)
+![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/arkottke/pystrata/python-app.yml)
+![Read the Docs](https://img.shields.io/readthedocs/pystrata)
+![Codacy coverage](https://img.shields.io/codacy/coverage/6dbbb3a4279744d697b9bfe08af19ded)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 [![Zenodo](https://zenodo.org/badge/8959678.svg)](https://zenodo.org/badge/latestdoi/8959678)
 [![MyBinder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/arkottke/pystrata/main?filepath=examples)
@@ -67,7 +64,23 @@ so that the environment is discoverable by `Jupyter` with:
 ## Citation
 
 Please cite this software using the following
-[DOI](https://zenodo.org/badge/latestdoi/8959678).
+[DOI](https://zenodo.org/badge/latestdoi/8959678):
+
+    Albert Kottke & Maxim Millen. (2023). arkottke/pystrata: v0.5.2 (v0.5.2). Zenodo. https://doi.org/10.5281/zenodo.7551992
+
+or with BibTeX:
+
+    @software{albert_kottke_2023_7551992,
+      author       = {Albert Kottke and
+                      Maxim Millen},
+      title        = {arkottke/pystrata: v0.5.2},
+      month        = jan,
+      year         = 2023,
+      publisher    = {Zenodo},
+      version      = {v0.5.2},
+      doi          = {10.5281/zenodo.7551992},
+      url          = {https://doi.org/10.5281/zenodo.7551992}
+    }
 
 ## Examples
 
