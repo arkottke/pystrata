@@ -15,7 +15,6 @@ pydocstyle
 pytest>=3.5
 pytest-cov
 pytest-runner
-rstcheck
 watchdog
 wheel
 yapf

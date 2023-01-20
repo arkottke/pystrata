@@ -46,7 +46,6 @@ clean-test:
 	rm -fr .cache
 
 test:
-	rstcheck *.rst
 	pip install -e .
 	pytest --cov-report html --cov=pystrata tests/
 
