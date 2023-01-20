@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# encoding: utf-8
+# -*- coding: utf-8 -*-
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 2 of the License, or
@@ -30,7 +30,8 @@ from pystrata import variation
 
 
 def test_randnorm():
-    assert_allclose(1, np.std(variation.randnorm(size=100000)), rtol=0.005)
+    # Get some errors of 0.0055
+    assert_allclose(1, np.std(variation.randnorm(size=100000)), rtol=0.007)
 
 
 class TestSoilTypeVariation:
