@@ -1,13 +1,13 @@
 -r ./requirements.txt
 
+insipid-sphinx-theme
 jinja2
-sphinx
-sphinx_rtd_theme
-sphinxcontrib-bibtex
-
-# Required for pyrvt on RTFD
+nbsphinx
+nbsphinx_link
 pyexcel
 pyexcel-io
 pyexcel-ods
 pyexcel-xls
 pyexcel-xlsx
+sphinx
+sphinxcontrib-bibtex
