@@ -478,7 +478,6 @@ class DarendeliSoilType(ModifiedHyperbolicSoilType):
         damping_min=None,
         strains=None,
     ):
-
         self._plas_index = plas_index
         self._ocr = ocr
         self._stress_mean = stress_mean
@@ -552,7 +551,6 @@ class MenqSoilType(ModifiedHyperbolicSoilType):
         damping_min=None,
         strains=None,
     ):
-
         self._uniformity_coeff = uniformity_coeff
         self._diam_mean = diam_mean
         self._stress_mean = stress_mean

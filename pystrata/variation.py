@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # The MIT License (MIT)
 #
 # Copyright (c) 2016-2018 Albert Kottke
@@ -225,7 +226,7 @@ class ToroThicknessVariation(object):
 
         """
         layers = []
-        for (thick, depth_mid) in self.iter_thickness(profile[-2].depth_base):
+        for thick, depth_mid in self.iter_thickness(profile[-2].depth_base):
             # Locate the proper layer and add it to the model
             for l in profile:
                 if l.depth < depth_mid <= l.depth_base:
@@ -291,7 +292,6 @@ class LayerThicknessVariation(object):
         models: Union[List[stats.rv_continuous], Dict[int, stats.rv_continuous]],
         discretize_kwds: Optional[Dict[str, float]] = None,
     ) -> None:
-
         self._models = models
         self._discretize_kwds = discretize_kwds
 
