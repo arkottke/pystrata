@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # The MIT License (MIT)
 #
 # Copyright (c) 2016-2018 Albert Kottke
@@ -74,7 +75,28 @@ class Motion(object):
 
 
 class TimeSeriesMotion(Motion):
-    def __init__(self, filename, description, time_step, accels, fa_length=None):
+    """Time-series motion for time series based site response analysis."""
+
+    def __init__(
+        self, filename: str, description: str, time_step: float, accels, fa_length=None
+    ):
+        """Initialize the class from specified acceleration values.
+
+        The *filename* and *description* parameters are only used to help track the motion.
+
+        Parameters
+        ----------
+        filename: str
+            Source of data
+        description: str
+            Description to store helpful information
+        time_step: float
+            Time step of the accleration values
+        accels: array_like
+            Accelerations in units of *g*
+        fa_length: optional int
+            Length to use for the Fourier amplitude spectrum. If not provided, will be automatically computed to the next power of 2.
+        """
         Motion.__init__(self)
 
         self._filename = filename
@@ -288,6 +310,8 @@ class TimeSeriesMotion(Motion):
 
 
 class RvtMotion(pyrvt.motions.RvtMotion, Motion):
+    """RVT motion based on user specified Fourier amplitude spectrum and duration."""
+
     def __init__(
         self, freqs, fourier_amps, duration=None, peak_calculator=None, calc_kwds=None
     ):
@@ -303,6 +327,8 @@ class RvtMotion(pyrvt.motions.RvtMotion, Motion):
 
 
 class CompatibleRvtMotion(pyrvt.motions.CompatibleRvtMotion, Motion):
+    """RVT motion based on user specified acceleration response spectrum and duration."""
+
     def __init__(
         self,
         osc_freqs,
@@ -329,6 +355,8 @@ class CompatibleRvtMotion(pyrvt.motions.CompatibleRvtMotion, Motion):
 
 
 class SourceTheoryRvtMotion(pyrvt.motions.SourceTheoryMotion, Motion):
+    """RVT motion based on seismological point source model and earthquake scenario parameters."""
+
     def __init__(
         self,
         magnitude,

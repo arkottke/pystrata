@@ -2,10 +2,11 @@
 
 Python library for site response analysis.
 
-![PyPI](https://img.shields.io/pypi/v/pystrata)
-![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/arkottke/pystrata/python-app.yml)
-![Read the Docs](https://img.shields.io/readthedocs/pystrata)
-![Codacy coverage](https://img.shields.io/codacy/coverage/6dbbb3a4279744d697b9bfe08af19ded)
+[![PyPI](https://img.shields.io/pypi/v/pystrata)](https://pypi.org/project/pystrata/)
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/arkottke/pystrata/python-app.yml)](https://github.com/arkottke/pystrata/actions/workflows/python-app.yml)
+[![Read the
+Docs](https://img.shields.io/readthedocs/pystrata)](https://pystrata.readthedocs.io/en/latest/)
+[![Codacy coverage](https://img.shields.io/codacy/coverage/6dbbb3a4279744d697b9bfe08af19ded)](https://app.codacy.com/gh/arkottke/pystrata/dashboard)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 [![Zenodo](https://zenodo.org/badge/8959678.svg)](https://zenodo.org/badge/latestdoi/8959678)
 [![MyBinder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/arkottke/pystrata/main?filepath=examples)
