@@ -871,11 +871,11 @@ class SpidVariation(SoilTypeVariation):
 
     def _get_varied(self, randvar, mod_reduc, damping):
         # Vary the G/Gmax in transformed space.
-        
+
         # PNNL (2014) Hanford Site Wide Hazard Study is available here:
         # https://www.hanford.gov/files.cfm/00_Front_Matter.pdf
         # https://www.hanford.gov/files.cfm/9.0_Ground_Motion_Characterization.pdf
-        
+
         # Equation 9.43 of PNNL (2014)
         # Here epsilon is added so that the denomiator doesn't go to zero.
         f_mean = mod_reduc / (1 - mod_reduc + np.finfo(float).eps)
