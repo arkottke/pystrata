@@ -6,7 +6,8 @@ cryptography
 flake8
 ipykernel
 jupyter_client
-nb_black
+# nb_black ## Disabled because of issue with support for Python 2.6
+nb_black @ git+https://github.com/leifdenby/nb_black/#egg=nb_black
 nbconvert
 nbformat
 pandas
