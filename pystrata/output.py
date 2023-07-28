@@ -487,17 +487,21 @@ class FourierAmplitudeSpectrumOutput(LocationBasedOutput):
         loc = self._get_location(calc)
         tf = calc.calc_accel_tf(calc.loc_input, loc)
 
+        # Only return the absolute value
+        fas = np.abs(tf * calc.motion.fourier_amps)
+
+        # Interpolate to the specified frequencies
         if self._ko_bandwidth is None:
-            tf = np.interp(self.freqs, calc.motion.freqs, tf)
+            fas = np.interp(self.freqs, calc.motion.freqs, fas)
         else:
-            tf = pykooh.smooth(
+            fas = pykooh.smooth(
                 self.freqs,
                 calc.motion.freqs,
-                np.abs(tf * calc.motion.fourier_amps),
+                fas,
                 self.ko_bandwidth,
             )
 
-        self._add_values(tf)
+        self._add_values(fas)
 
 
 class ResponseSpectrumOutput(LocationBasedOutput):
