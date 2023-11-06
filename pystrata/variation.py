@@ -855,7 +855,11 @@ class DarendeliVariation(SoilTypeVariation):
 
 class SpidVariation(SoilTypeVariation):
     """Variation defined by the EPRI SPID (2013) and documented in
-    PNNL (2014)."""
+    PNNL (2014).
+
+    EPRI SPID (2013): https://www.nrc.gov/docs/ML1233/ML12333A170.pdf
+    
+    """
 
     def __init__(
         self,
