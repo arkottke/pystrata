@@ -3,10 +3,10 @@
 matplotlib
 numba
 numpy
-openpyxl>3.0.10
+openpyxl>=3.0.10
 pandas
-pyexcel>0.6.7
-pyexcel-xlsx>0.6.0
+pyexcel>=0.6.7
+pyexcel-xlsx>=0.6.0
 pykooh
 pyrvt
 scipy
