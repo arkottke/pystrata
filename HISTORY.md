@@ -1,5 +1,9 @@
 # History
 
+## v0.5.3 (2024-03-29)
+
+-   Added published curves
+
 ## v0.5.2 (2023-01-18)
 
 -   Fixed: Providing unsmoothed transfer function output
