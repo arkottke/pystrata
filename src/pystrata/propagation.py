@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # The MIT License (MIT)
 #
 # Copyright (c) 2016-2018 Albert Kottke
@@ -63,7 +64,7 @@ class AbstractCalculator(object):
         raise NotImplementedError
 
 
-@numba.jit
+@numba.jit(nopython=True)
 def my_trapz(thickness, property, depth_max):
     total = 0
     depth = 0
@@ -145,9 +146,7 @@ class QuarterWaveLenCalculator(AbstractCalculator):
         # FIXME return an error if not converged?
 
         qwl_density = qwl_average(density)
-        crustal_amp = np.sqrt(
-            (density[-1] / slowness[-1]) / (qwl_density / qwl_slowness)
-        )
+        crustal_amp = np.sqrt((density[-1] / slowness[-1]) / (qwl_density / qwl_slowness))
         site_term = np.array(crustal_amp)
         if self._site_atten:
             site_term *= np.exp(-np.pi * self.site_atten * freqs)
@@ -245,10 +244,7 @@ class QuarterWaveLenCalculator(AbstractCalculator):
             thickness = res.x[nl : (2 * nl)]
 
         profile = Profile(
-            [
-                Layer(l.soil_type, t, 1 / s)
-                for l, t, s in zip(self.profile, thickness, slowness)
-            ],
+            [Layer(l.soil_type, t, 1 / s) for l, t, s in zip(self.profile, thickness, slowness)],
             self.profile.wt_depth,
         )
         # Update the calculated amplificaiton
@@ -324,12 +320,12 @@ class LinearElasticCalculator(AbstractCalculator):
             # Complex term to simplify equations -- uses full layer height
             cterm = 1j * wave_nums[i, :] * l.thickness
 
-            waves_a[i + 1, :] = 0.5 * waves_a[i] * (1 + cimped) * np.exp(
-                cterm
-            ) + 0.5 * waves_b[i] * (1 - cimped) * np.exp(-cterm)
-            waves_b[i + 1, :] = 0.5 * waves_a[i] * (1 - cimped) * np.exp(
-                cterm
-            ) + 0.5 * waves_b[i] * (1 + cimped) * np.exp(-cterm)
+            waves_a[i + 1, :] = 0.5 * waves_a[i] * (1 + cimped) * np.exp(cterm) + 0.5 * waves_b[
+                i
+            ] * (1 - cimped) * np.exp(-cterm)
+            waves_b[i + 1, :] = 0.5 * waves_a[i] * (1 - cimped) * np.exp(cterm) + 0.5 * waves_b[
+                i
+            ] * (1 + cimped) * np.exp(-cterm)
 
             # Set wave amplitudes with zero frequency to 1
             mask = ~np.isfinite(cimped)
@@ -362,9 +358,7 @@ class LinearElasticCalculator(AbstractCalculator):
         cterm = 1j * self._wave_nums[l.index] * l.depth_within
 
         if l.wave_field == WaveField.within:
-            return self._waves_a[l.index] * np.exp(cterm) + self._waves_b[
-                l.index
-            ] * np.exp(-cterm)
+            return self._waves_a[l.index] * np.exp(cterm) + self._waves_b[l.index] * np.exp(-cterm)
         elif l.wave_field == WaveField.outcrop:
             return 2 * self._waves_a[l.index] * np.exp(cterm)
         elif l.wave_field == WaveField.incoming_only:
@@ -468,9 +462,7 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
 
     name = "EQL"
 
-    def __init__(
-        self, strain_ratio=0.65, tolerance=0.01, max_iterations=15, strain_limit=0.05
-    ):
+    def __init__(self, strain_ratio=0.65, tolerance=0.01, max_iterations=15, strain_limit=0.05):
         """Initialize the class.
 
         Parameters
@@ -670,9 +662,7 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
 
         if self._use_smooth_spectrum:
             # Equation (8)
-            freq_avg = np.trapz(freqs * strain_fas, x=freqs) / np.trapz(
-                strain_fas, x=freqs
-            )
+            freq_avg = np.trapz(freqs * strain_fas, x=freqs) / np.trapz(strain_fas, x=freqs)
 
             # Find the average strain at frequencies less than the average
             # frequency
@@ -691,8 +681,7 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
             # smooth transition in the strain. Make sure the frequencies are zero.
             shape = np.minimum(
                 1,
-                np.exp(-a * freqs)
-                / np.maximum(np.finfo(float).eps, np.power(freqs, b)),
+                np.exp(-a * freqs) / np.maximum(np.finfo(float).eps, np.power(freqs, b)),
             )
             strains = strain_eff * shape
         else:

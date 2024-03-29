@@ -568,9 +568,7 @@ class AccelTransferFunctionOutput(RatioBasedOutput):
 
     ref_name = "freq"
 
-    def __init__(
-        self, refs, location_in, location_out, ko_bandwidth=None, absolute=True
-    ):
+    def __init__(self, refs, location_in, location_out, ko_bandwidth=None, absolute=True):
         super().__init__(refs, location_in, location_out)
         self._ko_bandwidth = ko_bandwidth
         self._absolute = absolute
@@ -830,7 +828,5 @@ class MaxAccelProfile(ProfileBasedOutput):
 
     def _calc_accel(self, calc, depth):
         return calc.motion.calc_peak(
-            calc.calc_accel_tf(
-                calc.loc_input, calc.profile.location("within", depth=depth)
-            )
+            calc.calc_accel_tf(calc.loc_input, calc.profile.location("within", depth=depth))
         )

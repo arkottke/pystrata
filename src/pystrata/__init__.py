@@ -20,6 +20,8 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from importlib.metadata import version
+
 from . import motion
 from . import output
 from . import propagation
@@ -30,7 +32,7 @@ from . import variation
 __all__ = ["motion", "propagation", "output", "site", "tools", "variation"]
 
 __author__ = "Albert Kottke"
-__copyright__ = "Copyright 2016-2022 Albert Kottke"
+__copyright__ = "Copyright 2016-2024 Albert Kottke"
 __license__ = "MIT"
 __title__ = "pyStrata"
-__version__ = "0.5.2"
+__version__ = version("pyRVT")

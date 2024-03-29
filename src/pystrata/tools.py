@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # The MIT License (MIT)
 #
 # Copyright (c) 2016-2018 Albert Kottke
@@ -92,9 +93,7 @@ def _parse_curves(block, **kwargs):
 
 def _parse_soil_profile(block, units, curves, **kwargs):
     """Parse soil profile block."""
-    wt_layer, length, _, name = parse_fixed_width(
-        3 * [(5, int)] + [(55, to_str)], block
-    )
+    wt_layer, length, _, name = parse_fixed_width(3 * [(5, int)] + [(55, to_str)], block)
 
     layers = []
     soil_types = []
@@ -107,9 +106,7 @@ def _parse_soil_profile(block, units, curves, **kwargs):
             damping,
             unit_wt,
             shear_vel,
-        ) = parse_fixed_width(
-            [(5, int), (5, int), (15, to_float)] + 4 * [(10, to_float)], block
-        )
+        ) = parse_fixed_width([(5, int), (5, int), (15, to_float)] + 4 * [(10, to_float)], block)
 
         st = site.SoilType(
             soil_idx,
@@ -191,9 +188,7 @@ def _parse_run_control(block):
         2 * [(5, int)] + [(10, float)] + 2 * [(5, int)], block
     )
 
-    return propagation.EquivalentLinearCalculation(
-        strain_ratio, max_iterations, tolerance=10.0
-    )
+    return propagation.EquivalentLinearCalculation(strain_ratio, max_iterations, tolerance=10.0)
 
 
 def _parse_output_accel(block):
@@ -278,9 +273,7 @@ def read_nrattle_ctl(fpath):
         except ValueError:
             break
 
-    d["profile"] = np.rec.fromrecords(
-        profile, names="layer,thickness,vel_shear,density,inv_qual"
-    )
+    d["profile"] = np.rec.fromrecords(profile, names="layer,thickness,vel_shear,density,inv_qual")
     d["hs_vel_shear"], d["hs_density"] = split_line(line, [float, float])
     d["hs_layer"], d["inci_angle"] = split_line(lines.pop(0), [int, float])
 

@@ -115,9 +115,7 @@ class NonlinearProperty(object):
 
         selected = PUBLISHED_CURVES[name][param]
 
-        return cls(
-            name, strains=selected["strains"], values=selected["values"], param=param
-        )
+        return cls(name, strains=selected["strains"], values=selected["values"], param=param)
 
     def __call__(self, strains):
         """Return the nonlinear property at a specific strain.
@@ -277,9 +275,7 @@ class SoilType(object):
     @property
     def is_nonlinear(self):
         """If nonlinear properties are specified."""
-        return any(
-            isinstance(p, NonlinearProperty) for p in [self.mod_reduc, self.damping]
-        )
+        return any(isinstance(p, NonlinearProperty) for p in [self.mod_reduc, self.damping])
 
     def __eq__(self, other):
         # return all(
@@ -336,9 +332,7 @@ class ModifiedHyperbolicSoilType(SoilType):
         c2 = 0.0805 * self.curvature**2 - 0.0710 * self.curvature - 0.0095
         c3 = -0.0005 * self.curvature**2 + 0.0002 * self.curvature + 0.0003
         damping_masing = (
-            c1 * damping_masing_a1
-            + c2 * damping_masing_a1**2
-            + c3 * damping_masing_a1**3
+            c1 * damping_masing_a1 + c2 * damping_masing_a1**2 + c3 * damping_masing_a1**3
         )
 
         # Compute the damping correction in percent
@@ -581,8 +575,7 @@ class MenqSoilType(ModifiedHyperbolicSoilType):
         return (
             0.12
             * self._uniformity_coeff**-0.6
-            * (self._stress_mean * KPA_TO_ATM)
-            ** (0.5 * self._uniformity_coeff**-0.15)
+            * (self._stress_mean * KPA_TO_ATM) ** (0.5 * self._uniformity_coeff**-0.15)
         ) / 100
 
     @property
@@ -694,9 +687,7 @@ class KishidaSoilType(SoilType):
         b_10 = -0.950
         return np.exp(b_9 + b_10 * (x_3 - x_3_mean)) / 100
 
-    def _calc_mod_reduc(
-        self, strains, strain_ref, x_1, x_1_mean, x_2, x_2_mean, x_3, x_3_mean
-    ):
+    def _calc_mod_reduc(self, strains, strain_ref, x_1, x_1_mean, x_2, x_2_mean, x_3, x_3_mean):
         """Compute the shear modulus reduction using Equation (1)."""
 
         ones = np.ones_like(strains)
@@ -714,9 +705,7 @@ class KishidaSoilType(SoilType):
             (x_1 - x_1_mean) * (x_2 - x_2_mean) * (x_3 - x_3_mean),
         ]
         # Coefficients
-        denom = np.log(
-            1 / strain_ref + strains / strain_ref
-        )  # TODO: is this percent or decimal?
+        denom = np.log(1 / strain_ref + strains / strain_ref)  # TODO: is this percent or decimal?
         b = np.c_[
             5.11 * ones,
             -0.729 * ones,
@@ -1034,9 +1023,7 @@ class Layer(object):
 
     @property
     def incr_site_atten(self):
-        return (
-            2 * self.soil_type.damping_min * self._thickness
-        ) / self.initial_shear_vel
+        return (2 * self.soil_type.damping_min * self._thickness) / self.initial_shear_vel
 
 
 class Location(object):
@@ -1314,9 +1301,7 @@ class Profile(collections.abc.Container):
         # If needed, add the final layer to the required depth
         if depths[-1] < depth:
             depths = np.r_[depths, depth]
-            travel_times = np.r_[
-                travel_times, (depth - self[-1].depth) / self[-1].shear_vel
-            ]
+            travel_times = np.r_[travel_times, (depth - self[-1].depth) / self[-1].shear_vel]
 
         total_travel_times = np.cumsum(travel_times)
         # Interpolate the travel time to the depth of interest
@@ -1349,9 +1334,7 @@ class Profile(collections.abc.Container):
         freq_fund = np.sqrt(
             4
             * np.sum(thicks * depths_mid**2 / shear_vels**2)
-            / np.sum(
-                thicks * np.sum(np.c_[shape, np.roll(shape, -1)], axis=1)[:-1] ** 2
-            )
+            / np.sum(thicks * np.sum(np.c_[shape, np.roll(shape, -1)], axis=1)[:-1] ** 2)
         )
         period_fun = 2 * np.pi / freq_fund
         rayleigh_vel = 4 * thicks.sum() / period_fun
