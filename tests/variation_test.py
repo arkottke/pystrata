@@ -18,15 +18,14 @@
 import numpy as np
 import pytest
 from numpy.testing import assert_allclose
-from scipy.stats import lognorm
-from scipy.stats import norm
-from scipy.stats import pearsonr
-
 from pystrata import motion
 from pystrata import output
 from pystrata import propagation
 from pystrata import site
 from pystrata import variation
+from scipy.stats import lognorm
+from scipy.stats import norm
+from scipy.stats import pearsonr
 
 
 def test_randnorm():
@@ -132,9 +131,7 @@ class TestSpidVariation:
         cls.dampings = np.array([r.damping for r in realizations])
 
     def test_sample_std_mod_reduc(self):
-        assert_allclose(
-            np.std(np.log(self.mod_reducs)), self.svar.std_mod_reduc, rtol=0.2
-        )
+        assert_allclose(np.std(np.log(self.mod_reducs)), self.svar.std_mod_reduc, rtol=0.2)
 
     def test_sample_std_damping(self):
         assert_allclose(np.std(np.log(self.dampings)), self.svar.std_damping, rtol=0.2)
@@ -206,9 +203,7 @@ def test_iter_variations(profile):
     calc = propagation.EquivalentLinearCalculator()
     var_thickness = variation.ToroThicknessVariation()
     var_velocity = variation.ToroVelocityVariation.generic_model("USGS C")
-    var_soiltypes = variation.SpidVariation(
-        -0.5, std_mod_reduc=0.15, std_damping=0.0030
-    )
+    var_soiltypes = variation.SpidVariation(-0.5, std_mod_reduc=0.15, std_damping=0.0030)
 
     freqs = np.logspace(-1, 2, num=500)
 
