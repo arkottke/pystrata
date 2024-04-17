@@ -1,5 +1,11 @@
 # History
 
+## v0.5.4 (2024-03-29)
+
+-   Fix: error in example-08 that didn't reference the modified profiles.
+-   Change: method to create SoilTypes from published curves
+-   Add: Extended example-15 to show how to use published curves in site response models.
+
 ## v0.5.3 (2024-03-29)
 
 -   Added published curves
