@@ -234,18 +234,24 @@ class SoilType(object):
         self.damping = damping
 
     @classmethod
-    def from_published(cls, name, unit_wt, *args):
+    def from_published(
+        cls,
+        name: str = "",
+        unit_wt: float = 0.0,
+        model: str = "",
+        model_damping: Optional[str] = None,
+    ):
         if not PUBLISHED_CURVES:
             _load_published_curves()
 
-        model_mr = args[0]
-        model_d = args[1] if len(args) > 1 else args[0]
+        if model_damping is None:
+            model_damping = model
 
         return cls(
             name,
             unit_wt=unit_wt,
-            mod_reduc=NonlinearProperty.from_published(model_mr, "mod_reduc"),
-            damping=NonlinearProperty.from_published(model_d, "damping"),
+            mod_reduc=NonlinearProperty.from_published(model, "mod_reduc"),
+            damping=NonlinearProperty.from_published(model_damping, "damping"),
         )
 
     def copy(self):
@@ -425,7 +431,7 @@ class TwoParamModifiedHyperbolicSoilType(SoilType):
         # Convert from percent to decimal strain
         strain_mr = C.g1 * stress_mean_atm**C.g2 / 100
         b = C.b1 + C.b2 * stress_mean_atm
-        values_mr = 1 / ((1 + (strains / strain_mr) ** C.a)) ** b
+        values_mr = 1 / (1 + (strains / strain_mr) ** C.a) ** b
         mod_reduc = NonlinearProperty(name, strains, values_mr)
 
         d_min = C.d0 * stress_mean_atm**C.d1
