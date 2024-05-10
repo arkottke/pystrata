@@ -305,8 +305,8 @@ class RvtMotion(pyrvt.motions.RvtMotion, Motion):
         Motion.__init__(self)
         pyrvt.motions.RvtMotion.__init__(
             self,
-            freqs,
-            fourier_amps,
+            np.asarray(freqs),
+            np.asarray(fourier_amps),
             duration=duration,
             peak_calculator=peak_calculator,
             calc_kwds=calc_kwds,
