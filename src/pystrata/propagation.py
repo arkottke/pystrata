@@ -523,7 +523,7 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
                 strain = self._calc_strain(loc_input, loc_layer, motion)
                 if self._strain_limit and np.any(strain > self._strain_limit):
                     limited_strains = True
-                    strain = np.maximum(strain, self._strain_limit)
+                    strain = np.minimum(strain, self._strain_limit)
                 layer.strain = strain
 
             # Maximum error (damping and shear modulus) over all layers

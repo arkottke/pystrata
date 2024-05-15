@@ -533,7 +533,6 @@ class ResponseSpectrumOutput(LocationBasedOutput):
     def __call__(self, calc, name=None):
         Output.__call__(self, calc, name)
         loc = self._get_location(calc)
-        print(loc)
         tf = calc.calc_accel_tf(calc.loc_input, loc)
         ars = calc.motion.calc_osc_accels(self.freqs, self.osc_damping, tf)
         self._add_values(ars)

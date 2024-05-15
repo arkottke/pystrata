@@ -251,9 +251,6 @@ class HalfSpaceDepthVariation(object):
 
         # Find the layer
         index, depth_within = profile.lookup_depth(varied_depth)
-
-        print(varied_depth, profile[-1].depth, index, depth_within)
-
         half_space = profile[-1]
 
         if index < (len(profile) - 1):
@@ -268,8 +265,6 @@ class HalfSpaceDepthVariation(object):
             count = np.ceil(total_thick // orig_thick).astype(int)
 
             thick = total_thick / count
-
-            print(count, thick)
 
             # Don't copy half-space
             layers = [site.Layer.copy_of(layer) for layer in profile[:-1]]
