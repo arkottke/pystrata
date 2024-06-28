@@ -534,7 +534,7 @@ class MenqSoilType(ModifiedHyperbolicSoilType):
     ----------
     unit_wt:  float
         unit weight of the material [kN/m³]
-    uniformity_coeff: float, default=10
+    coef_unif: float, default=10
         uniformity coeffecient (Cᵤ)
     diam_mean: float, default=5
         mean diameter (D₅₀) [mm]
@@ -548,15 +548,16 @@ class MenqSoilType(ModifiedHyperbolicSoilType):
 
     def __init__(
         self,
+        name="",
         unit_wt=0.0,
-        uniformity_coeff=10,
+        coef_unif=10,
         diam_mean=5,
         stress_mean=101.3,
         num_cycles=10,
         damping_min=None,
         strains=None,
     ):
-        self._uniformity_coeff = uniformity_coeff
+        self._coef_unif = coef_unif
         self._diam_mean = diam_mean
         self._stress_mean = stress_mean
         self._num_cycles = num_cycles
@@ -564,14 +565,15 @@ class MenqSoilType(ModifiedHyperbolicSoilType):
         if damping_min is None:
             damping_min = self._calc_damping_min()
 
-        name = self._create_name()
+        if not name:
+            name = self._create_name()
 
         super().__init__(name, unit_wt, damping_min, strains)
 
     def _calc_damping_min(self):
         return (
             0.55
-            * self._uniformity_coeff**0.1
+            * self._coef_unif**0.1
             * self._diam_mean**-0.3
             * (self._stress_mean * KPA_TO_ATM) ** -0.08
         ) / 100
@@ -585,8 +587,8 @@ class MenqSoilType(ModifiedHyperbolicSoilType):
     def strain_ref(self) -> float:
         return (
             0.12
-            * self._uniformity_coeff**-0.6
-            * (self._stress_mean * KPA_TO_ATM) ** (0.5 * self._uniformity_coeff**-0.15)
+            * self._coef_unif**-0.6
+            * (self._stress_mean * KPA_TO_ATM) ** (0.5 * self._coef_unif**-0.15)
         ) / 100
 
     @property
@@ -595,7 +597,416 @@ class MenqSoilType(ModifiedHyperbolicSoilType):
 
     def _create_name(self):
         fmt = "Menq (Cᵤ={:.1f}, D₅₀={:.1f} mm, σₘ'={:.1f} kN/m²)"
-        return fmt.format(self._uniformity_coeff, self._diam_mean, self._stress_mean)
+        return fmt.format(self._coef_unif, self._diam_mean, self._stress_mean)
+
+
+class WangSoilType(SoilType):
+    FACTORS = {
+        "gravel_sand": [
+            "stress_mean",
+            "fines_cont",
+            "coef_unif",
+            "diam_50",
+            "water_cont",
+            "void_ratio",
+            "diam_50",
+        ],
+        "nonplas_silt": ["stress_mean", "void_ratio", "fines_cont", "water_cont"],
+        "clay": ["stress_mean", "void_ratio", "plas_index", "fines_cont", "ocr", "water_cont"],
+    }
+
+    def __init__(
+        self,
+        soil_group,
+        name="",
+        unit_wt=0.0,
+        damping_min: float | None = None,
+        strains: npt.ArrayLike | None = None,
+        **kwargs,
+    ):
+        """
+
+        Parameters
+        ----------
+        name: str, optional
+        used for identification
+        unit_wt:  float
+            unit weight of the material in [kN/m³]
+        """
+
+        # Paramter names
+        #  - stress_mean
+        #  - plas_index
+        #  - ocr
+        #  - void_ratio
+        #  - coef_unif
+        #  - diam_50
+        #  - fines_cont
+        #  - water_cont
+        self._soil_group = soil_group
+
+        if strains is None:
+            strains = np.logspace(-6, -1.5, num=20)  # in decimal
+        else:
+            strains = np.asarray(strains)
+
+        if not name:
+            name = self._create_name()
+
+        self._index_params = {k: kwargs[k] for k in self.FACTORS[soil_group] if k in kwargs}
+
+        # Ensure sigma_0 and pa are provided for all calculations
+        if "stress_mean" not in self.index_params:
+            raise ValueError("`stress_mean` is required for all calculations")
+
+        mod_reduc = self.calc_mod_reduc(strains, soil_group, **self._index_params)
+
+        if damping_min is None:
+            damping_min = self.calc_damping_min(soil_group, **self._index_params)
+
+        damping = self.calc_damping(strains, soil_group, damping_min, **self._index_params)
+
+        super().__init__(name, unit_wt, mod_reduc, damping)
+
+    def _create_name(self) -> str:
+        FACTORS_FORMAT = {
+            "coef_unif": "Cᵤ={0.1f}",
+            "diam_50": "D₅₀={:.1f} mm",
+            "fines_cont": "FC={:.0f} %",
+            "ocr": "OCR={:.1f}",
+            "plas_index": "PI={:.0f}",
+            "stress_mean": "σₘ'={:.1f} kN/m²",
+            "void_ratio": "e={0.2f}",
+            "water_cont": "w_c={:.1f}%",
+        }
+
+        parts = [
+            FACTORS_FORMAT[key].format(self.index_params[key])
+            for key in self.FACTORS[self.soil_group]
+        ]
+
+        suffix = ", ".join(parts)
+        return f"Wang & Stokoe ({suffix})"
+
+    @property
+    def soil_group(self):
+        return self._soil_group
+
+    @property
+    def index_params(self):
+        return self.index_params
+
+    def calc_shear_mod(self):
+        IP = self.index_params
+        if self.soil_group == "gravel_sand":
+            if "fines_cont" in IP:
+                return (
+                    63.9
+                    * IP["coef_unif"] ** -0.21
+                    * np.exp(-1.12 - 0.009 * IP["diam_50"] ** 1.54)
+                    * (IP["stress_mean"] * KPA_TO_ATM)
+                    ** (0.48 * IP["coef_unif"] ** 0.08 - 1.03 * IP["fines_cont"])
+                )
+            elif "coef_unif" in IP:
+                return (
+                    64.3
+                    * IP["coef_unif"] ** -0.21
+                    * np.exp(-1.08 - 0.019 * IP["diam_50"] ** 1.34)
+                    * (IP["stress_mean"] * KPA_TO_ATM) ** (0.47 * IP["coef_unif"] ** 0.06)
+                )
+            elif "diam_50" in IP:
+                return (
+                    66.5
+                    * np.exp(-0.75 - 0.009 * IP["diam_50"] ** 1.58)
+                    * (IP["stress_mean"] * KPA_TO_ATM) ** 0.51
+                )
+            elif "void_ratio" in IP:
+                return 67.5 * IP["void_ratio"] ** -0.86 * (IP["stress_mean"] * KPA_TO_ATM) ** 0.5
+            else:
+                return 108.4 * (IP["stress_mean"] * KPA_TO_ATM) ** 0.51
+        elif self.soil_group == "nonplas_silt":
+            if "water_cont" in IP:
+                return (
+                    84.8
+                    * np.exp(-0.53)
+                    * (1 - 1.32 * IP["water_cont"])
+                    * (IP["stress_mean"] * KPA_TO_ATM) ** 0.52
+                )
+            elif "void_ratio" in IP:
+                return 59.2 * np.exp(-0.74) * (IP["stress_mean"] * KPA_TO_ATM) ** 0.51
+            else:
+                return 89.1 * (IP["stress_mean"] * KPA_TO_ATM) ** 0.51
+        elif self.soil_group == "clay":
+            if "plas_index" in IP:
+                return (
+                    232.9
+                    * (1 + 0.96 * np.exp(-2.42))
+                    * (1.92 + IP["ocr"]) ** (0.27 + 0.46 * IP["plas_index"])
+                    * (1 - 0.44 * IP["fines_cont"])
+                    * (IP["stress_mean"] * KPA_TO_ATM) ** 0.49
+                )
+            elif "fines_cont" in IP:
+                return (
+                    34
+                    * np.exp(-0.8)
+                    * (3.13 + IP["ocr"]) ** 0.53
+                    * (1 - 0.46 * IP["fines_cont"])
+                    * (IP["stress_mean"] * KPA_TO_ATM) ** 0.51
+                )
+            elif "ocr" in IP:
+                return (
+                    18.9
+                    * np.exp(-0.97)
+                    * (4.5 + IP["ocr"]) ** 0.54
+                    * (IP["stress_mean"] * KPA_TO_ATM) ** 0.48
+                )
+            elif "void_ratio" in IP:
+                return 52.3 * np.exp(-1.08) * (IP["stress_mean"] * KPA_TO_ATM) ** 0.4
+            else:
+                return 77.2 * (IP["stress_mean"] * KPA_TO_ATM) ** 0.48
+
+        else:
+            raise ValueError("Invalid soil group")
+
+    @classmethod
+    def calc_mod_reduc(cls, strains: npt.ArrayLike, soil_group: str, **kwds) -> np.ndarray:
+        if soil_group == "gravel_sand":
+            if "fines_cont" in kwds:
+                a = 0.834 + kwds["fines_cont"]
+                b = 0.844 - 1.897 * kwds["fines_cont"]
+                gamma_mr = (0.048 * np.exp(0.089 * kwds["coef_unif"]) + 0.008) * (
+                    kwds["stress_mean"] * KPA_TO_ATM
+                ) ** 0.4
+            elif "coef_unif" in kwds:
+                a = 0.834
+                b = 0.839
+                gamma_mr = (0.05 * np.exp(0.1 * kwds["coef_unif"]) + 0.011) * (
+                    kwds["stress_mean"] * KPA_TO_ATM
+                ) ** 0.45
+            elif "void_ratio" in kwds:
+                a = 0.804
+                b = 0.882
+                gamma_mr = (0.13 * np.exp(0.545 * kwds["void_ratio"]) - 0.043) * (
+                    kwds["stress_mean"] * KPA_TO_ATM
+                ) ** 0.45
+            else:
+                a = 0.729
+                b = 0.985
+                gamma_mr = 0.068 * (kwds["stress_mean"] * KPA_TO_ATM) ** 0.4
+
+        elif soil_group == "nonplas_silt":
+            if "fines_cont" in kwds:
+                a = (1.495 * kwds["void_ratio"] + 3.079 * kwds["fines_cont"]) ** 0.121
+                b = 0.486 - 0.006 * kwds["stress_mean"] * KPA_TO_ATM
+                gamma_mr = (0.031 * kwds["void_ratio"] - 0.003) * (
+                    kwds["stress_mean"] * KPA_TO_ATM
+                ) ** (0.405 - 0.193 * kwds["fines_cont"])
+            elif "void_ratio" in kwds:
+                a = 1.139 * np.exp(0.093 * kwds["void_ratio"])
+                b = 0.475 - 0.007 * kwds["stress_mean"] * KPA_TO_ATM
+                gamma_mr = (0.029 * kwds["void_ratio"] - 0.003) * (
+                    kwds["stress_mean"] * KPA_TO_ATM
+                ) ** 0.335
+            else:
+                a = 1.04
+                b = 0.438 - 0.007 * kwds["stress_mean"] * KPA_TO_ATM
+                gamma_mr = 0.011 * (kwds["stress_mean"] * KPA_TO_ATM) ** 0.318
+
+        elif soil_group == "clay":
+            if "plas_index" in kwds:
+                a = 0.896 + 0.412 * kwds["fines_cont"] + 0.534 * kwds["plas_index"]
+                b = 0.586 - 0.098 * kwds["void_ratio"] - 0.135 * kwds["fines_cont"]
+                gamma_mr = (0.02 * kwds["void_ratio"] + 0.004 * kwds["fines_cont"]) * (
+                    kwds["stress_mean"] * KPA_TO_ATM + 0.42 * kwds["ocr"]
+                ) ** (0.447 - 0.27 * kwds["plas_index"])
+            elif "ocr" in kwds:
+                a = 0.972 + 0.419 * kwds["fines_cont"]
+                b = 0.571 - 0.2 * kwds["fines_cont"]
+                gamma_mr = (0.025 * kwds["void_ratio"] + 0.0015 * kwds["fines_cont"]) * (
+                    kwds["stress_mean"] * KPA_TO_ATM + 0.375 * kwds["ocr"]
+                ) ** 0.358
+            elif "fines_cont" in kwds:
+                a = 0.966 + 0.378 * kwds["fines_cont"]
+                b = 0.596 - 0.207 * kwds["fines_cont"]
+                gamma_mr = (0.031 * kwds["void_ratio"] + 0.004 * kwds["fines_cont"]) * (
+                    kwds["stress_mean"] * KPA_TO_ATM
+                ) ** 0.25
+            elif "void_ratio" in kwds:
+                a = 1.185
+                b = 0.475
+                gamma_mr = 0.035 * kwds["void_ratio"] * (kwds["stress_mean"] * KPA_TO_ATM) ** 0.276
+            else:
+                a = 1.364
+                b = 0.28
+                gamma_mr = 0.015 * (kwds["stress_mean"] * KPA_TO_ATM) ** 0.205
+        else:
+            raise ValueError("Invalid soil group")
+
+        return 1 / (1 + (100 * np.asarray(strains) / gamma_mr) ** a) ** b
+
+    @classmethod
+    def calc_damping_min(cls, soil_group: str, **kwds) -> float:
+        if soil_group == "gravel_sand":
+            if "diam_50" in kwds:
+                d_min = (
+                    0.6
+                    * (0.99 + kwds["water_cont"])
+                    ** (7.45 - 15.23 * kwds["void_ratio"] + 4.29 * kwds["diam_50"])
+                    * (1 + 21.17 * kwds["fines_cont"])
+                    * (kwds["stress_mean"] * KPA_TO_ATM) ** -0.14
+                )
+            elif "void_ratio" in kwds:
+                d_min = (
+                    0.55
+                    * (1 - kwds["water_cont"]) ** (-12.49 + 19.45 * kwds["void_ratio"])
+                    * (1 + 23.44 * kwds["fines_cont"])
+                    * (kwds["stress_mean"] * KPA_TO_ATM) ** -0.14
+                )
+            elif "water_cont" in kwds:
+                d_min = (
+                    0.64
+                    * (0.26 - kwds["water_cont"]) ** 0.11
+                    * (1 + 32.8 * kwds["fines_cont"])
+                    * (kwds["stress_mean"] * KPA_TO_ATM) ** -0.12
+                )
+            elif "fines_cont" in kwds:
+                d_min = (
+                    0.55
+                    * (1 + 29.03 * kwds["fines_cont"])
+                    * (kwds["stress_mean"] * KPA_TO_ATM) ** -0.13
+                )
+            else:
+                d_min = 0.77 * (kwds["stress_mean"] * KPA_TO_ATM) ** -0.03
+
+        elif soil_group == "nonplas_silt":
+            if "fines_cont" in kwds:
+                d_min = (
+                    52.16
+                    * (0.41 * kwds["void_ratio"])
+                    ** (0.81 * kwds["fines_cont"] + 5.2 * kwds["void_ratio"])
+                    * (1 + 5.35 * kwds["fines_cont"])
+                    * (kwds["stress_mean"] * KPA_TO_ATM) ** -0.19
+                )
+            elif "void_ratio" in kwds:
+                d_min = (
+                    39.11
+                    * (0.44 * kwds["void_ratio"]) ** (4.32 * kwds["void_ratio"])
+                    * (kwds["stress_mean"] * KPA_TO_ATM) ** -0.19
+                )
+            else:
+                d_min = 1.47 * (kwds["stress_mean"] * KPA_TO_ATM) ** -0.2
+
+        elif soil_group == "clay":
+            if "fines_cont" in kwds:
+                d_min = 4.86 * (1.99 + kwds["fines_cont"]) ** (
+                    -1.91 * kwds["void_ratio"] - 6.5 * kwds["plas_index"]
+                ) * (1 + 106.75 * kwds["plas_index"] ** 1.64) * (
+                    kwds["stress_mean"] * KPA_TO_ATM
+                ) ** -0.19 + (0.46 * kwds["plas_index"]) ** (1.73 - 1.34 * kwds["void_ratio"])
+            elif "plas_index" in kwds:
+                d_min = 7.29 * 8 ** (-kwds["void_ratio"] - 3.31 * kwds["plas_index"]) * (
+                    1 + 148 * kwds["plas_index"] ** 1.95
+                ) * (kwds["stress_mean"] * KPA_TO_ATM) ** -0.2 + (0.5 * kwds["plas_index"]) ** (
+                    2.54 - 1.8 * kwds["void_ratio"]
+                )
+            elif "void_ratio" in kwds:
+                d_min = (
+                    7.62
+                    * 13.48 ** -kwds["void_ratio"]
+                    * (kwds["stress_mean"] * KPA_TO_ATM) ** -0.29
+                    + 0.72 ** -kwds["void_ratio"]
+                )
+            else:
+                d_min = 2.55 * (kwds["stress_mean"] * KPA_TO_ATM) ** -0.11
+
+        else:
+            raise ValueError("Invalid soil group")
+
+        return d_min
+
+    @classmethod
+    def calc_damping(
+        cls, strains, soil_group, damping_min: float | None = None, **kwds
+    ) -> np.ndarray:
+        if soil_group == "gravel_sand":
+            if "coef_unif" in kwds:
+                c = 0.93 * np.exp(0.34 - 0.8 * kwds["void_ratio"])
+                d = 18.13
+                gamma_d = (
+                    0.13
+                    * kwds["coef_unif"] ** -0.31
+                    * (kwds["stress_mean"] * KPA_TO_ATM + 22.04 * kwds["fines_cont"])
+                    ** (0.47 - kwds["fines_cont"])
+                )
+            elif "fines_cont" in kwds:
+                c = 1.02 * np.exp(0.56 - 0.72 * kwds["void_ratio"])
+                d = 21.17
+                gamma_d = 0.13 * (
+                    kwds["stress_mean"] * KPA_TO_ATM + 17.94 * kwds["fines_cont"]
+                ) ** (0.45 - kwds["fines_cont"])
+            elif "void_ratio" in kwds:
+                c = 1.08 * np.exp(0.62 - 0.73 * kwds["void_ratio"])
+                d = 16.39
+                gamma_d = 0.09 * (kwds["stress_mean"] * KPA_TO_ATM) ** 0.39
+            else:
+                c = 0.93
+                d = 15.64
+                gamma_d = 0.09 * (kwds["stress_mean"] * KPA_TO_ATM) ** 0.32
+
+        elif soil_group == "nonplas_silt":
+            if "fines_cont" in kwds:
+                c = 1.39 * np.exp(0.27 * kwds["void_ratio"])
+                d = 12.13
+                gamma_d = 0.0025 * (
+                    kwds["stress_mean"] * KPA_TO_ATM
+                    + 5.73 * kwds["void_ratio"]
+                    + 9.17 * kwds["fines_cont"]
+                ) ** (1.47 - 0.52 * kwds["fines_cont"])
+            elif "void_ratio" in kwds:
+                c = 1.38 * np.exp(0.25 * kwds["void_ratio"])
+                d = 12.09
+                gamma_d = (
+                    0.0066 * (kwds["stress_mean"] * KPA_TO_ATM + 5.79 * kwds["void_ratio"]) ** 1.01
+                )
+            else:
+                c = 1.187
+                d = 13.125
+                gamma_d = 0.045 * (kwds["stress_mean"] * KPA_TO_ATM) ** 0.293
+
+        elif soil_group == "clay":
+            if "fines_cont" in kwds:
+                c = (1.91 * kwds["fines_cont"]) ** (1.62 * kwds["plas_index"])
+                d = 21.7
+                gamma_d = 0.11 * (
+                    0.12 * kwds["stress_mean"] * KPA_TO_ATM
+                    + 5.29 * kwds["water_cont"]
+                    - kwds["fines_cont"]
+                ) ** (1.45 - kwds["plas_index"] + kwds["water_cont"] - 1.09 * kwds["fines_cont"])
+            elif "plas_index" in kwds:
+                c = 1.48 ** (0.53 + kwds["plas_index"])
+                d = 15.61
+                gamma_d = 0.07 * (
+                    0.06 * kwds["stress_mean"] * KPA_TO_ATM + 2.69 * kwds["water_cont"]
+                ) ** (1.06 + kwds["water_cont"] - kwds["plas_index"])
+            elif "water_cont" in kwds:
+                c = 1.36
+                d = 15.16
+                gamma_d = 0.29 * (
+                    0.017 * kwds["stress_mean"] * KPA_TO_ATM + kwds["water_cont"]
+                ) ** (1.15 + kwds["water_cont"])
+            else:
+                c = 1.12
+                d = 19.47
+                gamma_d = 0.11 * (kwds["stress_mean"] * KPA_TO_ATM) ** 0.23
+
+        else:
+            raise ValueError("Invalid soil group")
+
+        gamma_ratio = (100 * strains / gamma_d) ** c
+        if damping_min is None:
+            damping_min = cls.calc_damping_min(soil_group, **kwds)
+
+        return (d * gamma_ratio + damping_min) / (gamma_ratio + 1)
 
 
 class FixedValues:
