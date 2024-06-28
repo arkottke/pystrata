@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # The MIT License (MIT)
 #
 # Copyright (c) 2016-2018 Albert Kottke
@@ -74,7 +75,26 @@ class Motion(object):
 
 
 class TimeSeriesMotion(Motion):
-    def __init__(self, filename, description, time_step, accels, fa_length=None):
+    """Time-series motion for time series based site response analysis."""
+
+    def __init__(self, filename: str, description: str, time_step: float, accels, fa_length=None):
+        """Initialize the class from specified acceleration values.
+
+        The *filename* and *description* parameters are only used to help track the motion.
+
+        Parameters
+        ----------
+        filename: str
+            Source of data
+        description: str
+            Description to store helpful information
+        time_step: float
+            Time step of the accleration values
+        accels: array_like
+            Accelerations in units of *g*
+        fa_length: optional int
+            Length to use for the Fourier amplitude spectrum. If not provided, will be automatically computed to the next power of 2.
+        """
         Motion.__init__(self)
 
         self._filename = filename
@@ -158,10 +178,7 @@ class TimeSeriesMotion(Motion):
             tf = np.asarray(tf).astype(complex)
 
         resp = np.array(
-            [
-                self.calc_peak(tf * self._calc_sdof_tf(of, osc_damping))
-                for of in osc_freqs
-            ]
+            [self.calc_peak(tf * self._calc_sdof_tf(of, osc_damping)) for of in osc_freqs]
         )
         return resp
 
@@ -201,9 +218,7 @@ class TimeSeriesMotion(Motion):
             Complex-valued transfer function with length equal to `self.freq`.
         """
         return -(osc_freq**2.0) / (
-            np.square(self.freqs)
-            - np.square(osc_freq)
-            - 2.0j * damping * osc_freq * self.freqs
+            np.square(self.freqs) - np.square(osc_freq) - 2.0j * damping * osc_freq * self.freqs
         )
 
     @classmethod
@@ -258,16 +273,12 @@ class TimeSeriesMotion(Motion):
         description = "; ".join([g.strip() for g in m.groups()])
 
         # 6 lines of (8i10) formatted integers
-        values_int = parse_fixed_width(
-            48 * [(10, int)], [lines.pop(0) for _ in range(6)]
-        )
+        values_int = parse_fixed_width(48 * [(10, int)], [lines.pop(0) for _ in range(6)])
         count_comment = values_int[15]
         count = values_int[16]
 
         # 10 lines of (5e15.7) formatted floats
-        values_float = parse_fixed_width(
-            50 * [(15, float)], [lines.pop(0) for _ in range(10)]
-        )
+        values_float = parse_fixed_width(50 * [(15, float)], [lines.pop(0) for _ in range(10)])
         time_step = 1 / values_float[1]
 
         # Skip comments
@@ -288,14 +299,14 @@ class TimeSeriesMotion(Motion):
 
 
 class RvtMotion(pyrvt.motions.RvtMotion, Motion):
-    def __init__(
-        self, freqs, fourier_amps, duration=None, peak_calculator=None, calc_kwds=None
-    ):
+    """RVT motion based on user specified Fourier amplitude spectrum and duration."""
+
+    def __init__(self, freqs, fourier_amps, duration=None, peak_calculator=None, calc_kwds=None):
         Motion.__init__(self)
         pyrvt.motions.RvtMotion.__init__(
             self,
-            freqs,
-            fourier_amps,
+            np.asarray(freqs),
+            np.asarray(fourier_amps),
             duration=duration,
             peak_calculator=peak_calculator,
             calc_kwds=calc_kwds,
@@ -303,6 +314,8 @@ class RvtMotion(pyrvt.motions.RvtMotion, Motion):
 
 
 class CompatibleRvtMotion(pyrvt.motions.CompatibleRvtMotion, Motion):
+    """RVT motion based on user specified acceleration response spectrum and duration."""
+
     def __init__(
         self,
         osc_freqs,
@@ -329,6 +342,8 @@ class CompatibleRvtMotion(pyrvt.motions.CompatibleRvtMotion, Motion):
 
 
 class SourceTheoryRvtMotion(pyrvt.motions.SourceTheoryMotion, Motion):
+    """RVT motion based on seismological point source model and earthquake scenario parameters."""
+
     def __init__(
         self,
         magnitude,

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # The MIT License (MIT)
 #
 # Copyright (c) 2016-2018 Albert Kottke
@@ -23,6 +24,8 @@ from __future__ import annotations
 
 import collections
 import warnings
+from abc import ABC
+from abc import abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List
@@ -33,7 +36,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import scipy.constants
-import toml
+import tomli
 from scipy.interpolate import interp1d
 
 from .motion import GRAVITY
@@ -51,8 +54,8 @@ def _load_published_curves():
     global PUBLISHED_CURVES
 
     fpath = Path(__file__).parent / "data" / "published_curves.toml"
-    with fpath.open() as fp:
-        models = toml.load(fp)["models"]
+    with fpath.open("rb") as fp:
+        models = tomli.load(fp)["models"]
 
     # Count to make sure there aren't repeated names
     counts = collections.Counter([m["name"] for m in models])
@@ -114,9 +117,7 @@ class NonlinearProperty(object):
 
         selected = PUBLISHED_CURVES[name][param]
 
-        return cls(
-            name, strains=selected["strains"], values=selected["values"], param=param
-        )
+        return cls(name, strains=selected["strains"], values=selected["values"], param=param)
 
     def __call__(self, strains):
         """Return the nonlinear property at a specific strain.
@@ -235,30 +236,36 @@ class SoilType(object):
         self.damping = damping
 
     @classmethod
-    def from_published(cls, name, unit_wt, *args):
+    def from_published(
+        cls,
+        name: str = "",
+        unit_wt: float = 0.0,
+        model: str = "",
+        model_damping: Optional[str] = None,
+    ) -> SoilType:
         if not PUBLISHED_CURVES:
             _load_published_curves()
 
-        model_mr = args[0]
-        model_d = args[1] if len(args) > 1 else args[0]
+        if model_damping is None:
+            model_damping = model
 
         return cls(
             name,
             unit_wt=unit_wt,
-            mod_reduc=NonlinearProperty.from_published(model_mr, "mod_reduc"),
-            damping=NonlinearProperty.from_published(model_d, "damping"),
+            mod_reduc=NonlinearProperty.from_published(model, "mod_reduc"),
+            damping=NonlinearProperty.from_published(model_damping, "damping"),
         )
 
-    def copy(self):
+    def copy(self) -> SoilType:
         return SoilType(self.name, self.unit_wt, self.mod_reduc, self.damping)
 
     @property
-    def density(self):
+    def density(self) -> float:
         """Density of the soil in kg/m³."""
         return self.unit_wt / GRAVITY
 
     @property
-    def damping_min(self):
+    def damping_min(self) -> float:
         """Return the small-strain damping."""
         try:
             return self.damping.values[0]
@@ -266,21 +273,19 @@ class SoilType(object):
             return self.damping
 
     @property
-    def quality(self):
+    def quality(self) -> float:
         return 1 / (2 * self.damping_min)
 
     @property
-    def unit_wt(self):
+    def unit_wt(self) -> float:
         return self._unit_wt
 
     @property
-    def is_nonlinear(self):
+    def is_nonlinear(self) -> bool:
         """If nonlinear properties are specified."""
-        return any(
-            isinstance(p, NonlinearProperty) for p in [self.mod_reduc, self.damping]
-        )
+        return any(isinstance(p, NonlinearProperty) for p in [self.mod_reduc, self.damping])
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         # return all(
         #     getattr(self, attr) == getattr(other, attr)
         #     for attr in ['name', 'unit_wt', 'mod_reduc', 'damping'])
@@ -290,7 +295,7 @@ class SoilType(object):
         return hash(self.__dict__.values())
 
 
-class ModifiedHyperbolicSoilType(SoilType):
+class ModifiedHyperbolicSoilType(SoilType, ABC):
     def __init__(self, name, unit_wt, damping_min, strains=None):
         """
 
@@ -335,9 +340,7 @@ class ModifiedHyperbolicSoilType(SoilType):
         c2 = 0.0805 * self.curvature**2 - 0.0710 * self.curvature - 0.0095
         c3 = -0.0005 * self.curvature**2 + 0.0002 * self.curvature + 0.0003
         damping_masing = (
-            c1 * damping_masing_a1
-            + c2 * damping_masing_a1**2
-            + c3 * damping_masing_a1**3
+            c1 * damping_masing_a1 + c2 * damping_masing_a1**2 + c3 * damping_masing_a1**3
         )
 
         # Compute the damping correction in percent
@@ -357,19 +360,22 @@ class ModifiedHyperbolicSoilType(SoilType):
         self.damping = NonlinearProperty(name, strains, damping, "damping")
 
     @property
-    def masing_scaling(self):
+    @abstractmethod
+    def masing_scaling(self) -> float:
         """Scaling of the Masing damping component."""
-        return NotImplementedError
+        raise NotImplementedError
 
     @property
-    def curvature(self):
+    @abstractmethod
+    def curvature(self) -> float:
         """Curvature of the model."""
-        return NotImplementedError
+        raise NotImplementedError
 
     @property
-    def strain_ref(self):
+    @abstractmethod
+    def strain_ref(self) -> float:
         """Reference strain."""
-        return NotImplementedError
+        raise NotImplementedError
 
 
 @dataclass
@@ -430,7 +436,7 @@ class TwoParamModifiedHyperbolicSoilType(SoilType):
         # Convert from percent to decimal strain
         strain_mr = C.g1 * stress_mean_atm**C.g2 / 100
         b = C.b1 + C.b2 * stress_mean_atm
-        values_mr = 1 / ((1 + (strains / strain_mr) ** C.a)) ** b
+        values_mr = 1 / (1 + (strains / strain_mr) ** C.a) ** b
         mod_reduc = NonlinearProperty(name, strains, values_mr)
 
         d_min = C.d0 * stress_mean_atm**C.d1
@@ -477,7 +483,6 @@ class DarendeliSoilType(ModifiedHyperbolicSoilType):
         damping_min=None,
         strains=None,
     ):
-
         self._plas_index = plas_index
         self._ocr = ocr
         self._stress_mean = stress_mean
@@ -500,12 +505,12 @@ class DarendeliSoilType(ModifiedHyperbolicSoilType):
         ) / 100
 
     @property
-    def masing_scaling(self):
+    def masing_scaling(self) -> float:
         # Masing correction factor
         return 0.6329 - 0.00566 * np.log(self._num_cycles)
 
     @property
-    def strain_ref(self):
+    def strain_ref(self) -> float:
         """reference strain [decimal]"""
         return (
             (0.0352 + 0.0010 * self._plas_index * self._ocr**0.3246)
@@ -513,15 +518,15 @@ class DarendeliSoilType(ModifiedHyperbolicSoilType):
         ) / 100
 
     @property
-    def curvature(self):
+    def curvature(self) -> float:
         return 0.9190
 
-    def _create_name(self):
+    def _create_name(self) -> str:
         fmt = "Darendeli (PI={:.0f}, OCR={:.1f}, σₘ'={:.1f} kN/m²)"
         return fmt.format(self._plas_index, self._ocr, self._stress_mean)
 
 
-class MenqSoilType(DarendeliSoilType):
+class MenqSoilType(ModifiedHyperbolicSoilType):
     """
     Menq SoilType for gravelly soils.
 
@@ -551,7 +556,6 @@ class MenqSoilType(DarendeliSoilType):
         damping_min=None,
         strains=None,
     ):
-
         self._uniformity_coeff = uniformity_coeff
         self._diam_mean = diam_mean
         self._stress_mean = stress_mean
@@ -573,16 +577,20 @@ class MenqSoilType(DarendeliSoilType):
         ) / 100
 
     @property
-    def strain_ref(self):
+    def masing_scaling(self) -> float:
+        # Masing correction factor
+        return 0.6329 - 0.00566 * np.log(self._num_cycles)
+
+    @property
+    def strain_ref(self) -> float:
         return (
             0.12
             * self._uniformity_coeff**-0.6
-            * (self._stress_mean * KPA_TO_ATM)
-            ** (0.5 * self._uniformity_coeff**-0.15)
+            * (self._stress_mean * KPA_TO_ATM) ** (0.5 * self._uniformity_coeff**-0.15)
         ) / 100
 
     @property
-    def curvature(self):
+    def curvature(self) -> float:
         return 0.86 + 0.1 * np.log10(self._stress_mean * KPA_TO_ATM)
 
     def _create_name(self):
@@ -690,9 +698,7 @@ class KishidaSoilType(SoilType):
         b_10 = -0.950
         return np.exp(b_9 + b_10 * (x_3 - x_3_mean)) / 100
 
-    def _calc_mod_reduc(
-        self, strains, strain_ref, x_1, x_1_mean, x_2, x_2_mean, x_3, x_3_mean
-    ):
+    def _calc_mod_reduc(self, strains, strain_ref, x_1, x_1_mean, x_2, x_2_mean, x_3, x_3_mean):
         """Compute the shear modulus reduction using Equation (1)."""
 
         ones = np.ones_like(strains)
@@ -710,9 +716,7 @@ class KishidaSoilType(SoilType):
             (x_1 - x_1_mean) * (x_2 - x_2_mean) * (x_3 - x_3_mean),
         ]
         # Coefficients
-        denom = np.log(
-            1 / strain_ref + strains / strain_ref
-        )  # TODO: is this percent or decimal?
+        denom = np.log(1 / strain_ref + strains / strain_ref)  # TODO: is this percent or decimal?
         b = np.c_[
             5.11 * ones,
             -0.729 * ones,
@@ -820,11 +824,13 @@ class Layer(object):
         self._depth = 0
         self._stress_vert = 0
 
-    def __repr__(self):
-        index = self._profile.index(self)
+    def __repr__(self) -> str:
+        index = self._profile.index(self) if self._profile else None
+
         shear_vel = self._initial_shear_vel
         thickness = self._thickness
         st_name = self.soil_type.name
+
         return (
             f"<Layer(index={index}, "
             f"shear_vel={shear_vel:0.1f} m/s, "
@@ -832,7 +838,7 @@ class Layer(object):
             f"soil_type={st_name})>"
         )
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         attrs = ["_soil_type", "_thickness", "initial_shear_vel"]
         return (type(self) == type(other)) and all(
             [getattr(self, a) == getattr(other, a) for a in attrs]
@@ -842,32 +848,32 @@ class Layer(object):
         return hash(self.__dict__.values())
 
     @classmethod
-    def copy_of(cls, other):
+    def copy_of(cls, other) -> Layer:
         """Return a copy of the Layer instance with previously defined SoilType."""
         return cls(other.soil_type, other.thickness, other.shear_vel)
 
     @property
-    def depth(self):
+    def depth(self) -> float:
         """Depth to the top of the layer [m]."""
         return self._depth
 
     @property
-    def depth_mid(self):
+    def depth_mid(self) -> float:
         """Depth to the middle of the layer [m]."""
         return self._depth + self._thickness / 2
 
     @property
-    def depth_base(self):
+    def depth_base(self) -> float:
         """Depth to the base of the layer [m]."""
         return self._depth + self._thickness
 
     @property
-    def density(self):
+    def density(self) -> float:
         """Density of soil in [kg/m³]."""
         return self.soil_type.density
 
     @property
-    def damping(self):
+    def damping(self) -> np.ndarray | float:
         """Strain-compatible damping."""
         try:
             value = self._damping.value
@@ -876,12 +882,12 @@ class Layer(object):
         return value
 
     @property
-    def initial_shear_mod(self):
+    def initial_shear_mod(self) -> float:
         """Initial (small-strain) shear modulus [kN/m²]."""
         return self.density * self.initial_shear_vel**2
 
     @property
-    def initial_shear_vel(self):
+    def initial_shear_vel(self) -> float:
         """Initial (small-strain) shear-wave velocity [m/s]."""
         return self._initial_shear_vel
 
@@ -894,7 +900,7 @@ class Layer(object):
         self.reset()
 
     @property
-    def comp_shear_mod(self):
+    def comp_shear_mod(self) -> complex:
         """Strain-compatible complex shear modulus [kN/m²]."""
         damping = self.damping
         if COMP_MODULUS_MODEL == "seed":
@@ -918,12 +924,12 @@ class Layer(object):
         return comp_shear_mod
 
     @property
-    def comp_shear_vel(self):
+    def comp_shear_vel(self) -> complex:
         """Strain-compatible complex shear-wave velocity [m/s]."""
         return np.sqrt(self.comp_shear_mod / self.density)
 
     @property
-    def max_error(self):
+    def max_error(self) -> float:
         return max(self._shear_mod.relative_error, self._damping.relative_error)
 
     def reset(self):
@@ -935,7 +941,7 @@ class Layer(object):
         self.strain_max = None
 
     @property
-    def shear_mod(self):
+    def shear_mod(self) -> np.ndarray | float:
         """Strain-compatible shear modulus [kN//m²]."""
         try:
             value = self._shear_mod.value
@@ -1030,9 +1036,7 @@ class Layer(object):
 
     @property
     def incr_site_atten(self):
-        return (
-            2 * self.soil_type.damping_min * self._thickness
-        ) / self.initial_shear_vel
+        return (2 * self.soil_type.damping_min * self._thickness) / self.initial_shear_vel
 
 
 class Location(object):
@@ -1310,9 +1314,7 @@ class Profile(collections.abc.Container):
         # If needed, add the final layer to the required depth
         if depths[-1] < depth:
             depths = np.r_[depths, depth]
-            travel_times = np.r_[
-                travel_times, (depth - self[-1].depth) / self[-1].shear_vel
-            ]
+            travel_times = np.r_[travel_times, (depth - self[-1].depth) / self[-1].shear_vel]
 
         total_travel_times = np.cumsum(travel_times)
         # Interpolate the travel time to the depth of interest
@@ -1345,9 +1347,7 @@ class Profile(collections.abc.Container):
         freq_fund = np.sqrt(
             4
             * np.sum(thicks * depths_mid**2 / shear_vels**2)
-            / np.sum(
-                thicks * np.sum(np.c_[shape, np.roll(shape, -1)], axis=1)[:-1] ** 2
-            )
+            / np.sum(thicks * np.sum(np.c_[shape, np.roll(shape, -1)], axis=1)[:-1] ** 2)
         )
         period_fun = 2 * np.pi / freq_fund
         rayleigh_vel = 4 * thicks.sum() / period_fun

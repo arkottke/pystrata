@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# encoding: utf-8
+# -*- coding: utf-8 -*-
 """Test site module."""
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,9 +22,9 @@ import numpy as np
 import pytest
 import scipy.constants
 from numpy.testing import assert_allclose
+from pystrata import site
 
 from . import FPATH_DATA
-from pystrata import site
 
 
 def test_published_nonlinear_property():
@@ -185,9 +185,7 @@ def test_kishida_nlc(case, curve, attr, key):
     # Decimal damping used inside PYSRA
     scale = 100 if key == "dampings" else 1
     scale = 1
-    assert_allclose(
-        scale * getattr(getattr(st, curve), attr), case[key], rtol=0.005, atol=0.0005
-    )
+    assert_allclose(scale * getattr(getattr(st, curve), attr), case[key], rtol=0.005, atol=0.0005)
 
 
 @pytest.mark.parametrize("depth,expected", [(10, 300), (20, 400), (30, 490.909)])
@@ -222,10 +220,7 @@ def test_simplified_rayleigh_vel():
         (25, 2777, 140),
     ]
     p = site.Profile(
-        [
-            site.Layer(site.SoilType(unit_wt=unit_wt), thick, vs)
-            for thick, vs, unit_wt in layers
-        ]
+        [site.Layer(site.SoilType(unit_wt=unit_wt), thick, vs) for thick, vs, unit_wt in layers]
     )
 
     assert_allclose(

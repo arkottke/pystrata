@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # The MIT License (MIT)
 #
 # Copyright (c) 2016-2022 Albert Kottke
@@ -19,7 +20,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from pkg_resources import get_distribution
+from importlib.metadata import version
 
 from . import motion
 from . import output
@@ -31,7 +32,7 @@ from . import variation
 __all__ = ["motion", "propagation", "output", "site", "tools", "variation"]
 
 __author__ = "Albert Kottke"
-__copyright__ = "Copyright 2016-2022 Albert Kottke"
+__copyright__ = "Copyright 2016-2024 Albert Kottke"
 __license__ = "MIT"
 __title__ = "pyStrata"
-__version__ = get_distribution("pyStrata").version
+__version__ = version("pyRVT")

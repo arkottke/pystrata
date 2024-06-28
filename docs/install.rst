@@ -3,18 +3,12 @@
 Installation
 ============
 
-Prior to using pystrata, Python and a number of packages need to be installed. In
+Prior to using `pyStrata`, Python and a number of packages need to be installed. In
 addition to Python, the following packages need to be installed:
-
-*Required:*
-
-- numpy -- fast vector operations
-
-- scipy -- indefinite integration
-
-- nose -- required for the unit tests
-
-- matplotlib -- used for plotting
+ - numpy -- fast vector operations
+ - scipy -- indefinite integration
+ - matplotlib -- used for plotting
+ - pytest -- test suite
 
 Install Python dependencies is best accomplished with a package manager. On
 Windows or OS-X, I recommend using Miniconda3. On Linux, the package manager
@@ -31,7 +25,7 @@ After the installer is finished, install the required dependencies by opening a
 terminal. On Windows, this is best accomplished with ``Windows Key + r``, enter
 ``cmd``. Next enter the following command::
 
-  conda install --yes setuptools numpy scipy matplotlib nose
+  conda install --yes setuptools numpy scipy matplotlib pytest
 
 On Windows, the text can copied and pasted if "Quick Edit" mode is enabled. To
 enable this feature, right click on the icon in the upper left portion of the

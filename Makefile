@@ -46,7 +46,7 @@ clean-test:
 	rm -fr .cache
 
 test:
-	rstcheck *.rst
+	pip install -e .
 	pytest --cov-report html --cov=pystrata tests/
 
 examples:
@@ -65,7 +65,7 @@ docs:
 	$(BROWSER) docs/_build/html/index.html
 
 servedocs: docs
-	watchmedo shell-command -p '*.rst' -c '$(MAKE) -C docs html' -R -D .
+	sphinx-autobuild docs docs/_build/html
 
 test-release: clean
 	python -m build

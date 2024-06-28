@@ -90,9 +90,7 @@ class TruncatedNorm:
         rvs : ndarray or scalar
             Random variates of given `size`.
         """
-        return stats.truncnorm.rvs(
-            -self.limit, self.limit, scale=self._scale, size=size
-        )
+        return stats.truncnorm.rvs(-self.limit, self.limit, scale=self._scale, size=size)
 
     def correlated(self, correl):
         # Acceptance proportion
@@ -226,7 +224,7 @@ class ToroThicknessVariation(object):
 
         """
         layers = []
-        for (thick, depth_mid) in self.iter_thickness(profile[-2].depth_base):
+        for thick, depth_mid in self.iter_thickness(profile[-2].depth_base):
             # Locate the proper layer and add it to the model
             for l in profile:
                 if l.depth < depth_mid <= l.depth_base:
@@ -253,9 +251,6 @@ class HalfSpaceDepthVariation(object):
 
         # Find the layer
         index, depth_within = profile.lookup_depth(varied_depth)
-
-        print(varied_depth, profile[-1].depth, index, depth_within)
-
         half_space = profile[-1]
 
         if index < (len(profile) - 1):
@@ -270,8 +265,6 @@ class HalfSpaceDepthVariation(object):
             count = np.ceil(total_thick // orig_thick).astype(int)
 
             thick = total_thick / count
-
-            print(count, thick)
 
             # Don't copy half-space
             layers = [site.Layer.copy_of(layer) for layer in profile[:-1]]
@@ -292,7 +285,6 @@ class LayerThicknessVariation(object):
         models: Union[List[stats.rv_continuous], Dict[int, stats.rv_continuous]],
         discretize_kwds: Optional[Dict[str, float]] = None,
     ) -> None:
-
         self._models = models
         self._discretize_kwds = discretize_kwds
 
@@ -533,9 +525,7 @@ class ToroVelocityVariation(VelocityVariation):
         depth = depth[:-1]
 
         # Depth dependent correlation
-        corr_depth = self.rho_200 * np.power(
-            (depth + self.h_0) / (200 + self.h_0), self.b
-        )
+        corr_depth = self.rho_200 * np.power((depth + self.h_0) / (200 + self.h_0), self.b)
         corr_depth[depth > 200] = self.rho_200
 
         # Thickness dependent correlation
@@ -664,9 +654,7 @@ class DepthDependToroVelVariation(ToroVelocityVariation):
         ln_std_map: Optional[Dict[str, float]] = None,
     ):
         """Initialize the model."""
-        super().__init__(
-            ln_std, rho_0, delta, rho_200, h_0, b, vary_bedrock=vary_bedrock
-        )
+        super().__init__(ln_std, rho_0, delta, rho_200, h_0, b, vary_bedrock=vary_bedrock)
         self.depth = depth
         self.ln_std_map = ln_std_map or dict()
 
@@ -768,15 +756,11 @@ class SoilTypeVariation(object):
         varied_mod_reduc = np.clip(
             varied_mod_reduc, self.limits_mod_reduc[0], self.limits_mod_reduc[1]
         )
-        varied_damping = np.clip(
-            varied_damping, self.limits_damping[0], self.limits_damping[1]
-        )
+        varied_damping = np.clip(varied_damping, self.limits_damping[0], self.limits_damping[1])
 
         # Set the values
         realization = copy.deepcopy(soil_type)
-        for attr_name, values in zip(
-            ["mod_reduc", "damping"], [varied_mod_reduc, varied_damping]
-        ):
+        for attr_name, values in zip(["mod_reduc", "damping"], [varied_mod_reduc, varied_damping]):
             try:
                 getattr(realization, attr_name).values = values
             except AttributeError:
@@ -832,9 +816,7 @@ class DarendeliVariation(SoilTypeVariation):
             Standard deviation.
         """
         mod_reduc = np.asarray(mod_reduc).astype(float)
-        std = np.exp(-4.23) + np.sqrt(
-            0.25 / np.exp(3.62) - (mod_reduc - 0.5) ** 2 / np.exp(3.62)
-        )
+        std = np.exp(-4.23) + np.sqrt(0.25 / np.exp(3.62) - (mod_reduc - 0.5) ** 2 / np.exp(3.62))
         return std
 
     @staticmethod
@@ -860,7 +842,11 @@ class DarendeliVariation(SoilTypeVariation):
 
 class SpidVariation(SoilTypeVariation):
     """Variation defined by the EPRI SPID (2013) and documented in
-    PNNL (2014)."""
+    PNNL (2014).
+
+    EPRI SPID (2013): https://www.nrc.gov/docs/ML1233/ML12333A170.pdf
+
+    """
 
     def __init__(
         self,
@@ -876,6 +862,11 @@ class SpidVariation(SoilTypeVariation):
 
     def _get_varied(self, randvar, mod_reduc, damping):
         # Vary the G/Gmax in transformed space.
+
+        # PNNL (2014) Hanford Site Wide Hazard Study is available here:
+        # https://www.hanford.gov/files.cfm/00_Front_Matter.pdf
+        # https://www.hanford.gov/files.cfm/9.0_Ground_Motion_Characterization.pdf
+
         # Equation 9.43 of PNNL (2014)
         # Here epsilon is added so that the denomiator doesn't go to zero.
         f_mean = mod_reduc / (1 - mod_reduc + np.finfo(float).eps)

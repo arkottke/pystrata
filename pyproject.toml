@@ -1,0 +1,90 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pyStrata"
+version = "0.5.4"
+authors = [{ name = "Albert Kottke", email = "albert.kottke@gmail.com" }]
+description = "Site response analysis with Python."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.8"
+dependencies = [
+"matplotlib",
+"numba",
+"numpy",
+"pykooh",
+"pyrvt",
+"scipy",
+"setuptools",
+"tomli",
+]
+
+[project.urls]
+Homepage = "https://github.com/arkottke/pystrata"
+Documentation = "https://pystrata.readthedocs.io"
+
+[tool.black]
+line-length = 99
+target-version = ['py37', 'py38', 'py39', 'py310']
+
+[tool.hatch.build.targets.sdist]
+exclude = ["/*.yml", "/.*", "/.github", "/docs"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pystrata"]
+
+[tool.isort]
+profile = "black"
+filter_files = true
+
+[tool.ruff]
+line-length = 99
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.envs.test]
+dependencies = [
+  "coverage[toml]",
+  "pytest",
+  "pytest-cov",
+  "pytest-runner",
+  # FIXME: Add as dependency of pystrata
+  "matplotlib",
+  "pykooh",
+  "tomli",
+  "pandas",
+  # Done
+]
+
+[tool.hatch.envs.test.scripts]
+run-coverage = "pytest --cov-config=pyproject.toml --cov=pkg --cov=tests"
+run-coverage-xml = "run-coverage --cov-report xml"
+run = "run-coverage --no-cov"
+
+[tool.hatch.envs.style]
+detached = true
+dependencies = ["black", "isort"]
+
+[tool.hatch.envs.style.scripts]
+check = ["black --check --diff .", "isort --check-only --diff ."]
+fmt = ["isort .", "black .", "check"]
+
+[tool.hatch.envs.docs]
+dependencies = [
+  "mkdocs",
+  "markdown-callouts",
+  "mkdocstrings[python]",
+  "mkdocs-bibtex",
+  "mkdocs-gen-files",
+  "mkdocs-literate-nav",
+  "mkdocs-material",
+  "mkdocs-section-index",
+  "mkdocs-jupyter",
+  "black",
+]
+[tool.hatch.envs.docs.scripts]
+build = "mkdocs build --clean --strict"
+serve = "mkdocs serve --dev-addr localhost:8000"

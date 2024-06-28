@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # The MIT License (MIT)
 #
 # Copyright (c) 2016-2021 Albert Kottke
@@ -486,15 +487,21 @@ class FourierAmplitudeSpectrumOutput(LocationBasedOutput):
         loc = self._get_location(calc)
         tf = calc.calc_accel_tf(calc.loc_input, loc)
 
-        if self.ko_bandwidth:
-            smoothed = pykooh.smooth(
+        # Only return the absolute value
+        fas = np.abs(tf * calc.motion.fourier_amps)
+
+        # Interpolate to the specified frequencies
+        if self._ko_bandwidth is None:
+            fas = np.interp(self.freqs, calc.motion.freqs, fas)
+        else:
+            fas = pykooh.smooth(
                 self.freqs,
                 calc.motion.freqs,
-                np.abs(tf * calc.motion.fourier_amps),
+                fas,
                 self.ko_bandwidth,
             )
 
-        self._add_values(smoothed)
+        self._add_values(fas)
 
 
 class ResponseSpectrumOutput(LocationBasedOutput):
@@ -561,9 +568,7 @@ class AccelTransferFunctionOutput(RatioBasedOutput):
 
     ref_name = "freq"
 
-    def __init__(
-        self, refs, location_in, location_out, ko_bandwidth=None, absolute=True
-    ):
+    def __init__(self, refs, location_in, location_out, ko_bandwidth=None, absolute=True):
         super().__init__(refs, location_in, location_out)
         self._ko_bandwidth = ko_bandwidth
         self._absolute = absolute
@@ -823,7 +828,5 @@ class MaxAccelProfile(ProfileBasedOutput):
 
     def _calc_accel(self, calc, depth):
         return calc.motion.calc_peak(
-            calc.calc_accel_tf(
-                calc.loc_input, calc.profile.location("within", depth=depth)
-            )
+            calc.calc_accel_tf(calc.loc_input, calc.profile.location("within", depth=depth))
         )

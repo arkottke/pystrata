@@ -3,7 +3,9 @@
 
 name: Upload Python Package
 
-on: push
+on:
+  release:
+    types: [published]
 
 jobs:
   deploy:
@@ -11,9 +13,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@main
     - name: Set up Python
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@main
       with:
         python-version: '3.x'
     - name: Install dependencies
@@ -32,7 +34,6 @@ jobs:
         --outdir dist/
         .
     - name: Publish distribution package to PyPI
-      if: github.event_name == 'release' && startsWith(github.ref, 'refs/tags')
       uses: pypa/gh-action-pypi-publish@master
       with:
         password: ${{ secrets.PYPI_API_TOKEN }}
