@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# encoding: utf-8
+# -*- coding: utf-8 -*-
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 2 of the License, or
@@ -16,10 +16,9 @@
 #
 # Copyright (C) Albert Kottke, 2013-2016
 import numpy as np
+import pystrata
 import pytest
 from numpy.testing import assert_allclose
-
-import pystrata
 
 
 def test_add_refs():

@@ -31,7 +31,7 @@ from .site import Location
 from .site import Profile
 
 
-class AbstractCalculator(object):
+class AbstractCalculator:
     def __init__(self):
         self._loc_input = None
         self._motion = None
@@ -662,7 +662,9 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
 
         if self._use_smooth_spectrum:
             # Equation (8)
-            freq_avg = np.trapz(freqs * strain_fas, x=freqs) / np.trapz(strain_fas, x=freqs)
+            freq_avg = np.trapezoid(freqs * strain_fas, x=freqs) / np.trapezoid(
+                strain_fas, x=freqs
+            )
 
             # Find the average strain at frequencies less than the average
             # frequency

@@ -48,9 +48,14 @@ source = "vcs"
 [tool.hatch.envs.test]
 dependencies = [
   "coverage[toml]",
+  "nbformat",
+  "nbconvert",
   "pytest",
   "pytest-cov",
   "pytest-runner",
+  "pyexcel",
+  "pyexcel-xls",
+  "pyexcel-xlsx",
   # FIXME: Add as dependency of pystrata
   "matplotlib",
   "pykooh",

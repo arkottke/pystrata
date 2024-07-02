@@ -23,12 +23,14 @@
 import collections
 import os
 import re
+from typing import Callable
 from typing import List
 from typing import Optional
 from typing import Tuple
 from typing import Union
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import scipy.constants as C
 
@@ -303,28 +305,46 @@ def profile_from_nrattle_ctl(ctl):
     return site.Profile.from_dataframe(df, 0)
 
 
-def calc_tf_site_atten(profile: site.Profile) -> float:
+def calc_atten_scatter(profile: site.Profile, freqs: Optional[npt.ArrayLike] = None) -> float:
+    """
+    Compute the attenuation due to impedance (scattering) effects of the
+    profile.
+
+    This is defined as the difference between the attenuation associated with a
+    known damping and the attenuation from the transfer function.
+
+
+    Parameters
+    ----------
+    profile : pystrata.site.Profile
+        Site profile
+    freqs : array_like, or None
+        Frequency range over which the attenuation is computed. If *None*, then
+        `np.linspace(50, 200, num=256)` is used.
+
+    Returns
+    -------
+    float
+        Site attenuation associated with the scattering [sec]
+    """
     # Create a profile with fixed damping
     p = site.Profile(
         [
             site.Layer(
-                site.SoilType(
-                    l.soil_type.name,
-                    l.soil_type.unit_wt,
-                    0,
-                    (0.01) if l.depth < 200 else (0.002),
-                ),
-                l.thickness,
-                l.shear_vel,
+                site.SoilType(layer.soil_type.name, layer.soil_type.unit_wt, 0, 0.01),
+                layer.thickness,
+                layer.shear_vel,
             )
-            for l in profile
+            for layer in profile
         ]
     )
 
-    site_atten_p = p.site_attenuation()
+    site_atten_damp = p.site_attenuation()
 
-    # Compute the slope of the transfer function
-    mot = motion.Motion(freqs=np.linspace(50, 200, num=256))
+    # Compute the slope of the transfer function from 50 to 200 Hz
+    freqs = np.linspace(50, 200, num=256) if freqs is None else np.asarray(freqs)
+    mot = motion.Motion(freqs=freqs)
+
     calc = propagation.LinearElasticCalculator()
     calc(mot, p, p.location("outcrop", index=-1))
 
@@ -336,115 +356,110 @@ def calc_tf_site_atten(profile: site.Profile) -> float:
     site_atten_tf = -fit[0] / np.pi
 
     # Scattering effect
-    site_atten_scatter = max(site_atten_tf - site_atten_p, 0)
+    site_atten_scatter = max(site_atten_tf - site_atten_damp, 0)
+
     return site_atten_scatter
-
-
-# FIXME: Move to Layer?
-def set_min_damping(layer: site.Layer, damping: float) -> None:
-    try:
-        # Limit the increased damping to 15%
-        shift = damping - layer.soil_type.damping.values[0]
-        layer.soil_type.damping.values = np.minimum(
-            layer.soil_type.damping.values + shift, 0.15
-        )
-        # Need to update the strain to relook up the damping values
-        layer.strain = 1e-6
-    except AttributeError:
-        layer.soil_type.damping = damping
 
 
 def adjust_damping_values(
     profile: site.Profile,
     target_site_atten: float,
-    excluded: Optional[List[str]] = None,
-    include_scatter: bool = True,
-    ret_full: bool = False,
-) -> Union[site.Profile, Tuple[site.Profile, float, float]]:
-    """Return a copy of the profile with the damping values adjusted to achieve a target site attenuation.
-
+    exclude: None | str | list[str] | Callable = None,
+    verbose: bool = False,
+    inplace: bool = False,
+) -> site.Profile:
+    """[TODO:description]
 
     Parameters
     ----------
     profile : site.Profile
-        Input site profile
-    target_site_atten: float
-        Target site attenuation parameter (κ₀) [sec]
-    excluded: optional, List[str]
-        Soiltype names of layers that should be excluded from the calculation. For
-        example, this could be used to remove soil layers from the calculation.
-    include_scatter: optional, default *True*
-        If scattering attenuation calculated by the transfer function should be included.
-    ret_full: optional, bool
-        If additional information should be returned
-
+        Site profile to adjust
+    target_site_atten : float
+        Target total site attenuation [sec]
+    exclude : None | str | list[str] | Callable
+        Pattern or callable used to exclude layers from this adjustment. If
+        *None, all layers are used. If
+        *str*, then `re.match` is used to test against the
+        `layer.soil_type.name`. If *list[str]*, then `layer.soil_type.name` is
+        tested not to be included in this list. If *callable*, then the
+        function should take `site.Layer` and return *True* for excluded
+        layers.
+    verbose : bool
+        If *True*, the asscoaited gamma value is computed.
+    inplace : bool
+        If *True*, then the provided profile is modified
     Returns
     -------
-    if ret_full is *False*
-
-    profile: site.Profile
-        Adjusted site profile
-
-    if ret_full is *True*
-
-    profile: site.Profile
-        Adjusted site profile
-
-    gamma: float
-        Factor used to compute damping from velocity
-
-    site_atten_scatter: float
-        Attenuation contribution from scattering
+    site.Profile
+        Modified profile
 
     """
-    profile = site.Profile.copy_of(profile)
+
+    if not inplace:
+        profile = site.Profile.copy_of(profile)
 
     # Site attenuation considering the site propagation and scattering
-    if include_scatter:
-        site_atten_scatter = calc_tf_site_atten(profile)
+    site_atten_scatter = calc_atten_scatter(profile)
+
+    # Exclude the half-space and the excluded soilayer types
+    if exclude is None:
+        layers = [layer for layer in profile[:-1]]
+    elif isinstance(exclude, Callable):
+        layers = [layer for layer in profile[:-1] if not exclude(layer)]
+    elif isinstance(exclude, str):
+        layers = [layer for layer in profile[:-1] if not re.match(exclude, layer.soil_type.name)]
+    elif isinstance(exclude, list):
+        layers = [
+            layer for layer in profile[:-1] if not any(e in layer.soil_type.name for e in exclude)
+        ]
     else:
-        site_atten_scatter = 0
+        raise ValueError("Invalid value of `verbose`")
 
-    # Remove the soil layers from the subsequent calculation. The kappa estimates are
-    # based on profiles without soil. Therefore, any contribution of the soil is
-    # computed from the nonlinear curves.
+    if not layers:
+        raise RuntimeError("No layers selected")
 
-    # Exclude the half-space and the excluded soil types
-    layers = [l for l in profile[:-1]]
-    if excluded:
-        layers = [l for l in layers if not any(e in l.soil_type.name for e in excluded)]
+    def set_min_damping(layer, damping):
+        try:
+            # Limit the increased damping to 15%
+            shift = damping - layer.soil_type.damping.values[0]
+            layer.soil_type.damping.values = np.minimum(
+                layer.soil_type.damping.values + shift, 0.15
+            )
+            # Need to update the strain to relook up the damping values
+            layer.strain = 1e-6
+        except AttributeError:
+            layer.soil_type.damping = damping
 
-    # FIXME: Need more iterations?
-    # Revisit the purpose of this part
     for i in range(5):
         # Site attenuation of the remains layers
-        site_atten = sum(l.incr_site_atten for l in layers)
+        site_atten = sum(layer.incr_site_atten for layer in layers)
 
-        # Adjust the target by the scattering and initial attenuation
+        # Adjust the target by the scattering and initialayer attenuation
         remainder = target_site_atten - (site_atten + site_atten_scatter)
         if remainder <= 0:
             print(f"Reducing damping {i}...")
-            for l in profile:
-                if l.damping > 0:
-                    set_min_damping(l, l.damping / 2)
+            for layer in profile:
+                if layer.damping > 0:
+                    set_min_damping(layer, layer.damping / 2)
             profile.reset_layers()
         else:
             break
 
+    if remainder <= 0:
+        raise RuntimeError("Unable to achieve target attenuation")
+
     # Collect the properties
-    vel_shear = np.array([l.initial_shear_vel for l in layers])
-    depth = np.array([l.depth for l in layers])
+    vel_shear = np.array([layer.initial_shear_velayer for layer in layers])
+    depth = np.array([layer.depth for layer in layers])
     thick = np.r_[np.diff(depth), 0]
 
     gamma = np.sum(thick / vel_shear**2) / remainder
     damping = 1 / (2 * gamma * vel_shear)
 
-    # Copy over the damping values. Damping might not be the full length
+    # Copy over the damping values. Damping might not be the fullayer length
     # because of the crust truncation
-    for d, l in zip(damping, layers):
-        set_min_damping(l, d)
 
-    if ret_full:
-        return profile, gamma, site_atten_scatter
-    else:
-        return profile
+    for d, layer in zip(damping, layers):
+        set_min_damping(layer, d)
+
+    return profile

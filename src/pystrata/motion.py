@@ -37,7 +37,7 @@ class WaveField(enum.Enum):
     incoming_only = 2
 
 
-class Motion(object):
+class Motion:
     def __init__(self, freqs=None):
         object.__init__(self)
 

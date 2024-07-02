@@ -17,7 +17,6 @@
 import json
 import string
 
-import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 import pyexcel
@@ -30,7 +29,7 @@ from . import FPATH_DATA
 def read_cluster(ws, cols, names, row_start, row_end):
     d = dict()
     for c, name in zip(cols, names):
-        range_str = "{col}{start}:{col}{end}".format(col=c, start=row_start, end=row_end)
+        range_str = f"{c}{row_start}:{c}{row_end}"
         d[name] = [row[0].value for row in ws[range_str]]
     return d
 

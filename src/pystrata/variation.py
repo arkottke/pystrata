@@ -117,7 +117,7 @@ class TruncatedNorm:
 randnorm = TruncatedNorm(2)
 
 
-class ToroThicknessVariation(object):
+class ToroThicknessVariation:
     """Toro (1995) [T95]_ thickness variation model.
 
     The recommended values are provided as defaults to this model.
@@ -157,7 +157,7 @@ class ToroThicknessVariation(object):
         return self._c_1
 
     def iter_thickness(self, depth_total):
-        """Iterate over the varied thicknesses.
+        r"""Iterate over the varied thicknesses.
 
         The layering is generated using a non-homogenous Poisson process. The
         following routine is used to generate the layering. The rate
@@ -241,7 +241,7 @@ class ToroThicknessVariation(object):
         return varied
 
 
-class HalfSpaceDepthVariation(object):
+class HalfSpaceDepthVariation:
     def __init__(self, dist: stats.rv_continuous):
         self._dist = dist
 
@@ -279,7 +279,7 @@ class HalfSpaceDepthVariation(object):
         return site.Profile(layers, profile.wt_depth)
 
 
-class LayerThicknessVariation(object):
+class LayerThicknessVariation:
     def __init__(
         self,
         models: Union[List[stats.rv_continuous], Dict[int, stats.rv_continuous]],
@@ -289,7 +289,7 @@ class LayerThicknessVariation(object):
         self._discretize_kwds = discretize_kwds
 
 
-class VelocityVariation(object):
+class VelocityVariation:
     """Abstract model for varying the velocity."""
 
     def __init__(self, vary_bedrock=False):
@@ -391,7 +391,7 @@ class VelocityVariation(object):
 
 
 class ToroVelocityVariation(VelocityVariation):
-    """Toro (1995) [T95] velocity variation model.
+    r"""Toro (1995) [T95] velocity variation model.
 
     Default values can be selected with :meth:`.generic_model`.
 
@@ -612,7 +612,7 @@ class ToroVelocityVariation(VelocityVariation):
 
 
 class DepthDependToroVelVariation(ToroVelocityVariation):
-    """Toro (1995) [T95] velocity variation model modified for a depth
+    r"""Toro (1995) [T95] velocity variation model modified for a depth
     dependent standard deviation that can be overridden by the soil_type name.
 
     Default values can be selected with :meth:`.generic_model`.
@@ -724,7 +724,7 @@ class DepthDependToroVelVariation(ToroVelocityVariation):
         return cls(**p)
 
 
-class SoilTypeVariation(object):
+class SoilTypeVariation:
     def __init__(
         self,
         correlation,

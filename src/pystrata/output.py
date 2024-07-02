@@ -36,7 +36,7 @@ except ImportError:
 
 import pykooh
 
-from .motion import TimeSeriesMotion, WaveField, GRAVITY
+from .motion import GRAVITY, TimeSeriesMotion, WaveField
 
 
 def plot_amplification_evolv(
@@ -174,7 +174,7 @@ def append_arrays(many, single):
     return np.c_[many, single]
 
 
-class Output(object):
+class Output:
     _const_ref = False
 
     xscale = "log"
@@ -314,7 +314,7 @@ class Output(object):
         return ax
 
 
-class OutputLocation(object):
+class OutputLocation:
     def __init__(self, wave_field, depth=None, index=None):
         self._depth = depth
         self._index = index
