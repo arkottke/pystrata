@@ -35,15 +35,30 @@ exclude = ["/*.yml", "/.*", "/.github", "/docs"]
 [tool.hatch.build.targets.wheel]
 packages = ["src/pystrata"]
 
-[tool.isort]
-profile = "black"
-filter_files = true
-
-[tool.ruff]
-line-length = 99
-
 [tool.hatch.version]
 source = "vcs"
+
+[tool.ruff]
+exclude = [
+  "docs"
+]
+# Same as Black.
+line-length = 88
+indent-width = 4
+
+target-version = "py310"
+
+extend-include = ["*.ipynb"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "Q", "I"]
+ignore = ["E203"]
+
+[[tool.hatch.envs.test.matrix]]
+python = ["3.10", "3.11", "3.12"]
 
 [tool.hatch.envs.test]
 dependencies = [
@@ -69,15 +84,8 @@ run-coverage = "pytest --cov-config=pyproject.toml --cov=pkg --cov=tests"
 run-coverage-xml = "run-coverage --cov-report xml"
 run = "run-coverage --no-cov"
 
-[tool.hatch.envs.style]
-detached = true
-dependencies = ["black", "isort"]
-
-[tool.hatch.envs.style.scripts]
-check = ["black --check --diff .", "isort --check-only --diff ."]
-fmt = ["isort .", "black .", "check"]
-
 [tool.hatch.envs.docs]
+detached = true
 dependencies = [
   "mkdocs",
   "markdown-callouts",
