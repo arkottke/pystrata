@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 #
 # pyStrata documentation build configuration file, created by
 # sphinx-quickstart on Mon Nov  2 15:41:52 2015.

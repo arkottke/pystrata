@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # The MIT License (MIT)
 #
 # Copyright (c) 2016-2018 Albert Kottke
@@ -23,20 +22,14 @@
 import collections
 import os
 import re
-from typing import Callable
-from typing import List
-from typing import Optional
-from typing import Tuple
-from typing import Union
+from collections.abc import Callable
 
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import scipy.constants as C
 
-from . import motion
-from . import propagation
-from . import site
+from . import motion, propagation, site
 
 
 def to_str(s):
@@ -78,7 +71,7 @@ def _parse_curves(block, **kwargs):
     count = int(block.pop(0))
 
     curves = []
-    for i in range(count):
+    for _ in range(count):
         for param in ["mod_reduc", "damping"]:
             length, name = parse_fixed_width([(5, int), (65, to_str)], block)
             curves.append(
@@ -99,11 +92,13 @@ def _parse_curves(block, **kwargs):
 
 def _parse_soil_profile(block, units, curves, **kwargs):
     """Parse soil profile block."""
-    wt_layer, length, _, name = parse_fixed_width(3 * [(5, int)] + [(55, to_str)], block)
+    wt_layer, length, _, name = parse_fixed_width(
+        3 * [(5, int)] + [(55, to_str)], block
+    )
 
     layers = []
     soil_types = []
-    for i in range(length):
+    for _ in range(length):
         (
             index,
             soil_idx,
@@ -112,7 +107,9 @@ def _parse_soil_profile(block, units, curves, **kwargs):
             damping,
             unit_wt,
             shear_vel,
-        ) = parse_fixed_width([(5, int), (5, int), (15, to_float)] + 4 * [(10, to_float)], block)
+        ) = parse_fixed_width(
+            [(5, int), (5, int), (15, to_float)] + 4 * [(10, to_float)], block
+        )
 
         st = site.SoilType(
             soil_idx,
@@ -133,9 +130,9 @@ def _parse_soil_profile(block, units, curves, **kwargs):
         for st in soil_types:
             st.unit_wt *= 0.00015708746
 
-        for l in layers:
-            l.thickness *= 0.3048
-            l.shear_vel *= 0.3048
+        for layer in layers:
+            layer.thickness *= 0.3048
+            layer.shear_vel *= 0.3048
 
     p = site.Profile(layers)
     p.update_layers()
@@ -194,7 +191,9 @@ def _parse_run_control(block):
         2 * [(5, int)] + [(10, float)] + 2 * [(5, int)], block
     )
 
-    return propagation.EquivalentLinearCalculation(strain_ratio, max_iterations, tolerance=10.0)
+    return propagation.EquivalentLinearCalculation(
+        strain_ratio, max_iterations, tolerance=10.0
+    )
 
 
 def _parse_output_accel(block):
@@ -219,12 +218,12 @@ def load_shake_inp(fname):
     # Parse the option blocks
     option, block = None, []
     options = []
-    for l in lines:
-        m = re.match(r"^\s+(\d+)$", l)
+    for line in lines:
+        m = re.match(r"^\s+(\d+)$", line)
 
         if m:
             if option and not block:
-                block.append(l)
+                block.append(line)
             else:
                 if option and block:
                     # Save the previous block
@@ -232,7 +231,7 @@ def load_shake_inp(fname):
                 block = []
                 option = int(m.group(1))
         else:
-            block.append(l)
+            block.append(line)
 
     parsers = {
         1: ("curves", _parse_curves),
@@ -279,7 +278,9 @@ def read_nrattle_ctl(fpath):
         except ValueError:
             break
 
-    d["profile"] = np.rec.fromrecords(profile, names="layer,thickness,vel_shear,density,inv_qual")
+    d["profile"] = np.rec.fromrecords(
+        profile, names="layer,thickness,vel_shear,density,inv_qual"
+    )
     d["hs_vel_shear"], d["hs_density"] = split_line(line, [float, float])
     d["hs_layer"], d["inci_angle"] = split_line(lines.pop(0), [int, float])
 
@@ -305,7 +306,9 @@ def profile_from_nrattle_ctl(ctl):
     return site.Profile.from_dataframe(df, 0)
 
 
-def calc_atten_scatter(profile: site.Profile, freqs: Optional[npt.ArrayLike] = None) -> float:
+def calc_atten_scatter(
+    profile: site.Profile, freqs: npt.ArrayLike | None = None
+) -> float:
     """
     Compute the attenuation due to impedance (scattering) effects of the
     profile.
@@ -407,10 +410,16 @@ def adjust_damping_values(
     elif isinstance(exclude, Callable):
         layers = [layer for layer in profile[:-1] if not exclude(layer)]
     elif isinstance(exclude, str):
-        layers = [layer for layer in profile[:-1] if not re.match(exclude, layer.soil_type.name)]
+        layers = [
+            layer
+            for layer in profile[:-1]
+            if not re.match(exclude, layer.soil_type.name)
+        ]
     elif isinstance(exclude, list):
         layers = [
-            layer for layer in profile[:-1] if not any(e in layer.soil_type.name for e in exclude)
+            layer
+            for layer in profile[:-1]
+            if not any(e in layer.soil_type.name for e in exclude)
         ]
     else:
         raise ValueError("Invalid value of `verbose`")

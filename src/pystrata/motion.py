@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # The MIT License (MIT)
 #
 # Copyright (c) 2016-2018 Albert Kottke
@@ -21,6 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 """Classes used to define input motions."""
+
 import enum
 import re
 
@@ -77,10 +77,13 @@ class Motion:
 class TimeSeriesMotion(Motion):
     """Time-series motion for time series based site response analysis."""
 
-    def __init__(self, filename: str, description: str, time_step: float, accels, fa_length=None):
+    def __init__(
+        self, filename: str, description: str, time_step: float, accels, fa_length=None
+    ):
         """Initialize the class from specified acceleration values.
 
-        The *filename* and *description* parameters are only used to help track the motion.
+        The *filename* and *description* parameters are only used to help track the
+        motion.
 
         Parameters
         ----------
@@ -93,7 +96,8 @@ class TimeSeriesMotion(Motion):
         accels: array_like
             Accelerations in units of *g*
         fa_length: optional int
-            Length to use for the Fourier amplitude spectrum. If not provided, will be automatically computed to the next power of 2.
+            Length to use for the Fourier amplitude spectrum. If not provided, will be
+            automatically computed to the next power of 2.
         """
         Motion.__init__(self)
 
@@ -178,7 +182,10 @@ class TimeSeriesMotion(Motion):
             tf = np.asarray(tf).astype(complex)
 
         resp = np.array(
-            [self.calc_peak(tf * self._calc_sdof_tf(of, osc_damping)) for of in osc_freqs]
+            [
+                self.calc_peak(tf * self._calc_sdof_tf(of, osc_damping))
+                for of in osc_freqs
+            ]
         )
         return resp
 
@@ -218,7 +225,9 @@ class TimeSeriesMotion(Motion):
             Complex-valued transfer function with length equal to `self.freq`.
         """
         return -(osc_freq**2.0) / (
-            np.square(self.freqs) - np.square(osc_freq) - 2.0j * damping * osc_freq * self.freqs
+            np.square(self.freqs)
+            - np.square(osc_freq)
+            - 2.0j * damping * osc_freq * self.freqs
         )
 
     @classmethod
@@ -239,7 +248,7 @@ class TimeSeriesMotion(Motion):
             parts = next(fp).split()
             time_step = float(parts[1])
 
-            accels = np.array([float(p) for l in fp for p in l.split()])
+            accels = np.array([float(part) for line in fp for part in line.split()])
 
         accels *= scale
         return cls(filename, description, time_step, accels)
@@ -273,12 +282,16 @@ class TimeSeriesMotion(Motion):
         description = "; ".join([g.strip() for g in m.groups()])
 
         # 6 lines of (8i10) formatted integers
-        values_int = parse_fixed_width(48 * [(10, int)], [lines.pop(0) for _ in range(6)])
+        values_int = parse_fixed_width(
+            48 * [(10, int)], [lines.pop(0) for _ in range(6)]
+        )
         count_comment = values_int[15]
         count = values_int[16]
 
         # 10 lines of (5e15.7) formatted floats
-        values_float = parse_fixed_width(50 * [(15, float)], [lines.pop(0) for _ in range(10)])
+        values_float = parse_fixed_width(
+            50 * [(15, float)], [lines.pop(0) for _ in range(10)]
+        )
         time_step = 1 / values_float[1]
 
         # Skip comments
@@ -298,10 +311,13 @@ class TimeSeriesMotion(Motion):
         return TimeSeriesMotion(filename, description, time_step, accels)
 
 
+# FIXME: How do multiple inheritence properly?
 class RvtMotion(pyrvt.motions.RvtMotion, Motion):
     """RVT motion based on user specified Fourier amplitude spectrum and duration."""
 
-    def __init__(self, freqs, fourier_amps, duration=None, peak_calculator=None, calc_kwds=None):
+    def __init__(
+        self, freqs, fourier_amps, duration=None, peak_calculator=None, calc_kwds=None
+    ):
         Motion.__init__(self)
         pyrvt.motions.RvtMotion.__init__(
             self,
@@ -314,7 +330,8 @@ class RvtMotion(pyrvt.motions.RvtMotion, Motion):
 
 
 class CompatibleRvtMotion(pyrvt.motions.CompatibleRvtMotion, Motion):
-    """RVT motion based on user specified acceleration response spectrum and duration."""
+    """RVT motion based on user specified acceleration response spectrum and
+    duration."""
 
     def __init__(
         self,
@@ -342,7 +359,8 @@ class CompatibleRvtMotion(pyrvt.motions.CompatibleRvtMotion, Motion):
 
 
 class SourceTheoryRvtMotion(pyrvt.motions.SourceTheoryMotion, Motion):
-    """RVT motion based on seismological point source model and earthquake scenario parameters."""
+    """RVT motion based on seismological point source model and earthquake scenario
+    parameters."""
 
     def __init__(
         self,

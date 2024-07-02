@@ -16,34 +16,35 @@ Docs](https://img.shields.io/readthedocs/pystrata)](https://pystrata.readthedocs
 Site response analyses implemented in Python. This Python packages aims
 to implement many of the features found in
 [Strata](https://github.com/arkottke/strata). These features include:
-- Input motion characterization:
-    - Time series
-    - Random vibration theory
-- Wave propagation or site amplification:
-    - linear
-    - equivalent-linear
-    - equivalent-linear with frequency dependent properties
-    - quarter wavelength
-- Nonlinear curve models:
-    - Predictive models:
-        - Darendeli (2001)
-        - Menq (2004)
-        - Kishida (2012)
-    - Curves:
-        - Vucetic & Dobry (1991)
-        - EPRI (1993)
-        - GEI (1983)
-        - GeoMatrix (1990)
-        - Idriss (1990)
-        - Imperial Valley Soils
-        - Iwasaki
-        - Peninsular Range
-        - Seed & Idriss
-- Site and soil property uncertainty:
-    - Toro (1994) Vs correlation model
-    - G/Gmax and D uncertainty:
-    - Darendeli (2001)
-    - EPRI SPID (2013)
+
+-   Input motion characterization:
+    -   Time series
+    -   Random vibration theory
+-   Wave propagation or site amplification:
+    -   linear
+    -   equivalent-linear
+    -   equivalent-linear with frequency dependent properties
+    -   quarter wavelength
+-   Nonlinear curve models:
+    -   Predictive models:
+        -   Darendeli (2001)
+        -   Menq (2004)
+        -   Kishida (2012)
+    -   Curves:
+        -   Vucetic & Dobry (1991)
+        -   EPRI (1993)
+        -   GEI (1983)
+        -   GeoMatrix (1990)
+        -   Idriss (1990)
+        -   Imperial Valley Soils
+        -   Iwasaki
+        -   Peninsular Range
+        -   Seed & Idriss
+-   Site and soil property uncertainty:
+    -   Toro (1994) Vs correlation model
+    -   G/Gmax and D uncertainty:
+    -   Darendeli (2001)
+    -   EPRI SPID (2013)
 
 Development of this software is on-going and any contributions are
 encouraged. Previously named `pysra`, but renamed after some sage and

@@ -1,11 +1,11 @@
-2 CORRECTED ACCELEROGRAM  
+2 CORRECTED ACCELEROGRAM
 *
-2555b     
+2555b
      2011  08  23    1751 MINERAL, VA
-Moment Mag= 5.80     Ms=          Ml=         
-station = VA: Reston; Fire Station #25   component= 360     
+Moment Mag= 5.80     Ms=          Ml=
+station = VA: Reston; Fire Station #25   component= 360
 epicentral dist =    121.4       pk acc =  3.91E+1
-inst type=K2         data source = USGS                          
+inst type=K2         data source = USGS
 *
 *
 *
@@ -25,14 +25,14 @@ inst type=K2         data source = USGS
   8.0000000E+01  3.9133476E+01  1.7000000E+38  1.7000000E+38  1.7000000E+38
   1.7000000E+38  1.7000000E+38  1.7000000E+38  1.7000000E+38  1.7000000E+38
   1.7000000E+38  1.7000000E+38  1.7000000E+38  1.7000000E+38  1.7000000E+38
-|                                                                               
-| Converted using program evt2smc 2011/08/25 15:28:20                           
-| Input file: 20110823_175126_2555-02516_AW256.EVT                              
-| EventID: se082311a                                                            
-| Event source: Southeast U.U Seismic Network                                   
-| EventID: se082311a                                                            
-| Event source: Southeast U.S. Seismic Array                                    
-| Seismic moment source: USGS/SLU                                               
+|
+| Converted using program evt2smc 2011/08/25 15:28:20
+| Input file: 20110823_175126_2555-02516_AW256.EVT
+| EventID: se082311a
+| Event source: Southeast U.U Seismic Network
+| EventID: se082311a
+| Event source: Southeast U.S. Seismic Array
+| Seismic moment source: USGS/SLU
  2.3489E-2-1.6646E-2 7.7538E-3 4.5976E-2-2.0830E-2 4.9540E-3 3.5287E-2-4.6692E-2
 -4.3649E-2 1.2602E-2 1.5667E-2-6.8732E-5 2.8507E-3 4.4044E-2 2.7958E-2-1.3630E-2
  1.0709E-2-2.2262E-2-5.8025E-2-2.5673E-3 1.9533E-3-1.0128E-2 3.1064E-2 4.0388E-2

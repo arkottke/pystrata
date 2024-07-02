@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # The MIT License (MIT)
 #
 # Copyright (c) 2016-2018 Albert Kottke
@@ -24,14 +23,10 @@ from __future__ import annotations
 
 import collections
 import warnings
-from abc import ABC
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import wraps
 from pathlib import Path
-from typing import List
-from typing import Optional
-from typing import Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -40,8 +35,7 @@ import scipy.constants
 import tomli
 from scipy.interpolate import interp1d
 
-from .motion import GRAVITY
-from .motion import WaveField
+from .motion import GRAVITY, WaveField
 
 COMP_MODULUS_MODEL = "dormieux"
 
@@ -67,7 +61,7 @@ def _load_published_curves():
     PUBLISHED_CURVES = {m["name"]: m for m in models}
 
 
-def known_published_curves() -> List[dict]:
+def known_published_curves() -> list[dict]:
     """List of published curves in the database."""
     if not PUBLISHED_CURVES:
         _load_published_curves()
@@ -118,7 +112,9 @@ class NonlinearProperty:
 
         selected = PUBLISHED_CURVES[name][param]
 
-        return cls(name, strains=selected["strains"], values=selected["values"], param=param)
+        return cls(
+            name, strains=selected["strains"], values=selected["values"], param=param
+        )
 
     def __call__(self, strains):
         """Return the nonlinear property at a specific strain.
@@ -242,7 +238,7 @@ class SoilType:
         name: str = "",
         unit_wt: float = 0.0,
         model: str = "",
-        model_damping: Optional[str] = None,
+        model_damping: str | None = None,
     ) -> SoilType:
         if not PUBLISHED_CURVES:
             _load_published_curves()
@@ -284,7 +280,9 @@ class SoilType:
     @property
     def is_nonlinear(self) -> bool:
         """If nonlinear properties are specified."""
-        return any(isinstance(p, NonlinearProperty) for p in [self.mod_reduc, self.damping])
+        return any(
+            isinstance(p, NonlinearProperty) for p in [self.mod_reduc, self.damping]
+        )
 
     def __eq__(self, other) -> bool:
         # return all(
@@ -341,7 +339,9 @@ class ModifiedHyperbolicSoilType(SoilType, ABC):
         c2 = 0.0805 * self.curvature**2 - 0.0710 * self.curvature - 0.0095
         c3 = -0.0005 * self.curvature**2 + 0.0002 * self.curvature + 0.0003
         damping_masing = (
-            c1 * damping_masing_a1 + c2 * damping_masing_a1**2 + c3 * damping_masing_a1**3
+            c1 * damping_masing_a1
+            + c2 * damping_masing_a1**2
+            + c3 * damping_masing_a1**3
         )
 
         # Compute the damping correction in percent
@@ -400,8 +400,8 @@ class TwoParamModifiedHyperbolicSoilType(SoilType):
         name: str = "",
         unit_wt: float = 0,
         stress_mean: float = 101.3,
-        strains: Optional[npt.ArrayLike] = None,
-        coeffs: Optional[TwoParamModifiedHyperbolicCoeffs] = None,
+        strains: npt.ArrayLike | None = None,
+        coeffs: TwoParamModifiedHyperbolicCoeffs | None = None,
     ):
         """
 
@@ -694,7 +694,12 @@ class WangSoilType(SoilType):
             "void_ratio",
             "diam_50",
         ],
-        "nonplastic_silty_sand": ["stress_mean", "void_ratio", "fines_cont", "water_cont"],
+        "nonplastic_silty_sand": [
+            "stress_mean",
+            "void_ratio",
+            "fines_cont",
+            "water_cont",
+        ],
         "clayey_soil": [
             "stress_mean",
             "void_ratio",
@@ -707,9 +712,21 @@ class WangSoilType(SoilType):
 
     LEVELS = {
         "clean_sand_and_gravel": {
-            "gmax_model": ["stress_mean", "void_ratio", "diam_50", "coef_unif", "fines_cont"],
+            "gmax_model": [
+                "stress_mean",
+                "void_ratio",
+                "diam_50",
+                "coef_unif",
+                "fines_cont",
+            ],
             "ggmax_model": ["stress_mean", "void_ratio", "coef_unif", "fines_cont"],
-            "dmin_model": ["stress_mean", "fines_cont", "water_cont", "void_ratio", "diam_50"],
+            "dmin_model": [
+                "stress_mean",
+                "fines_cont",
+                "water_cont",
+                "void_ratio",
+                "diam_50",
+            ],
             "damping_model": ["stress_mean", "void_ratio", "fines_cont", "coef_unif"],
         },
         "nonplastic_silty_sand": {
@@ -719,8 +736,20 @@ class WangSoilType(SoilType):
             "damping_model": ["stress_mean", "void_ratio", "fines_cont"],
         },
         "clayey_soil": {
-            "gmax_model": ["stress_mean", "void_ratio", "ocr", "fines_cont", "plas_index"],
-            "ggmax_model": ["stress_mean", "void_ratio", "fines_cont", "ocr", "plas_index"],
+            "gmax_model": [
+                "stress_mean",
+                "void_ratio",
+                "ocr",
+                "fines_cont",
+                "plas_index",
+            ],
+            "ggmax_model": [
+                "stress_mean",
+                "void_ratio",
+                "fines_cont",
+                "ocr",
+                "plas_index",
+            ],
             "dmin_model": ["stress_mean", "void_ratio", "plas_index", "fines_cont"],
             "damping_model": ["stress_mean", "water_cont", "plas_index", "fines_cont"],
         },
@@ -746,7 +775,9 @@ class WangSoilType(SoilType):
         #  - fines_cont
         #  - water_cont
         self._index_params = {
-            p: kwds[p] for p in self.params(soil_group, damping_min is not None) if p in kwds
+            p: kwds[p]
+            for p in self.params(soil_group, damping_min is not None)
+            if p in kwds
         }
 
         if strains is None:
@@ -766,7 +797,9 @@ class WangSoilType(SoilType):
         if damping_min is None:
             damping_min = self.calc_damping_min(soil_group, **self._index_params)
 
-        damping = self.calc_damping(strains, soil_group, damping_min, **self._index_params)
+        damping = self.calc_damping(
+            strains, soil_group, damping_min, **self._index_params
+        )
 
         super().__init__(
             name,
@@ -781,7 +814,9 @@ class WangSoilType(SoilType):
         if not specified_dmin:
             models += ["dmin_model"]
 
-        return list({param for model in models for param in cls.LEVELS[soil_group][model]})
+        return list(
+            {param for model in models for param in cls.LEVELS[soil_group][model]}
+        )
 
     def _create_name(self) -> str:
         FACTORS_FORMAT = {
@@ -795,7 +830,10 @@ class WangSoilType(SoilType):
             "water_cont": "w_c={:.1f}%",
         }
 
-        parts = [FACTORS_FORMAT[key].format(self.index_params[key]) for key in self.index_params]
+        parts = [
+            FACTORS_FORMAT[key].format(self.index_params[key])
+            for key in self.index_params
+        ]
 
         suffix = ", ".join(parts)
         return f"Wang & Stokoe ({suffix})"
@@ -815,7 +853,8 @@ class WangSoilType(SoilType):
         Parameters
         ----------
         model : str
-            element. Potential options: 'gmax_model', 'ggmax_model', 'dmin_model', or 'damping_model'
+            element. Potential options: 'gmax_model', 'ggmax_model', 'dmin_model', or
+            'damping_model'
         soil_group : str
             soil group. Potential options: 'clean_sand_and_gravel',
             'nonplastic_silty_sand', or 'clayey_soil'.
@@ -848,7 +887,9 @@ class WangSoilType(SoilType):
                 return 108.4 * (kwds["stress_mean"] * KPA_TO_ATM) ** 0.51
             elif level == 1:
                 return (
-                    67.5 * kwds["void_ratio"] ** -0.86 * (kwds["stress_mean"] * KPA_TO_ATM) ** 0.5
+                    67.5
+                    * kwds["void_ratio"] ** -0.86
+                    * (kwds["stress_mean"] * KPA_TO_ATM) ** 0.5
                 )
             elif level == 2:
                 return (
@@ -861,7 +902,8 @@ class WangSoilType(SoilType):
                     64.3
                     * kwds["coef_unif"] ** -0.21
                     * kwds["void_ratio"] ** (-1.08 - (0.09 * kwds["diam_50"]) ** 0.51)
-                    * (kwds["stress_mean"] * KPA_TO_ATM) ** (0.47 * kwds["coef_unif"] ** 0.06)
+                    * (kwds["stress_mean"] * KPA_TO_ATM)
+                    ** (0.47 * kwds["coef_unif"] ** 0.06)
                 )
             else:
                 return (
@@ -876,7 +918,9 @@ class WangSoilType(SoilType):
                 return 89.1 * (kwds["stress_mean"] * KPA_TO_ATM) ** 0.51
             elif level == 1:
                 return (
-                    59.2 * kwds["void_ratio"] ** -0.74 * (kwds["stress_mean"] * KPA_TO_ATM) ** 0.51
+                    59.2
+                    * kwds["void_ratio"] ** -0.74
+                    * (kwds["stress_mean"] * KPA_TO_ATM) ** 0.51
                 )
             else:
                 return (
@@ -890,7 +934,9 @@ class WangSoilType(SoilType):
                 return 77.2 * (kwds["stress_mean"] * KPA_TO_ATM) ** 0.48
             elif level == 1:
                 return (
-                    52.3 * kwds["void_ratio"] ** -1.08 * (kwds["stress_mean"] * KPA_TO_ATM) ** 0.4
+                    52.3
+                    * kwds["void_ratio"] ** -1.08
+                    * (kwds["stress_mean"] * KPA_TO_ATM) ** 0.4
                 )
             elif level == 2:
                 return (
@@ -921,7 +967,9 @@ class WangSoilType(SoilType):
 
     @classmethod
     @to_decimal("fines_cont", "plas_index", "water_cont")
-    def calc_mod_reduc(cls, strains: npt.ArrayLike, soil_group: str, **kwds) -> np.ndarray:
+    def calc_mod_reduc(
+        cls, strains: npt.ArrayLike, soil_group: str, **kwds
+    ) -> np.ndarray:
         level = cls.get_level("ggmax_model", soil_group, **kwds)
 
         if soil_group == "clean_sand_and_gravel":
@@ -938,15 +986,15 @@ class WangSoilType(SoilType):
             elif level == 2:
                 a = 0.834
                 b = 0.839
-                gamma_mr = (0.05 * kwds["void_ratio"] ** (0.1 * kwds["coef_unif"]) + 0.011) * (
-                    kwds["stress_mean"] * KPA_TO_ATM
-                ) ** 0.45
+                gamma_mr = (
+                    0.05 * kwds["void_ratio"] ** (0.1 * kwds["coef_unif"]) + 0.011
+                ) * (kwds["stress_mean"] * KPA_TO_ATM) ** 0.45
             else:
                 a = 0.834 + kwds["fines_cont"]
                 b = 0.844 - 1.897 * kwds["fines_cont"]
-                gamma_mr = (0.048 * kwds["void_ratio"] ** (0.089 * kwds["coef_unif"]) + 0.008) * (
-                    kwds["stress_mean"] * KPA_TO_ATM
-                ) ** 0.4
+                gamma_mr = (
+                    0.048 * kwds["void_ratio"] ** (0.089 * kwds["coef_unif"]) + 0.008
+                ) * (kwds["stress_mean"] * KPA_TO_ATM) ** 0.4
 
         elif soil_group == "nonplastic_silty_sand":
             if level == 0:
@@ -974,7 +1022,11 @@ class WangSoilType(SoilType):
             elif level == 1:
                 a = 1.185
                 b = 0.475
-                gamma_mr = 0.035 * kwds["void_ratio"] * (kwds["stress_mean"] * KPA_TO_ATM) ** 0.276
+                gamma_mr = (
+                    0.035
+                    * kwds["void_ratio"]
+                    * (kwds["stress_mean"] * KPA_TO_ATM) ** 0.276
+                )
             elif level == 2:
                 a = 0.966 + 0.378 * kwds["fines_cont"]
                 b = 0.596 - 0.207 * kwds["fines_cont"]
@@ -984,9 +1036,9 @@ class WangSoilType(SoilType):
             elif level == 3:
                 a = 0.972 + 0.419 * kwds["fines_cont"]
                 b = 0.571 - 0.2 * kwds["fines_cont"]
-                gamma_mr = (0.025 * kwds["void_ratio"] + 0.0015 * kwds["fines_cont"]) * (
-                    kwds["stress_mean"] * KPA_TO_ATM + 0.375 * kwds["ocr"]
-                ) ** 0.358
+                gamma_mr = (
+                    0.025 * kwds["void_ratio"] + 0.0015 * kwds["fines_cont"]
+                ) * (kwds["stress_mean"] * KPA_TO_ATM + 0.375 * kwds["ocr"]) ** 0.358
             else:
                 a = 0.896 + 0.412 * kwds["fines_cont"] + 0.534 * kwds["plas_index"]
                 b = 0.586 - 0.098 * kwds["void_ratio"] - 0.135 * kwds["fines_cont"]
@@ -1063,9 +1115,11 @@ class WangSoilType(SoilType):
                     + 0.72 ** -kwds["void_ratio"]
                 )
             elif level == 2:
-                d_min = 7.29 * 8 ** (-kwds["void_ratio"] - 3.31 * kwds["plas_index"]) * (
-                    1 + 148 * kwds["plas_index"] ** 1.95
-                ) * (kwds["stress_mean"] * KPA_TO_ATM) ** -0.2 + (0.5 * kwds["plas_index"]) ** (
+                d_min = 7.29 * 8 ** (
+                    -kwds["void_ratio"] - 3.31 * kwds["plas_index"]
+                ) * (1 + 148 * kwds["plas_index"] ** 1.95) * (
+                    kwds["stress_mean"] * KPA_TO_ATM
+                ) ** -0.2 + (0.5 * kwds["plas_index"]) ** (
                     2.54 - 1.8 * kwds["void_ratio"]
                 )
             else:
@@ -1073,9 +1127,7 @@ class WangSoilType(SoilType):
                     -1.91 * kwds["void_ratio"] - 6.5 * kwds["plas_index"]
                 ) * (1 + 106.75 * kwds["plas_index"] ** 1.64) * (
                     kwds["stress_mean"] * KPA_TO_ATM
-                ) ** -0.19 + (
-                    0.46 * kwds["plas_index"]
-                ) ** (
+                ) ** -0.19 + (0.46 * kwds["plas_index"]) ** (
                     1.73 - 1.34 * kwds["void_ratio"]
                 )
 
@@ -1124,7 +1176,9 @@ class WangSoilType(SoilType):
                 c = 1.38 * np.exp(0.25 * kwds["void_ratio"])
                 d = 12.09
                 gamma_d = (
-                    0.0066 * (kwds["stress_mean"] * KPA_TO_ATM + 5.79 * kwds["void_ratio"]) ** 1.01
+                    0.0066
+                    * (kwds["stress_mean"] * KPA_TO_ATM + 5.79 * kwds["void_ratio"])
+                    ** 1.01
                 )
             else:
                 c = 1.39 * np.exp(0.27 * kwds["void_ratio"])
@@ -1159,7 +1213,12 @@ class WangSoilType(SoilType):
                     0.12 * kwds["stress_mean"] * KPA_TO_ATM
                     + 5.29 * kwds["water_cont"]
                     - kwds["fines_cont"]
-                ) ** (1.45 - kwds["plas_index"] + kwds["water_cont"] - 1.09 * kwds["fines_cont"])
+                ) ** (
+                    1.45
+                    - kwds["plas_index"]
+                    + kwds["water_cont"]
+                    - 1.09 * kwds["fines_cont"]
+                )
 
         else:
             raise ValueError("Invalid soil group")
@@ -1272,7 +1331,9 @@ class KishidaSoilType(SoilType):
         b_10 = -0.950
         return np.exp(b_9 + b_10 * (x_3 - x_3_mean)) / 100
 
-    def _calc_mod_reduc(self, strains, strain_ref, x_1, x_1_mean, x_2, x_2_mean, x_3, x_3_mean):
+    def _calc_mod_reduc(
+        self, strains, strain_ref, x_1, x_1_mean, x_2, x_2_mean, x_3, x_3_mean
+    ):
         """Compute the shear modulus reduction using Equation (1)."""
 
         ones = np.ones_like(strains)
@@ -1290,7 +1351,9 @@ class KishidaSoilType(SoilType):
             (x_1 - x_1_mean) * (x_2 - x_2_mean) * (x_3 - x_3_mean),
         ]
         # Coefficients
-        denom = np.log(1 / strain_ref + strains / strain_ref)  # TODO: is this percent or decimal?
+        denom = np.log(
+            1 / strain_ref + strains / strain_ref
+        )  # TODO: is this percent or decimal?
         b = np.c_[
             5.11 * ones,
             -0.729 * ones,
@@ -1338,7 +1401,10 @@ class KishidaSoilType(SoilType):
         return unit_wt
 
     def _create_name(self):
-        return f"Kishida (σᵥ'={self._stress_vert:.1f} kN/m², OC={self._organic_content:.0f} %)"
+        return (
+            f"Kishida (σᵥ'={self._stress_vert:.1f} kN/m²,"
+            f" OC={self._organic_content:.0f} %)"
+        )
 
 
 # TODO: for nonlinear site response this class wouldn't be used. Better way
@@ -1608,7 +1674,9 @@ class Layer:
 
     @property
     def incr_site_atten(self):
-        return (2 * self.soil_type.damping_min * self._thickness) / self.initial_shear_vel
+        return (
+            2 * self.soil_type.damping_min * self._thickness
+        ) / self.initial_shear_vel
 
 
 class Location:
@@ -1771,15 +1839,15 @@ class Profile(collections.abc.Container):
             A new profile with modified layer thicknesses
         """
         layers = []
-        for l in self[:-1]:
-            if not nonlinear_only or l.soil_type.is_nonlinear:
-                opt_thickness = l.shear_vel / max_freq * wave_frac
-                count = max(np.ceil(l.thickness / opt_thickness).astype(int), 1)
-                thickness = l.thickness / count
+        for layer in self[:-1]:
+            if not nonlinear_only or layer.soil_type.is_nonlinear:
+                opt_thickness = layer.shear_vel / max_freq * wave_frac
+                count = max(np.ceil(layer.thickness / opt_thickness).astype(int), 1)
+                thickness = layer.thickness / count
                 for _ in range(count):
-                    layers.append(Layer(l.soil_type, thickness, l.shear_vel))
+                    layers.append(Layer(layer.soil_type, thickness, layer.shear_vel))
             else:
-                layers.append(l)
+                layers.append(layer)
         # Add the halfspace
         layers.append(self[-1])
 
@@ -1801,7 +1869,7 @@ class Profile(collections.abc.Container):
     def site_attenuation(self):
         return sum(layer.incr_site_atten for layer in self)
 
-    def lookup_depth(self, depth: float) -> Tuple[int, float]:
+    def lookup_depth(self, depth: float) -> tuple[int, float]:
         """Look up the layer and the depth within the layer for a specific depth.
 
         Parameters
@@ -1886,7 +1954,9 @@ class Profile(collections.abc.Container):
         # If needed, add the final layer to the required depth
         if depths[-1] < depth:
             depths = np.r_[depths, depth]
-            travel_times = np.r_[travel_times, (depth - self[-1].depth) / self[-1].shear_vel]
+            travel_times = np.r_[
+                travel_times, (depth - self[-1].depth) / self[-1].shear_vel
+            ]
 
         total_travel_times = np.cumsum(travel_times)
         # Interpolate the travel time to the depth of interest
@@ -1919,7 +1989,9 @@ class Profile(collections.abc.Container):
         freq_fund = np.sqrt(
             4
             * np.sum(thicks * depths_mid**2 / shear_vels**2)
-            / np.sum(thicks * np.sum(np.c_[shape, np.roll(shape, -1)], axis=1)[:-1] ** 2)
+            / np.sum(
+                thicks * np.sum(np.c_[shape, np.roll(shape, -1)], axis=1)[:-1] ** 2
+            )
         )
         period_fun = 2 * np.pi / freq_fund
         rayleigh_vel = 4 * thicks.sum() / period_fun
@@ -1948,7 +2020,7 @@ class Profile(collections.abc.Container):
         axis_kwds = {**_axis_kwds, **(axis_kwds or dict())}
 
         if ax is None:
-            fig, ax = plt.subplots()
+            _, ax = plt.subplots()
 
         ax.step(getattr(self, prop), self.depth, where="pre", **plot_kwds)
         ax.set(**axis_kwds)

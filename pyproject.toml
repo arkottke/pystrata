@@ -70,7 +70,6 @@ dependencies = [
   "pytest-runner",
   "pyexcel",
   "pyexcel-xls",
-  "pyexcel-xlsx",
   # FIXME: Add as dependency of pystrata
   "matplotlib",
   "pykooh",

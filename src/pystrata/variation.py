@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # The MIT License (MIT)
 #
 # Copyright (c) 2016-2018 Albert Kottke
@@ -22,10 +21,6 @@
 # SOFTWARE.
 import copy
 from abc import abstractmethod
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Union
 
 import numpy as np
 import numpy.typing as npt
@@ -90,7 +85,9 @@ class TruncatedNorm:
         rvs : ndarray or scalar
             Random variates of given `size`.
         """
-        return stats.truncnorm.rvs(-self.limit, self.limit, scale=self._scale, size=size)
+        return stats.truncnorm.rvs(
+            -self.limit, self.limit, scale=self._scale, size=size
+        )
 
     def correlated(self, correl):
         # Acceptance proportion
@@ -226,9 +223,11 @@ class ToroThicknessVariation:
         layers = []
         for thick, depth_mid in self.iter_thickness(profile[-2].depth_base):
             # Locate the proper layer and add it to the model
-            for l in profile:
-                if l.depth < depth_mid <= l.depth_base:
-                    layers.append(site.Layer(l.soil_type, thick, l.initial_shear_vel))
+            for layer in profile:
+                if layer.depth < depth_mid <= layer.depth_base:
+                    layers.append(
+                        site.Layer(layer.soil_type, thick, layer.initial_shear_vel)
+                    )
                     break
             else:
                 raise LookupError
@@ -282,8 +281,8 @@ class HalfSpaceDepthVariation:
 class LayerThicknessVariation:
     def __init__(
         self,
-        models: Union[List[stats.rv_continuous], Dict[int, stats.rv_continuous]],
-        discretize_kwds: Optional[Dict[str, float]] = None,
+        models: list[stats.rv_continuous] | dict[int, stats.rv_continuous],
+        discretize_kwds: dict[str, float] | None = None,
     ) -> None:
         self._models = models
         self._discretize_kwds = discretize_kwds
@@ -525,7 +524,9 @@ class ToroVelocityVariation(VelocityVariation):
         depth = depth[:-1]
 
         # Depth dependent correlation
-        corr_depth = self.rho_200 * np.power((depth + self.h_0) / (200 + self.h_0), self.b)
+        corr_depth = self.rho_200 * np.power(
+            (depth + self.h_0) / (200 + self.h_0), self.b
+        )
         corr_depth[depth > 200] = self.rho_200
 
         # Thickness dependent correlation
@@ -651,10 +652,12 @@ class DepthDependToroVelVariation(ToroVelocityVariation):
         h_0: float,
         b: float,
         vary_bedrock: bool = False,
-        ln_std_map: Optional[Dict[str, float]] = None,
+        ln_std_map: dict[str, float] | None = None,
     ):
         """Initialize the model."""
-        super().__init__(ln_std, rho_0, delta, rho_200, h_0, b, vary_bedrock=vary_bedrock)
+        super().__init__(
+            ln_std, rho_0, delta, rho_200, h_0, b, vary_bedrock=vary_bedrock
+        )
         self.depth = depth
         self.ln_std_map = ln_std_map or dict()
 
@@ -670,8 +673,8 @@ class DepthDependToroVelVariation(ToroVelocityVariation):
 
         # Update based on soil_type name
         for name, value in self.ln_std_map.items():
-            for i, l in enumerate(profile):
-                if name in l.soil_type.name:
+            for i, layer in enumerate(profile):
+                if name in layer.soil_type.name:
                     ln_std[i] = value
 
         return ln_std
@@ -756,11 +759,15 @@ class SoilTypeVariation:
         varied_mod_reduc = np.clip(
             varied_mod_reduc, self.limits_mod_reduc[0], self.limits_mod_reduc[1]
         )
-        varied_damping = np.clip(varied_damping, self.limits_damping[0], self.limits_damping[1])
+        varied_damping = np.clip(
+            varied_damping, self.limits_damping[0], self.limits_damping[1]
+        )
 
         # Set the values
         realization = copy.deepcopy(soil_type)
-        for attr_name, values in zip(["mod_reduc", "damping"], [varied_mod_reduc, varied_damping]):
+        for attr_name, values in zip(
+            ["mod_reduc", "damping"], [varied_mod_reduc, varied_damping]
+        ):
             try:
                 getattr(realization, attr_name).values = values
             except AttributeError:
@@ -816,7 +823,9 @@ class DarendeliVariation(SoilTypeVariation):
             Standard deviation.
         """
         mod_reduc = np.asarray(mod_reduc).astype(float)
-        std = np.exp(-4.23) + np.sqrt(0.25 / np.exp(3.62) - (mod_reduc - 0.5) ** 2 / np.exp(3.62))
+        std = np.exp(-4.23) + np.sqrt(
+            0.25 / np.exp(3.62) - (mod_reduc - 0.5) ** 2 / np.exp(3.62)
+        )
         return std
 
     @staticmethod
@@ -901,28 +910,32 @@ def iter_varied_profiles(
 ):
     for _ in range(count):
         # Copy the profile to form the realization
-        p = site.Profile.copy_of(profile)
+        _profile = site.Profile.copy_of(profile)
 
         if var_thickness:
-            p = var_thickness(p)
+            _profile = var_thickness(_profile)
 
         if var_velocity:
-            p = var_velocity(p)
+            _profile = var_velocity(_profile)
 
         if var_soiltypes:
             # Map of varied soil types
-            varied = {str(st): var_soiltypes(st) for st in p.iter_soil_types()}
+            varied = {str(st): var_soiltypes(st) for st in _profile.iter_soil_types()}
             # Create new layers
             end = None if var_soiltypes.vary_bedrock else -1
             layers = [
-                site.Layer(varied[str(l.soil_type)], l.thickness, l.initial_shear_vel)
-                for l in p[:end]
+                site.Layer(
+                    varied[str(layer.soil_type)],
+                    layer.thickness,
+                    layer.initial_shear_vel,
+                )
+                for layer in profile[:end]
             ]
             # Add the unrandomized bedrock
             if not var_soiltypes.vary_bedrock:
-                layers.append(p[-1])
+                layers.append(_profile[-1])
 
             # Create a new profile
-            p = site.Profile(layers, p.wt_depth)
+            _profile = site.Profile(layers, _profile.wt_depth)
 
-        yield p
+        yield _profile

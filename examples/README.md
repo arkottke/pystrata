@@ -23,4 +23,5 @@ The examples included here are used to demonstrate the capabilities of
 15. List of provided nonlinear curves.
 
 To be added:
-- Impact of peak factor on site reponse transfer function
+
+-   Impact of peak factor on site reponse transfer function

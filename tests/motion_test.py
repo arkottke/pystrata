@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 2 of the License, or
@@ -16,8 +15,7 @@
 # Copyright (C) Albert Kottke, 2013-2015
 import numpy as np
 import pytest
-from numpy.testing import assert_allclose
-from numpy.testing import assert_equal
+from numpy.testing import assert_allclose, assert_equal
 from pystrata import motion
 
 from . import FPATH_DATA

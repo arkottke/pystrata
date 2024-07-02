@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # The MIT License (MIT)
 #
 # Copyright (c) 2016-2022 Albert Kottke
@@ -22,12 +21,7 @@
 # SOFTWARE.
 from importlib.metadata import version
 
-from . import motion
-from . import output
-from . import propagation
-from . import site
-from . import tools
-from . import variation
+from . import motion, output, propagation, site, tools, variation
 
 __all__ = ["motion", "propagation", "output", "site", "tools", "variation"]
 

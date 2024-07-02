@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # The MIT License (MIT)
 #
 # Copyright (c) 2016-2018 Albert Kottke
@@ -24,11 +23,8 @@ import numba
 import numpy as np
 from scipy.optimize import minimize
 
-from .motion import GRAVITY
-from .motion import WaveField
-from .site import Layer
-from .site import Location
-from .site import Profile
+from .motion import GRAVITY, WaveField
+from .site import Layer, Location, Profile
 
 
 class AbstractCalculator:
@@ -146,7 +142,9 @@ class QuarterWaveLenCalculator(AbstractCalculator):
         # FIXME return an error if not converged?
 
         qwl_density = qwl_average(density)
-        crustal_amp = np.sqrt((density[-1] / slowness[-1]) / (qwl_density / qwl_slowness))
+        crustal_amp = np.sqrt(
+            (density[-1] / slowness[-1]) / (qwl_density / qwl_slowness)
+        )
         site_term = np.array(crustal_amp)
         if self._site_atten:
             site_term *= np.exp(-np.pi * self.site_atten * freqs)
@@ -244,7 +242,10 @@ class QuarterWaveLenCalculator(AbstractCalculator):
             thickness = res.x[nl : (2 * nl)]
 
         profile = Profile(
-            [Layer(l.soil_type, t, 1 / s) for l, t, s in zip(self.profile, thickness, slowness)],
+            [
+                Layer(layer.soil_type, thick, 1 / slow)
+                for layer, thick, slow in zip(self.profile, thickness, slowness)
+            ],
             self.profile.wt_depth,
         )
         # Update the calculated amplificaiton
@@ -280,10 +281,10 @@ class LinearElasticCalculator(AbstractCalculator):
         super().__call__(motion, profile, loc_input)
 
         # Set initial properties
-        for l in profile:
-            l.reset()
-            if l.strain is None:
-                l.strain = 0.0
+        for layer in profile:
+            layer.reset()
+            if layer.strain is None:
+                layer.strain = 0.0
 
         self._calc_waves(motion.angular_freqs, profile)
 
@@ -301,31 +302,31 @@ class LinearElasticCalculator(AbstractCalculator):
 
         # Compute the complex wave numbers of the system
         wave_nums = np.empty((len(profile), len(angular_freqs)), complex)
-        for i, l in enumerate(profile):
-            wave_nums[i, :] = angular_freqs / l.comp_shear_vel
+        for i, layer in enumerate(profile):
+            wave_nums[i, :] = angular_freqs / layer.comp_shear_vel
 
         # Compute the waves. In the top surface layer, the up-going and
         # down-going waves have an amplitude of 1 as they are completely
         # reflected at the surface.
         waves_a = np.ones_like(wave_nums, complex)
         waves_b = np.ones_like(wave_nums, complex)
-        for i, l in enumerate(profile[:-1]):
+        for i, layer in enumerate(profile[:-1]):
             # Complex impedance -- wave number can be zero which causes an
             # error.
             with np.errstate(invalid="ignore"):
-                cimped = (wave_nums[i] * l.comp_shear_mod) / (
+                cimped = (wave_nums[i] * layer.comp_shear_mod) / (
                     wave_nums[i + 1] * profile[i + 1].comp_shear_mod
                 )
 
             # Complex term to simplify equations -- uses full layer height
-            cterm = 1j * wave_nums[i, :] * l.thickness
+            cterm = 1j * wave_nums[i, :] * layer.thickness
 
-            waves_a[i + 1, :] = 0.5 * waves_a[i] * (1 + cimped) * np.exp(cterm) + 0.5 * waves_b[
-                i
-            ] * (1 - cimped) * np.exp(-cterm)
-            waves_b[i + 1, :] = 0.5 * waves_a[i] * (1 - cimped) * np.exp(cterm) + 0.5 * waves_b[
-                i
-            ] * (1 + cimped) * np.exp(-cterm)
+            waves_a[i + 1, :] = 0.5 * waves_a[i] * (1 + cimped) * np.exp(
+                cterm
+            ) + 0.5 * waves_b[i] * (1 - cimped) * np.exp(-cterm)
+            waves_b[i + 1, :] = 0.5 * waves_a[i] * (1 - cimped) * np.exp(
+                cterm
+            ) + 0.5 * waves_b[i] * (1 + cimped) * np.exp(-cterm)
 
             # Set wave amplitudes with zero frequency to 1
             mask = ~np.isfinite(cimped)
@@ -342,12 +343,12 @@ class LinearElasticCalculator(AbstractCalculator):
         self._waves_b = waves_b
         self._wave_nums = wave_nums
 
-    def wave_at_location(self, l):
+    def wave_at_location(self, loc: Location) -> np.ndarray:
         """Compute the wave field at specific location.
 
         Parameters
         ----------
-        l : site.Location
+        loc : site.Location
             :class:`site.Location` of the input
 
         Returns
@@ -355,14 +356,16 @@ class LinearElasticCalculator(AbstractCalculator):
         `np.ndarray`
             Amplitude and phase of waves
         """
-        cterm = 1j * self._wave_nums[l.index] * l.depth_within
+        cterm = 1j * self._wave_nums[loc.index] * loc.depth_within
 
-        if l.wave_field == WaveField.within:
-            return self._waves_a[l.index] * np.exp(cterm) + self._waves_b[l.index] * np.exp(-cterm)
-        elif l.wave_field == WaveField.outcrop:
-            return 2 * self._waves_a[l.index] * np.exp(cterm)
-        elif l.wave_field == WaveField.incoming_only:
-            return self._waves_a[l.index] * np.exp(cterm)
+        if loc.wave_field == WaveField.within:
+            return self._waves_a[loc.index] * np.exp(cterm) + self._waves_b[
+                loc.index
+            ] * np.exp(-cterm)
+        elif loc.wave_field == WaveField.outcrop:
+            return 2 * self._waves_a[loc.index] * np.exp(cterm)
+        elif loc.wave_field == WaveField.incoming_only:
+            return self._waves_a[loc.index] * np.exp(cterm)
         else:
             raise NotImplementedError
 
@@ -462,7 +465,9 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
 
     name = "EQL"
 
-    def __init__(self, strain_ratio=0.65, tolerance=0.01, max_iterations=15, strain_limit=0.05):
+    def __init__(
+        self, strain_ratio=0.65, tolerance=0.01, max_iterations=15, strain_limit=0.05
+    ):
         """Initialize the class.
 
         Parameters
@@ -548,9 +553,9 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
     def _estimate_strains(self):
         """Compute an estimate of the strains."""
         # Estimate the strain based on the PGV and shear-wave velocity
-        for l in self._profile:
-            l.reset()
-            l.strain = self._motion.pgv / l.initial_shear_vel
+        for layer in self._profile:
+            layer.reset()
+            layer.strain = self._motion.pgv / layer.initial_shear_vel
 
     @property
     def strain_ratio(self):
@@ -683,7 +688,8 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
             # smooth transition in the strain. Make sure the frequencies are zero.
             shape = np.minimum(
                 1,
-                np.exp(-a * freqs) / np.maximum(np.finfo(float).eps, np.power(freqs, b)),
+                np.exp(-a * freqs)
+                / np.maximum(np.finfo(float).eps, np.power(freqs, b)),
             )
             strains = strain_eff * shape
         else:

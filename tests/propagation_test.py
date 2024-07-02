@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 2 of the License, or
@@ -40,7 +39,10 @@ def read_deepsoil_results(name):
     records = np.rec.fromrecords(data, names=names)
 
     def extract_cols(records, cols, first, last, names):
-        return {name: records[col][first:last].astype(float) for col, name in zip(cols, names)}
+        return {
+            name: records[col][first:last].astype(float)
+            for col, name in zip(cols, names)
+        }
 
     d = dict()
     # Read the time series
@@ -50,7 +52,9 @@ def read_deepsoil_results(name):
     # Read the response spectrum
     d["resp_spec"] = extract_cols(records, "GH", 1, 114, ["period", "psa"])
     # Read the Fourier amplitude
-    d["fourier_spec"] = extract_cols(records, "JKL", 1, 16384, ["freq", "ampl", "ratio"])
+    d["fourier_spec"] = extract_cols(
+        records, "JKL", 1, 16384, ["freq", "ampl", "ratio"]
+    )
 
     return d
 
@@ -220,27 +224,37 @@ class DeepSoilComparison:
     def test_times(self):
         ref = self.ref["time_series"]["time"]
         n = len(ref)
-        np.testing.assert_allclose(self.outputs[0].refs[:n], ref, rtol=self.rtol, atol=self.atol)
+        np.testing.assert_allclose(
+            self.outputs[0].refs[:n], ref, rtol=self.rtol, atol=self.atol
+        )
 
     def test_accels(self):
         ref = self.ref["time_series"]["time"]
         n = len(ref)
-        np.testing.assert_allclose(self.outputs[0].refs[:n], ref, rtol=self.rtol, atol=self.atol)
+        np.testing.assert_allclose(
+            self.outputs[0].refs[:n], ref, rtol=self.rtol, atol=self.atol
+        )
 
     def test_arias_ints(self):
         ref = self.ref["time_series"]["arias_int"]
         n = len(ref)
-        np.testing.assert_allclose(self.outputs[1].values[:n], ref, rtol=self.rtol, atol=self.atol)
+        np.testing.assert_allclose(
+            self.outputs[1].values[:n], ref, rtol=self.rtol, atol=self.atol
+        )
 
     def test_strains(self):
         ref = self.ref["time_series"]["strain"]
         n = len(ref)
-        np.testing.assert_allclose(self.outputs[2].values[:n], ref, rtol=self.rtol, atol=self.atol)
+        np.testing.assert_allclose(
+            self.outputs[2].values[:n], ref, rtol=self.rtol, atol=self.atol
+        )
 
     def test_stresses(self):
         ref = self.ref["time_series"]["stress"]
         n = len(ref)
-        np.testing.assert_allclose(self.outputs[3].values[:n], ref, rtol=self.rtol, atol=self.atol)
+        np.testing.assert_allclose(
+            self.outputs[3].values[:n], ref, rtol=self.rtol, atol=self.atol
+        )
 
     def test_periods(self):
         np.testing.assert_allclose(
@@ -368,11 +382,15 @@ class QWLComparison:
 
     def test_crustal_amp(self):
         ref = self.data["crustal_amp"]
-        np.testing.assert_allclose(self.calc.crustal_amp, ref, rtol=self.rtol, atol=self.atol)
+        np.testing.assert_allclose(
+            self.calc.crustal_amp, ref, rtol=self.rtol, atol=self.atol
+        )
 
     def test_site_term(self):
         ref = self.data["site_term"]
-        np.testing.assert_allclose(self.calc.site_term, ref, rtol=self.rtol, atol=self.atol)
+        np.testing.assert_allclose(
+            self.calc.site_term, ref, rtol=self.rtol, atol=self.atol
+        )
 
 
 class TestQwl0(QWLComparison):
@@ -411,12 +429,16 @@ def test_quarter_wavelength_fit():
     profile.update_layers()
 
     motion = pystrata.motion.Motion(data["freqs"])
-    calc = pystrata.propagation.QuarterWaveLenCalculator(site_atten=data["site"]["site_atten"])
+    calc = pystrata.propagation.QuarterWaveLenCalculator(
+        site_atten=data["site"]["site_atten"]
+    )
     calc(motion, profile, profile.location("outcrop", index=-1))
 
     calc.fit("crustal_amp", data["crustal_amp"])
 
-    np.testing.assert_allclose(profile.initial_shear_vel, calc.profile.initial_shear_vel, rtol=0.2)
+    np.testing.assert_allclose(
+        profile.initial_shear_vel, calc.profile.initial_shear_vel, rtol=0.2
+    )
 
 
 def test_linear_elastic_nrattle():

@@ -2,8 +2,8 @@
 
 ## Development Lead
 
-- Albert Kottke \<<albert.kottke@gmail.com>\>
+-   Albert Kottke \<<albert.kottke@gmail.com>\>
 
 ## Contributors
 
-- Maxim Millen
+-   Maxim Millen

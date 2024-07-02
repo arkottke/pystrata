@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """Test site module."""
+
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 2 of the License, or
@@ -29,13 +29,6 @@ from . import FPATH_DATA
 
 def test_published_nonlinear_property():
     site.NonlinearProperty.from_published("Vucetic & Dobry (91), PI=0", "damping")
-
-
-def test_published_soiltype_same():
-    model = "Vucetic & Dobry (91), PI=0"
-
-    st = site.SoilType.from_published("test", 14, model)
-    assert st.mod_reduc.name == model
 
 
 def test_published_soiltype_same():
@@ -228,7 +221,9 @@ def test_kishida_nlc(case, curve, attr, key):
     # Decimal damping used inside PYSRA
     scale = 100 if key == "dampings" else 1
     scale = 1
-    assert_allclose(scale * getattr(getattr(st, curve), attr), case[key], rtol=0.005, atol=0.0005)
+    assert_allclose(
+        scale * getattr(getattr(st, curve), attr), case[key], rtol=0.005, atol=0.0005
+    )
 
 
 @pytest.mark.parametrize("depth,expected", [(10, 300), (20, 400), (30, 490.909)])
@@ -263,7 +258,10 @@ def test_simplified_rayleigh_vel():
         (25, 2777, 140),
     ]
     p = site.Profile(
-        [site.Layer(site.SoilType(unit_wt=unit_wt), thick, vs) for thick, vs, unit_wt in layers]
+        [
+            site.Layer(site.SoilType(unit_wt=unit_wt), thick, vs)
+            for thick, vs, unit_wt in layers
+        ]
     )
 
     assert_allclose(

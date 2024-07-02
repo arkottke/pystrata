@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # The MIT License (MIT)
 #
 # Copyright (c) 2016-2021 Albert Kottke
@@ -25,8 +24,7 @@ import collections
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.integrate
-from matplotlib.colors import LogNorm
-from matplotlib.colors import TwoSlopeNorm
+from matplotlib.colors import LogNorm, TwoSlopeNorm
 from scipy.interpolate import interp1d
 
 try:
@@ -568,7 +566,9 @@ class AccelTransferFunctionOutput(RatioBasedOutput):
 
     ref_name = "freq"
 
-    def __init__(self, refs, location_in, location_out, ko_bandwidth=None, absolute=True):
+    def __init__(
+        self, refs, location_in, location_out, ko_bandwidth=None, absolute=True
+    ):
         super().__init__(refs, location_in, location_out)
         self._ko_bandwidth = ko_bandwidth
         self._absolute = absolute
@@ -828,5 +828,7 @@ class MaxAccelProfile(ProfileBasedOutput):
 
     def _calc_accel(self, calc, depth):
         return calc.motion.calc_peak(
-            calc.calc_accel_tf(calc.loc_input, calc.profile.location("within", depth=depth))
+            calc.calc_accel_tf(
+                calc.loc_input, calc.profile.location("within", depth=depth)
+            )
         )
