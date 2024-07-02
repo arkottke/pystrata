@@ -102,6 +102,49 @@ def test_darendeli(soil_type_darendeli, attr, expected):
     assert_allclose(actual, expected, rtol=0.01)
 
 
+def iter_wang_stokoe_cases():
+    # Ranges for the test cases
+    ranges = {
+        "stress_mean": (50, 1000),
+        "plas_index": (0, 100),
+        "ocr": (1, 10),
+        "void_ratio": (0.3, 1.5),
+        "coef_unif": (1, 40),
+        "diam_50": (0.1, 20),
+        "fines_cont": (5, 40),
+        "water_cont": (0, 35),
+    }
+    param_names = list(ranges.keys())
+    print(param_names)
+
+    for _ in range(20):
+        params = {
+            k: np.random.uniform(*ranges[k])
+            # stress_mean is required
+            for k in param_names[: np.random.randint(1, len(param_names))]
+        }
+        for soil_group in site.WangSoilType.FACTORS:
+            yield soil_group, params
+
+
+@pytest.mark.parametrize("soil_type,params", iter_wang_stokoe_cases())
+def test_wang_stokoe(soil_type, params):
+    """Test random parameters and check within reasonable ranges"""
+    st = site.WangSoilType(soil_type, **params)
+
+    damping_min = st.damping.values[0]
+    assert damping_min > 0
+    assert damping_min < 0.15
+
+    assert np.max(st.mod_reduc.values) <= 1
+    assert np.min(st.mod_reduc.values) >= 0
+
+    ref_strain = np.interp(0.5, st.mod_reduc.values[::-1], st.mod_reduc.strains[::-1])
+
+    assert ref_strain > 1e-4
+    assert ref_strain < 1e-1
+
+
 def test_iterative_value():
     """Test the iterative value and relative error."""
     iv = site.IterativeValue(11)
