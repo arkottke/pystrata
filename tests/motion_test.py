@@ -75,8 +75,8 @@ def test_ts_fft_with_tf(tsm):
 def test_ts_fa_normalize(tsm):
     """Test the normalization of the Fourier amplitudes with Parsevla's theorem."""
     assert_allclose(
-        np.trapezoid(tsm.accels**2, dx=tsm.time_step),
-        2 * np.trapezoid(np.abs(tsm.fourier_amps) ** 2, x=tsm.freqs),
+        np.trapz(tsm.accels**2, dx=tsm.time_step),
+        2 * np.trapz(np.abs(tsm.fourier_amps) ** 2, x=tsm.freqs),
     )
 
 
