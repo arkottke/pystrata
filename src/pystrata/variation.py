@@ -21,6 +21,7 @@
 # SOFTWARE.
 import copy
 from abc import abstractmethod
+from collections.abc import Generator
 
 import numpy as np
 import numpy.typing as npt
@@ -902,12 +903,32 @@ class SpidVariation(SoilTypeVariation):
 
 
 def iter_varied_profiles(
-    profile,
-    count,
-    var_thickness: ToroThicknessVariation = None,
-    var_velocity: VelocityVariation = None,
-    var_soiltypes: SoilTypeVariation = None,
-):
+    profile: site.Profile,
+    count: int,
+    var_thickness: ToroThicknessVariation | None = None,
+    var_velocity: VelocityVariation | None = None,
+    var_soiltypes: SoilTypeVariation | None = None,
+) -> Generator[site.Profile]:
+    """Iterate over simulated profiles
+
+    Parameters
+    ----------
+    profile : site.Profile
+        seed profile
+    count : int
+        number of interations
+    var_thickness : ToroThicknessVariation | None
+        model for the thickness variation
+    var_velocity : VelocityVariation | None
+        model for the velocity variation
+    var_soiltypes : SoilTypeVariation | None
+        model for the soil type variation
+
+    Returns
+    -------
+    site.Profile
+        varied profile
+    """
     for _ in range(count):
         # Copy the profile to form the realization
         _profile = site.Profile.copy_of(profile)
