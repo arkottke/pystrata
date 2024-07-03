@@ -929,7 +929,7 @@ def iter_varied_profiles(
                     layer.thickness,
                     layer.initial_shear_vel,
                 )
-                for layer in profile[:end]
+                for layer in _profile[:end]
             ]
             # Add the unrandomized bedrock
             if not var_soiltypes.vary_bedrock:
