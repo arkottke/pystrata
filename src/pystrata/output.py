@@ -405,7 +405,7 @@ class AriasIntensityTSOutput(AccelerationTSOutput):
 
     def _modify_values(self, calc, location, values):
         time_step = calc.motion.time_step
-        values = scipy.integrate.cumtrapz(values**2, dx=time_step)
+        values = scipy.integrate.cumulative_trapezoid(values**2, dx=time_step)
         values *= GRAVITY * np.pi / 2
         return values
 
