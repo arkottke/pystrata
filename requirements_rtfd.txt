@@ -4,10 +4,6 @@ insipid-sphinx-theme
 jinja2
 nbsphinx
 nbsphinx_link
-pyexcel
-pyexcel-io
-pyexcel-ods
-pyexcel-xls
-pyexcel-xlsx
+openpyxl
 sphinx
 sphinxcontrib-bibtex

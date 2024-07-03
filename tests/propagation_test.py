@@ -18,7 +18,7 @@ import string
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pyexcel
+import openpyxl
 import pystrata
 import pytest
 
@@ -34,7 +34,9 @@ def read_cluster(ws, cols, names, row_start, row_end):
 
 
 def read_deepsoil_results(name):
-    data = pyexcel.get_array(file_name=str(FPATH_DATA / (name + ".xlsx")))
+    wb = openpyxl.load_workbook(str(FPATH_DATA / (name + ".xlsx")))
+    ws = wb["Layer1"]
+    data = list(ws.values)
     names = ",".join(string.ascii_uppercase[: len(data[0])])
     records = np.rec.fromrecords(data, names=names)
 
