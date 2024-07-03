@@ -11,23 +11,19 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.8"
 dependencies = [
-"matplotlib",
-"numba",
-"numpy",
-"pykooh",
-"pyrvt",
-"scipy",
-"setuptools",
-"tomli",
+    "matplotlib",
+    "numba",
+    "numpy",
+    "pykooh",
+    "pyrvt",
+    "scipy",
+    "setuptools",
+    "tomli",
 ]
 
 [project.urls]
 Homepage = "https://github.com/arkottke/pystrata"
 Documentation = "https://pystrata.readthedocs.io"
-
-[tool.black]
-line-length = 99
-target-version = ['py37', 'py38', 'py39', 'py310']
 
 [tool.hatch.build.targets.sdist]
 exclude = ["/*.yml", "/.*", "/.github", "/docs"]
@@ -38,9 +34,13 @@ packages = ["src/pystrata"]
 [tool.hatch.version]
 source = "vcs"
 
+[tool.black]
+line-length = 88
+target-version = ['py310']
+
 [tool.ruff]
 exclude = [
-  "docs"
+    "docs"
 ]
 # Same as Black.
 line-length = 88
@@ -57,25 +57,41 @@ quote-style = "double"
 select = ["E", "F", "W", "Q", "I"]
 ignore = ["E203"]
 
+[tool.hatch.envs.style]
+detached = true
+dependencies = [
+    "black[colorama,jupyter]",
+    "ruff"
+]
+
+
+# Format with black first to wrap comments
+[tool.hatch.envs.style.scripts]
+fmt = [
+    'black .',
+    'ruff check --fix .'
+]
+
+
 [[tool.hatch.envs.test.matrix]]
 python = ["3.10", "3.11", "3.12"]
 
 [tool.hatch.envs.test]
 dependencies = [
-  "coverage[toml]",
-  "nbformat",
-  "nbconvert",
-  "pytest",
-  "pytest-cov",
-  "pytest-runner",
-  "pyexcel",
-  "pyexcel-xls",
-  # FIXME: Add as dependency of pystrata
-  "matplotlib",
-  "pykooh",
-  "tomli",
-  "pandas",
-  # Done
+    "coverage[toml]",
+    "nbformat",
+    "nbconvert",
+    "pytest",
+    "pytest-cov",
+    "pytest-runner",
+    "pyexcel",
+    "pyexcel-xls",
+# FIXME: Add as dependency of pystrata
+    "matplotlib",
+    "pykooh",
+    "tomli",
+    "pandas",
+# Done
 ]
 
 [tool.hatch.envs.test.scripts]
@@ -86,16 +102,16 @@ run = "run-coverage --no-cov"
 [tool.hatch.envs.docs]
 detached = true
 dependencies = [
-  "mkdocs",
-  "markdown-callouts",
-  "mkdocstrings[python]",
-  "mkdocs-bibtex",
-  "mkdocs-gen-files",
-  "mkdocs-literate-nav",
-  "mkdocs-material",
-  "mkdocs-section-index",
-  "mkdocs-jupyter",
-  "black",
+    "mkdocs",
+    "markdown-callouts",
+    "mkdocstrings[python]",
+    "mkdocs-bibtex",
+    "mkdocs-gen-files",
+    "mkdocs-literate-nav",
+    "mkdocs-material",
+    "mkdocs-section-index",
+    "mkdocs-jupyter",
+    "black[colorama,jupyter]",
 ]
 [tool.hatch.envs.docs.scripts]
 build = "mkdocs build --clean --strict"
