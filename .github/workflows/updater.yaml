@@ -18,14 +18,6 @@ jobs:
                   # [Required] Access token with `workflow` scope.
                   token: ${{ secrets.UPDATER_TOKEN }}
 
-            - name: Remove LFS hooks
-              # This repository uses Git LFS, but it not being
-              # in the container causes the action to fail to create a new branch.
-              # Removing the hooks manually is harmless and works around this issue.
-              run: |
-                  rm .git/hooks/post-checkout
-                  rm .git/hooks/pre-push
-
             - name: Run GitHub Actions Version Updater
               uses: saadmk11/github-actions-version-updater@v0.8.1
               with:
