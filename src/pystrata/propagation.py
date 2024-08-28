@@ -555,7 +555,8 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
         # Estimate the strain based on the PGV and shear-wave velocity
         for layer in self._profile:
             layer.reset()
-            layer.strain = self._motion.pgv / layer.initial_shear_vel
+            # PGV in units of cm/sec
+            layer.strain = (self._motion.pgv / 100) / layer.initial_shear_vel
 
     @property
     def strain_ratio(self):
