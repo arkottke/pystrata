@@ -405,46 +405,51 @@ def adjust_damping_values(
     site_atten_scatter = calc_atten_scatter(profile)
 
     # Exclude the half-space and the excluded soilayer types
-    if exclude is None:
-        layers = [layer for layer in profile[:-1]]
-    elif isinstance(exclude, Callable):
-        layers = [layer for layer in profile[:-1] if not exclude(layer)]
-    elif isinstance(exclude, str):
-        layers = [
-            layer
-            for layer in profile[:-1]
-            if not re.match(exclude, layer.soil_type.name)
-        ]
-    elif isinstance(exclude, list):
-        layers = [
-            layer
-            for layer in profile[:-1]
-            if not any(e in layer.soil_type.name for e in exclude)
-        ]
-    else:
-        raise ValueError("Invalid value of `verbose`")
+    layers = []
+    layers_exc = []
+    for layer in profile:
+        if isinstance(exclude, Callable) and exclude(layer):
+            layers_exc.append(layer)
+        elif isinstance(exclude, str) and re.match(exclude, layer.soil_type.name):
+            layers_exc.append(layer)
+        elif isinstance(exclude, list) and any(
+            e in layer.soil_type.name for e in exclude
+        ):
+            layers_exc.append(layer)
+        else:
+            layers.append(layer)
+
+    # Site attenuation from the excluded layers. This is included in the total,
+    # but the damping isn't adjusted
+    site_atten_exc = sum(layer.incr_site_atten for layer in layers_exc)
 
     if not layers:
         raise RuntimeError("No layers selected")
 
     def set_min_damping(layer, damping):
+        # Here we increase the existing minimum damping
         try:
             # Limit the increased damping to 15%
-            shift = damping - layer.soil_type.damping.values[0]
+
+            # Adjust to zero damping at the small-strain
+            layer.soil_type.damping.values -= layer.soil_type.damping.values[0]
+
+            # Increase by the required small-strain damping
             layer.soil_type.damping.values = np.minimum(
-                layer.soil_type.damping.values + shift, 0.15
+                layer.soil_type.damping.values + damping, 0.15
             )
             # Need to update the strain to relook up the damping values
             layer.strain = 1e-6
         except AttributeError:
             layer.soil_type.damping = damping
 
+    remainder = 0
     for i in range(5):
         # Site attenuation of the remains layers
         site_atten = sum(layer.incr_site_atten for layer in layers)
 
-        # Adjust the target by the scattering and initialayer attenuation
-        remainder = target_site_atten - (site_atten + site_atten_scatter)
+        # Adjust the target by the scattering and excluded layer attenuation
+        remainder = target_site_atten - (site_atten_scatter + site_atten_exc)
         if remainder <= 0:
             print(f"Reducing damping {i}...")
             for layer in profile:
@@ -455,10 +460,12 @@ def adjust_damping_values(
             break
 
     if remainder <= 0:
+        print(site_atten_scatter, site_atten_exc, site_atten)
+
         raise RuntimeError("Unable to achieve target attenuation")
 
     # Collect the properties
-    vel_shear = np.array([layer.initial_shear_velayer for layer in layers])
+    vel_shear = np.array([layer.initial_shear_vel for layer in layers])
     depth = np.array([layer.depth for layer in layers])
     thick = np.r_[np.diff(depth), 0]
 
@@ -467,8 +474,10 @@ def adjust_damping_values(
 
     # Copy over the damping values. Damping might not be the fullayer length
     # because of the crust truncation
-
     for d, layer in zip(damping, layers):
         set_min_damping(layer, d)
+
+    # Reset the initial properties
+    profile.reset_layers()
 
     return profile
