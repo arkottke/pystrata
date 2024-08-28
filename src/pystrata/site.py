@@ -31,6 +31,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
+import pandas as pd
 import scipy.constants
 import tomli
 from scipy.interpolate import interp1d
@@ -880,6 +881,11 @@ class WangSoilType(SoilType):
     @classmethod
     @to_decimal("fines_cont", "plas_index", "water_cont")
     def calc_shear_mod(cls, soil_group, **kwds):
+        """
+
+        Units of MPa
+
+        """
         level = cls.get_level("gmax_model", soil_group, **kwds)
 
         if soil_group == "clean_sand_and_gravel":
@@ -1752,6 +1758,22 @@ class Profile(collections.abc.Container):
             )
         return cls(layers, wt_depth)
 
+    def to_dataframe(self):
+        records = []
+        for layer in self:
+            st = layer.soil_type
+            records.append(
+                (st.name, st.unit_wt, st.damping, layer.thickness, layer.shear_vel)
+            )
+
+        df = pd.DataFrame(
+            records,
+            columns=["soil_type", "unit_wt", "damping", "thickness", "shear_vel"],
+        )
+        df["depth"] = np.r_[0, df["thickness"].cumsum().iloc[:-1]]
+
+        return df
+
     def __iter__(self):
         return iter(self.layers)
 
@@ -1962,6 +1984,12 @@ class Profile(collections.abc.Container):
         # Interpolate the travel time to the depth of interest
         avg_shear_vel = depth / np.interp(depth, depths, total_travel_times)
         return avg_shear_vel
+
+    def vs30(self):
+        """Compute the Vs30 of the profile."""
+        tot_time = np.r_[0, np.cumsum(self.thickness / self.initial_shear_vel)[:-1]]
+        time = np.interp(30, self.depth, tot_time)
+        return 30 / time
 
     def simplified_rayliegh_vel(self):
         """Simplified Rayliegh velocity of the site.
