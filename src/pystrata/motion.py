@@ -26,9 +26,9 @@ import re
 
 import numpy as np
 import pyrvt
-from scipy.constants import g as GRAVITY
 
 # Gravity in m/sec²
+from scipy.constants import g as GRAVITY
 
 
 class WaveField(enum.Enum):
@@ -54,24 +54,36 @@ class Motion:
         return 2 * np.pi * self.freqs
 
     @property
-    def pgv(self, centimeters=False):
-        """Peak-ground velocity [m/sec]."""
+    def pgv(self):
+        """Peak ground velocity [cm/sec]."""
         if self._pgv is None:
-            # Compute transfer function -- only over non-zero frequencies
-            mask = ~np.isclose(self.angular_freqs, 0)
-            tf = np.zeros_like(mask, dtype=complex)
-            tf[mask] = 1 / (self.angular_freqs[mask] * 1j)
-            if centimeters:
-                self._pgv = GRAVITY * 100 * self.calc_peak(tf)
-            else:
-                self._pgv = GRAVITY * self.calc_peak(tf)
+            self._pgv = self.calc_pgv()
         return self._pgv
 
     @property
     def pga(self):
+        """Peak ground acceleration [g]"""
         if self._pga is None:
-            self._pga = self.calc_peak()
+            self._pga = self.calc_pga()
         return self._pga
+
+    def calc_pgv(self, tf=None):
+        tf = 1 if tf is None else np.asarray(tf)
+        # Compute transfer function from acceleration to velocity
+        # only over non-zero frequencies
+        mask = ~np.isclose(self.angular_freqs, 0)
+        tf_av = np.zeros_like(mask, dtype=complex)
+        tf_av[mask] = 1 / (self.angular_freqs[mask] * 1j)
+
+        pgv = GRAVITY * 100 * self.calc_peak(tf_av * tf)
+        return pgv
+
+    def calc_pga(self, tf=None):
+        tf = 1 if tf is None else np.asarray(tf)
+        return self.calc_peak(tf)
+
+    def calc_peak(self, tf=None, **kwargs):
+        raise NotImplementedError
 
 
 class TimeSeriesMotion(Motion):
