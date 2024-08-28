@@ -612,6 +612,10 @@ class ToroVelocityVariation(VelocityVariation):
         p.update(kwds)
         return cls(**p)
 
+    @staticmethod
+    def usgs_site_class(vs30):
+        return "USGS " + np.array(list("DCBA"))[np.searchsorted([180, 360, 750], vs30)]
+
 
 class DepthDependToroVelVariation(ToroVelocityVariation):
     r"""Toro (1995) [T95] velocity variation model modified for a depth
