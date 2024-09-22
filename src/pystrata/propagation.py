@@ -87,9 +87,10 @@ class QuarterWaveLenCalculator(AbstractCalculator):
 
     name = "QWL"
 
-    def __init__(self, site_atten=None):
+    def __init__(self, site_atten=None, method="standard"):
         super().__init__()
         self._site_atten = site_atten
+        self._method = method
 
     def __call__(self, motion, profile, loc_input):
         """Perform the wave propagation.
@@ -111,16 +112,38 @@ class QuarterWaveLenCalculator(AbstractCalculator):
             profile.density, profile.thickness, profile.slowness
         )
 
+    @staticmethod
+    def correction_ba23(x):
+        a = 0.560
+        b = -1.301
+        s = 1.398
+        d = 4.000
+        e = 6.000
+        g = 2.000
+        h = 0.760
+        p = 3.000
+        q = 0.333
+
+        fact = (x - b) / s
+
+        eta = (a * fact**d) / ((1 - fact**e) ** g + h * fact**p) ** q
+
+        return eta
+
     @property
-    def crustal_amp(self):
+    def method(self) -> str:
+        return self._method
+
+    @property
+    def crustal_amp(self) -> np.ndarray:
         return self._crustal_amp
 
     @property
-    def site_term(self):
+    def site_term(self) -> np.ndarray:
         return self._site_term
 
     @property
-    def site_atten(self):
+    def site_atten(self) -> float | None:
         return self._site_atten
 
     def _calc_amp(self, density, thickness, slowness):
@@ -138,15 +161,27 @@ class QuarterWaveLenCalculator(AbstractCalculator):
 
             if np.allclose(prev_qwl_depth, qwl_depth, rtol=0.005):
                 break
-
-        # FIXME return an error if not converged?
+        else:
+            raise RuntimeError("QWL calcuation did not converge.")
 
         qwl_density = qwl_average(density)
-        crustal_amp = np.sqrt(
+
+        if self.method == "standard":
+            eta = 0.5
+        elif self.method == "ba23":
+            total_depth = np.sum(thickness[:-1])
+            total_slow = my_trapz(thickness, slowness, total_depth)
+            freq_bot = 1.0 / (4 * total_depth * total_slow)
+            eta = self.correction_ba23(np.log10(freqs / freq_bot))
+        else:
+            raise NotImplementedError
+
+        crustal_amp = (
             (density[-1] / slowness[-1]) / (qwl_density / qwl_slowness)
-        )
+        ) ** eta
+
         site_term = np.array(crustal_amp)
-        if self._site_atten:
+        if self.site_atten:
             site_term *= np.exp(-np.pi * self.site_atten * freqs)
 
         return crustal_amp, site_term
