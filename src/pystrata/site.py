@@ -1446,6 +1446,10 @@ class IterativeValue:
             #  calculation with frequency dependent properties
             # prev = np.max(self.previous)
             # value = np.max(self.value)
+
+            # FIXME: How to fix this?
+            # RuntimeWarning: invalid value encountered in scalar divide
+            #  err = 100.0 * np.max((self.previous - self.value) / self.value)
             try:
                 err = 100.0 * np.max((self.previous - self.value) / self.value)
             except ZeroDivisionError:
