@@ -19,8 +19,9 @@ import string
 import matplotlib.pyplot as plt
 import numpy as np
 import openpyxl
-import pystrata
 import pytest
+
+import pystrata
 
 from . import FPATH_DATA
 
