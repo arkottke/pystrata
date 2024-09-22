@@ -288,7 +288,7 @@ class SoilType:
         # return all(
         #     getattr(self, attr) == getattr(other, attr)
         #     for attr in ['name', 'unit_wt', 'mod_reduc', 'damping'])
-        return (type(self) == type(other)) and (self.__dict__ == other.__dict__)
+        return type(self) is type(other) and self.__dict__ == other.__dict__
 
     def __hash__(self):
         return hash(self.__dict__.values())
@@ -1119,7 +1119,9 @@ class WangSoilType(SoilType):
                     -kwds["void_ratio"] - 3.31 * kwds["plas_index"]
                 ) * (1 + 148 * kwds["plas_index"] ** 1.95) * (
                     kwds["stress_mean"] * KPA_TO_ATM
-                ) ** -0.2 + (0.5 * kwds["plas_index"]) ** (
+                ) ** -0.2 + (
+                    0.5 * kwds["plas_index"]
+                ) ** (
                     2.54 - 1.8 * kwds["void_ratio"]
                 )
             else:
@@ -1127,7 +1129,9 @@ class WangSoilType(SoilType):
                     -1.91 * kwds["void_ratio"] - 6.5 * kwds["plas_index"]
                 ) * (1 + 106.75 * kwds["plas_index"] ** 1.64) * (
                     kwds["stress_mean"] * KPA_TO_ATM
-                ) ** -0.19 + (0.46 * kwds["plas_index"]) ** (
+                ) ** -0.19 + (
+                    0.46 * kwds["plas_index"]
+                ) ** (
                     1.73 - 1.34 * kwds["void_ratio"]
                 )
 
@@ -1478,7 +1482,7 @@ class Layer:
 
     def __eq__(self, other) -> bool:
         attrs = ["_soil_type", "_thickness", "initial_shear_vel"]
-        return (type(self) == type(other)) and all(
+        return (type(self) is type(other)) and all(
             [getattr(self, a) == getattr(other, a) for a in attrs]
         )
 

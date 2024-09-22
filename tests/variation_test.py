@@ -17,8 +17,9 @@
 import numpy as np
 import pytest
 from numpy.testing import assert_allclose
-from pystrata import motion, output, propagation, site, variation
 from scipy.stats import lognorm, norm, pearsonr
+
+from pystrata import motion, output, propagation, site, variation
 
 
 def test_randnorm():

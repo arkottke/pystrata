@@ -22,6 +22,7 @@ import numpy as np
 import pytest
 import scipy.constants
 from numpy.testing import assert_allclose
+
 from pystrata import site
 
 from . import FPATH_DATA

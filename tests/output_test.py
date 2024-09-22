@@ -15,9 +15,10 @@
 #
 # Copyright (C) Albert Kottke, 2013-2016
 import numpy as np
-import pystrata
 import pytest
 from numpy.testing import assert_allclose
+
+import pystrata
 
 
 def test_add_refs():
