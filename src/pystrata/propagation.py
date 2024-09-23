@@ -19,21 +19,22 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+
 import numba
 import numpy as np
 from scipy.optimize import minimize
 
-from .motion import GRAVITY, WaveField
+from .motion import GRAVITY, Motion, WaveField
 from .site import Layer, Location, Profile
 
 
 class AbstractCalculator:
     def __init__(self):
-        self._loc_input = None
-        self._motion = None
-        self._profile = None
+        self._loc_input: None | Location = None
+        self._motion: None | Motion = None
+        self._profile: None | Profile = None
 
-    def __call__(self, motion, profile, loc_input):
+    def __call__(self, motion: Motion, profile: Profile, loc_input: Location):
         self._motion = motion
         self._profile = profile
         self._loc_input = loc_input
@@ -50,22 +51,13 @@ class AbstractCalculator:
     def loc_input(self):
         return self._loc_input
 
-    def calc_accel_tf(self, lin, lout):
-        raise NotImplementedError
-
-    def calc_stress_tf(self, lin, lout, damped):
-        raise NotImplementedError
-
-    def calc_strain_tf(self, lin, lout):
-        raise NotImplementedError
-
 
 @numba.jit(nopython=True)
-def my_trapz(thickness, property, depth_max):
+def my_trapz(thickness, prop, depth_max):
     total = 0
     depth = 0
 
-    for t, p in zip(thickness, property):
+    for t, p in zip(thickness, prop):
         depth += t
         if depth_max < depth:
             # Partial layer
@@ -154,14 +146,20 @@ class QuarterWaveLenCalculator(AbstractCalculator):
         def qwl_average(param):
             return np.array([my_trapz(thickness, param, qd) for qd in qwl_depth])
 
-        for _ in range(20):
+        for _ in range(30):
             qwl_slowness = qwl_average(slowness)
             prev_qwl_depth = qwl_depth
-            qwl_depth = 1 / (4 * qwl_slowness * freqs)
 
-            if np.allclose(prev_qwl_depth, qwl_depth, rtol=0.005):
+            # Compute the mean between the previous depths and the newly
+            # computed depths. If the new value is just taken, then this
+            # algorithm can osccilate between two solutions.
+            qwl_depth = np.mean(
+                np.c_[prev_qwl_depth, 1 / (4 * qwl_slowness * freqs)], axis=1
+            )
+            if np.allclose(prev_qwl_depth, qwl_depth, rtol=0.01):
                 break
         else:
+            __import__("ipdb").set_trace()
             raise RuntimeError("QWL calcuation did not converge.")
 
         qwl_density = qwl_average(density)
@@ -528,7 +526,7 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
         self._max_iterations = max_iterations
         self._strain_limit = strain_limit
 
-    def __call__(self, motion, profile, loc_input):
+    def __call__(self, motion: Motion, profile: Profile, loc_input: Location):
         """Perform the wave propagation.
 
         Parameters
@@ -703,7 +701,7 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
 
         if self._use_smooth_spectrum:
             # Equation (8)
-            freq_avg = np.trapezoid(freqs * strain_fas, x=freqs) / np.trapezoid(
+            freq_avg = np.trapz(freqs * strain_fas, x=freqs) / np.trapz(
                 strain_fas, x=freqs
             )
 
