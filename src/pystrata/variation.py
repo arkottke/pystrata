@@ -255,7 +255,7 @@ class HalfSpaceDepthVariation:
 
         if index < (len(profile) - 1):
             # Variation is within the layers
-            layers = [site.Layer.copy_of(layer) for layer in profile[: (index + 1)]]
+            layers = [layer.copy() for layer in profile[: (index + 1)]]
             # Reduce the thickness of the layer above the half-space
             layers[-1]._thickness = depth_within
         else:
@@ -267,12 +267,12 @@ class HalfSpaceDepthVariation:
             thick = total_thick / count
 
             # Don't copy half-space
-            layers = [site.Layer.copy_of(layer) for layer in profile[:-1]]
+            layers = [layer.copy() for layer in profile[:-1]]
             # Don't call the setter function as it needs a profile defined
             layers[-1]._thickness = thick
             parent = layers[-1]
             for _ in range(count - 1):
-                layers.append(site.Layer.copy_of(parent))
+                layers.append(parent.copy())
 
         layers.append(half_space)
 
@@ -319,7 +319,7 @@ class VelocityVariation:
         ln_vel = np.clip(ln_vel_rand, mean - offset, mean + offset)
         vel = np.exp(ln_vel)
 
-        varied = site.Profile.copy_of(profile)
+        varied = profile.copy()
         # Update the velocities
         end = None if self.vary_bedrock else -1
         for i, v in enumerate(vel[:end]):
@@ -935,7 +935,7 @@ def iter_varied_profiles(
     """
     for _ in range(count):
         # Copy the profile to form the realization
-        _profile = site.Profile.copy_of(profile)
+        _profile = profile.copy()
 
         if var_thickness:
             _profile = var_thickness(_profile)
