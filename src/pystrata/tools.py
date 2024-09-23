@@ -368,7 +368,6 @@ def adjust_damping_values(
     profile: site.Profile,
     target_site_atten: float,
     exclude: None | str | list[str] | Callable = None,
-    verbose: bool = False,
     inplace: bool = False,
 ) -> site.Profile:
     """[TODO:description]
@@ -391,6 +390,8 @@ def adjust_damping_values(
         If *True*, the asscoaited gamma value is computed.
     inplace : bool
         If *True*, then the provided profile is modified
+    max_damping: float, optional
+        The maximum damping in decimal
     Returns
     -------
     site.Profile
@@ -399,7 +400,7 @@ def adjust_damping_values(
     """
 
     if not inplace:
-        profile = site.Profile.copy_of(profile)
+        profile = profile.copy()
 
     # Site attenuation considering the site propagation and scattering
     site_atten_scatter = calc_atten_scatter(profile)
@@ -426,42 +427,13 @@ def adjust_damping_values(
     if not layers:
         raise RuntimeError("No layers selected")
 
-    def set_min_damping(layer, damping):
-        # Here we increase the existing minimum damping
-        try:
-            # Limit the increased damping to 15%
-
-            # Adjust to zero damping at the small-strain
-            layer.soil_type.damping.values -= layer.soil_type.damping.values[0]
-
-            # Increase by the required small-strain damping
-            layer.soil_type.damping.values = np.minimum(
-                layer.soil_type.damping.values + damping, 0.15
-            )
-            # Need to update the strain to relook up the damping values
-            layer.strain = 1e-6
-        except AttributeError:
-            layer.soil_type.damping = damping
-
-    remainder = 0
-    for i in range(5):
-        # Site attenuation of the remains layers
-        site_atten = sum(layer.incr_site_atten for layer in layers)
-
-        # Adjust the target by the scattering and excluded layer attenuation
-        remainder = target_site_atten - (site_atten_scatter + site_atten_exc)
-        if remainder <= 0:
-            print(f"Reducing damping {i}...")
-            for layer in profile:
-                if layer.damping > 0:
-                    set_min_damping(layer, layer.damping / 2)
-            profile.reset_layers()
-        else:
-            break
+    # Site attenuation of the remains layers
+    site_atten = sum(layer.incr_site_atten for layer in layers)
+    # Adjust the target by the scattering and excluded layer attenuation
+    remainder = target_site_atten - (site_atten_scatter + site_atten_exc)
 
     if remainder <= 0:
         print(site_atten_scatter, site_atten_exc, site_atten)
-
         raise RuntimeError("Unable to achieve target attenuation")
 
     # Collect the properties
@@ -474,8 +446,8 @@ def adjust_damping_values(
 
     # Copy over the damping values. Damping might not be the fullayer length
     # because of the crust truncation
-    for d, layer in zip(damping, layers):
-        set_min_damping(layer, d)
+    for layer, damp in zip(layers, damping):
+        layer.damping_min = damp
 
     # Reset the initial properties
     profile.reset_layers()
