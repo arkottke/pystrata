@@ -227,7 +227,13 @@ class SoilType:
         damping is used.
     """
 
-    def __init__(self, name="", unit_wt=0.0, mod_reduc=None, damping=None):
+    def __init__(
+        self,
+        name: str = "",
+        unit_wt: float = 0.0,
+        mod_reduc: None | NonlinearProperty = None,
+        damping: float | NonlinearProperty = 0.0,
+    ) -> None:
         self.name = name
         self._unit_wt = unit_wt
         self.mod_reduc = mod_reduc
@@ -265,10 +271,11 @@ class SoilType:
     @property
     def damping_min(self) -> float:
         """Return the small-strain damping."""
-        try:
-            return self.damping.values[0]
-        except AttributeError:
-            return self.damping
+        if isinstance(self.damping, float):
+            value = self.damping
+        else:
+            value = self.damping.values[0]
+        return value
 
     @property
     def quality(self) -> float:
@@ -286,9 +293,6 @@ class SoilType:
         )
 
     def __eq__(self, other) -> bool:
-        # return all(
-        #     getattr(self, attr) == getattr(other, attr)
-        #     for attr in ['name', 'unit_wt', 'mod_reduc', 'damping'])
         return type(self) is type(other) and self.__dict__ == other.__dict__
 
     def __hash__(self):
@@ -1125,9 +1129,7 @@ class WangSoilType(SoilType):
                     -kwds["void_ratio"] - 3.31 * kwds["plas_index"]
                 ) * (1 + 148 * kwds["plas_index"] ** 1.95) * (
                     kwds["stress_mean"] * KPA_TO_ATM
-                ) ** -0.2 + (
-                    0.5 * kwds["plas_index"]
-                ) ** (
+                ) ** -0.2 + (0.5 * kwds["plas_index"]) ** (
                     2.54 - 1.8 * kwds["void_ratio"]
                 )
             else:
@@ -1135,9 +1137,7 @@ class WangSoilType(SoilType):
                     -1.91 * kwds["void_ratio"] - 6.5 * kwds["plas_index"]
                 ) * (1 + 106.75 * kwds["plas_index"] ** 1.64) * (
                     kwds["stress_mean"] * KPA_TO_ATM
-                ) ** -0.19 + (
-                    0.46 * kwds["plas_index"]
-                ) ** (
+                ) ** -0.19 + (0.46 * kwds["plas_index"]) ** (
                     1.73 - 1.34 * kwds["void_ratio"]
                 )
 
@@ -1420,16 +1420,16 @@ class KishidaSoilType(SoilType):
 # TODO: for nonlinear site response this class wouldn't be used. Better way
 # to do this? Maybe have the calculator create it?
 class IterativeValue:
-    def __init__(self, value):
+    def __init__(self, value: float | npt.ArrayLike):
         self._value = value
         self._previous = 1e-9
 
     @property
-    def value(self):
+    def value(self) -> float | np.ndarray:
         return self._value
 
     @value.setter
-    def value(self, value):
+    def value(self, value) -> float | np.ndarray:
         self._previous = self._value
         self._value = value
 
@@ -1438,24 +1438,16 @@ class IterativeValue:
         return self._previous
 
     @property
-    def relative_error(self):
+    def relative_error(self) -> float:
         """The relative error, in percent, between the two iterations."""
-        if self.previous is not None:
-            # FIXME
-            # Use the maximum strain value -- this is important for error
-            #  calculation with frequency dependent properties
-            # prev = np.max(self.previous)
-            # value = np.max(self.value)
-
-            # FIXME: How to fix this?
-            # RuntimeWarning: invalid value encountered in scalar divide
-            #  err = 100.0 * np.max((self.previous - self.value) / self.value)
-            try:
-                err = 100.0 * np.max((self.previous - self.value) / self.value)
-            except ZeroDivisionError:
-                err = np.inf
-        else:
+        if np.all(self.value > 0):
+            err = 100.0 * np.max((self.previous - self.value) / self.value)
+        elif np.isclose(self.value, self.previous):
+            # When value is zero and close to previous
             err = 0
+        else:
+            err = np.inf
+
         return err
 
     def reset(self):
@@ -1465,7 +1457,13 @@ class IterativeValue:
 class Layer:
     """Docstring for Layer"""
 
-    def __init__(self, soil_type, thickness, shear_vel):
+    def __init__(
+        self,
+        soil_type: SoilType,
+        thickness: float,
+        shear_vel: float,
+        damping_min: None | float = None,
+    ):
         """@todo: to be defined!"""
         self._profile = None
 
@@ -1473,8 +1471,15 @@ class Layer:
         self._thickness = thickness
         self.initial_shear_vel = shear_vel
 
+        if damping_min is not None:
+            self._damping_min = damping_min
+        else:
+            self._damping_min = soil_type.damping_min
+
         self._depth = 0
         self._stress_vert = 0
+
+        self.reset()
 
     def __repr__(self) -> str:
         index = self._profile.index(self) if self._profile else None
@@ -1499,10 +1504,9 @@ class Layer:
     def __hash__(self):
         return hash(self.__dict__.values())
 
-    @classmethod
-    def copy_of(cls, other) -> Layer:
+    def copy(self) -> Layer:
         """Return a copy of the Layer instance with previously defined SoilType."""
-        return cls(other.soil_type, other.thickness, other.shear_vel)
+        return Layer(self.soil_type, self.thickness, self.shear_vel)
 
     @property
     def depth(self) -> float:
@@ -1523,6 +1527,15 @@ class Layer:
     def density(self) -> float:
         """Density of soil in [kg/m³]."""
         return self.soil_type.density
+
+    @property
+    def damping_min(self) -> float:
+        """Minimum damping of the soil [dec]"""
+        return self._damping_min
+
+    @damping_min.setter
+    def damping_min(self, value: float):
+        self._damping_min = value
 
     @property
     def damping(self) -> np.ndarray | float:
@@ -1645,10 +1658,18 @@ class Layer:
         self._shear_mod.value = self.initial_shear_mod * mod_reduc
 
         try:
-            self._damping.value = self.soil_type.damping(strain)
+            # Interpolate the damping at the strain, and then reduce by the
+            # minimum damping
+            damping = self.soil_type.damping(strain)
+            damping -= self.soil_type.damping_min
         except TypeError:
             # No iteration provided by damping
-            self._damping.value = self.soil_type.damping
+            damping = 0
+
+        # Add the layer-specific minimum damping
+        damping += self.damping_min
+
+        self._damping.value = damping
 
     @property
     def soil_type(self):
@@ -1794,10 +1815,9 @@ class Profile(collections.abc.Container):
     def __getitem__(self, key):
         return self.layers[key]
 
-    @classmethod
-    def copy_of(cls, other):
+    def copy(self):
         """Return a copy of the profile with new Layer instances."""
-        return cls([Layer.copy_of(layer) for layer in other], other.wt_depth)
+        return Profile([layer.copy() for layer in self], self.wt_depth)
 
     def index(self, layer):
         return self.layers.index(layer)
