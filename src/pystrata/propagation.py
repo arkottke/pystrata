@@ -584,7 +584,6 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
         limited_strains = False
 
         while iteration < self.max_iterations:
-            print("iteration:", iteration)
             limited_strains = False
             self._calc_waves(motion.angular_freqs, profile)
 
