@@ -23,6 +23,7 @@
 import numba
 import numpy as np
 import numpy.typing as npt
+import pykooh
 from scipy.optimize import minimize
 
 from .motion import GRAVITY, Motion, WaveField
@@ -583,6 +584,7 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
         limited_strains = False
 
         while iteration < self.max_iterations:
+            print("iteration:", iteration)
             limited_strains = False
             self._calc_waves(motion.angular_freqs, profile)
 
@@ -680,9 +682,12 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
 
     Parameters
     ----------
-    use_smooth_spectrum: bool, default=False
-        Use the Kausel & Assimaki (2002) smooth spectrum for the strain.
-        Otherwise, the complete Fourier amplitude spectrum is used.
+    method: str
+        method for computing the strain spectrum:
+         - raw: no modification to the strain spectrum.
+         - ka02: use the Kausel & Assimaki (2002) defined shape for a  smooth spectrum
+           for the strain.
+         - ko:##: use Konno-Omachi with a bandwith of ##.
     strain_ratio: float, default=1.00
         ratio between the maximum strain and effective strain used to compute
         strain compatible properties. There is not clear guidance the use of
@@ -693,6 +698,10 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         process to terminate.
     max_iterations: int, default=15
         maximum number of iterations to perform.
+
+    strain_limit: float, default=0.05
+        Limit of strain in calculations. If this strain is exceed, the
+        iterative calculation is ended.
 
     References
     ----------
@@ -705,16 +714,21 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
 
     def __init__(
         self,
-        use_smooth_spectrum=False,
-        strain_ratio=1.0,
-        tolerance=0.01,
-        max_iterations=15,
+        method: str = "raw",
+        strain_ratio: float = 1.0,
+        tolerance: float = 0.01,
+        max_iterations: int = 15,
+        strain_limit: float = 0.05,
     ):
         """Initialize the class."""
-        super().__init__(strain_ratio, tolerance, max_iterations)
+        super().__init__(strain_ratio, tolerance, max_iterations, strain_limit)
 
-        # Use the smooth strain spectrum as proposed by Kausel and Assimaki
-        self._use_smooth_spectrum = use_smooth_spectrum
+        self._method = method
+        self._smoother = None
+
+    @property
+    def method(self):
+        return self._method
 
     def _estimate_strains(self):
         """Estimate the strains by running an EQL site response.
@@ -732,7 +746,7 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         # ratio
         strain_eff = self.strain_ratio * motion.calc_peak(strain_tf)
 
-        if self._use_smooth_spectrum:
+        if self._method == "ka02":
             # Equation (8)
             freq_avg = np.trapz(freqs * strain_fas, x=freqs) / np.trapz(
                 strain_fas, x=freqs
@@ -759,6 +773,17 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
                 / np.maximum(np.finfo(float).eps, np.power(freqs, b)),
             )
             strains = strain_eff * shape
+        elif self._method.startswith("ko:"):
+            if self._smoother is None or not self._smoother.freqs_match(motion.freqs):
+                bandwidth = float(self._method[3:])
+                self._smoother = pykooh.CachedSmoother(
+                    motion.freqs, motion.freqs, bandwidth=bandwidth, normalize=True
+                )
+
+            # Konno-Omachi smoothing
+            # strain_fas_sm = pykooh.smooth(freqs, freqs, strain_fas, self._bandwidth)
+            strains = strain_eff * self._smoother(strain_fas) / np.max(strain_fas)
+
         else:
             strains = strain_eff * strain_fas / np.max(strain_fas)
 
