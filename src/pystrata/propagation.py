@@ -170,7 +170,7 @@ class QuarterWaveLenCalculator(AbstractCalculator):
         def qwl_average(param):
             return np.array([my_trapz(thickness, param, qd) for qd in qwl_depth])
 
-        for _ in range(30):
+        for _ in range(50):
             qwl_slowness = qwl_average(slowness)
             prev_qwl_depth = qwl_depth
 
@@ -183,7 +183,6 @@ class QuarterWaveLenCalculator(AbstractCalculator):
             if np.allclose(prev_qwl_depth, qwl_depth, rtol=0.01):
                 break
         else:
-            __import__("ipdb").set_trace()
             raise RuntimeError("QWL calcuation did not converge.")
 
         qwl_density = qwl_average(density)
