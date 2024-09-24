@@ -605,7 +605,7 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
             # Break, if the strains were limited the last two iterations.
             if limited_strains:
                 if limited_iter == (iteration - 1):
-                    break
+                    raise RuntimeError("Strain limit exceeded.")
                 else:
                     limited_iter = iteration
 
