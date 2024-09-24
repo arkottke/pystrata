@@ -427,13 +427,11 @@ def adjust_damping_values(
     if not layers:
         raise RuntimeError("No layers selected")
 
-    # Site attenuation of the remains layers
-    site_atten = sum(layer.incr_site_atten for layer in layers)
     # Adjust the target by the scattering and excluded layer attenuation
     remainder = target_site_atten - (site_atten_scatter + site_atten_exc)
 
     if remainder <= 0:
-        print(site_atten_scatter, site_atten_exc, site_atten)
+        print(site_atten_scatter, site_atten_exc, target_site_atten)
         raise RuntimeError("Unable to achieve target attenuation")
 
     # Collect the properties

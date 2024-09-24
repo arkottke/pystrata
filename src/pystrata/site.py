@@ -1468,16 +1468,19 @@ class Layer:
         self._profile = None
 
         self._soil_type = soil_type
+
         self._thickness = thickness
-        self.initial_shear_vel = shear_vel
+        self._depth = 0
+        self._stress_vert = 0
+
+        # Need to set the initial dynamic properties prior to reseeting the
+        # layer which creates the iterative values
+        self._initial_shear_vel = shear_vel
 
         if damping_min is not None:
             self._damping_min = damping_min
         else:
             self._damping_min = soil_type.damping_min
-
-        self._depth = 0
-        self._stress_vert = 0
 
         self.reset()
 
@@ -1536,6 +1539,8 @@ class Layer:
     @damping_min.setter
     def damping_min(self, value: float):
         self._damping_min = value
+        # Reset the iterated values
+        self.reset()
 
     @property
     def damping(self) -> np.ndarray | float:
@@ -1599,7 +1604,7 @@ class Layer:
 
     def reset(self):
         self._shear_mod = IterativeValue(self.initial_shear_mod)
-        self._damping = IterativeValue(self.soil_type.damping_min)
+        self._damping = IterativeValue(self.damping_min)
         # Use a small initial value
         self._strain = IterativeValue(1e-6)
 
@@ -1709,9 +1714,7 @@ class Layer:
 
     @property
     def incr_site_atten(self):
-        return (
-            2 * self.soil_type.damping_min * self._thickness
-        ) / self.initial_shear_vel
+        return (2 * self.damping_min * self._thickness) / self.initial_shear_vel
 
 
 class Location:
