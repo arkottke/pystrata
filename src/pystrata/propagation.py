@@ -22,6 +22,7 @@
 
 import numba
 import numpy as np
+import numpy.typing as npt
 from scipy.optimize import minimize
 
 from .motion import GRAVITY, Motion, WaveField
@@ -34,10 +35,24 @@ class AbstractCalculator:
         self._motion: None | Motion = None
         self._profile: None | Profile = None
 
-    def __call__(self, motion: Motion, profile: Profile, loc_input: Location):
+    def __call__(
+        self,
+        motion: Motion,
+        profile: Profile,
+        loc_input: Location,
+        reset_layers=True,
+        **kwds,
+    ):
         self._motion = motion
         self._profile = profile
         self._loc_input = loc_input
+
+        if reset_layers:
+            # Set initial properties
+            for layer in profile:
+                layer.reset()
+                if layer.strain is None:
+                    layer.strain = 0.0
 
     @property
     def motion(self):
@@ -84,7 +99,14 @@ class QuarterWaveLenCalculator(AbstractCalculator):
         self._site_atten = site_atten
         self._method = method
 
-    def __call__(self, motion, profile, loc_input):
+    def __call__(
+        self,
+        motion: Motion,
+        profile: Profile,
+        loc_input: Location,
+        reset_layers=True,
+        **kwds,
+    ):
         """Perform the wave propagation.
 
         Parameters
@@ -98,7 +120,7 @@ class QuarterWaveLenCalculator(AbstractCalculator):
         loc_input: :class:`~.base.site.Location`
             Location of the input motion.
         """
-        super().__call__(motion, profile, loc_input)
+        super().__call__(motion, profile, loc_input, reset_layers=reset_layers, **kwds)
 
         self._crustal_amp, self._site_term = self._calc_amp(
             profile.density, profile.thickness, profile.slowness
@@ -138,7 +160,9 @@ class QuarterWaveLenCalculator(AbstractCalculator):
     def site_atten(self) -> float | None:
         return self._site_atten
 
-    def _calc_amp(self, density, thickness, slowness):
+    def _calc_amp(
+        self, density: npt.ArrayLike, thickness: npt.ArrayLike, slowness: npt.ArrayLike
+    ) -> tuple[np.ndarray, np.ndarray]:
         freqs = self.motion.freqs
         # 1/4 wavelength depth -- estimated for mean slowness
         qwl_depth = 1 / (4 * np.mean(slowness) * freqs)
@@ -297,7 +321,14 @@ class LinearElasticCalculator(AbstractCalculator):
         self._waves_b = np.array([])
         self._wave_nums = np.array([])
 
-    def __call__(self, motion, profile, loc_input):
+    def __call__(
+        self,
+        motion: Motion,
+        profile: Profile,
+        loc_input: Location,
+        reset_layers=True,
+        **kwds,
+    ):
         """Perform the wave propagation.
 
         Parameters
@@ -311,13 +342,7 @@ class LinearElasticCalculator(AbstractCalculator):
         loc_input: :class:`~.base.site.Location`
             Location of the input motion.
         """
-        super().__call__(motion, profile, loc_input)
-
-        # Set initial properties
-        for layer in profile:
-            layer.reset()
-            if layer.strain is None:
-                layer.strain = 0.0
+        super().__call__(motion, profile, loc_input, reset_layers=reset_layers, **kwds)
 
         self._calc_waves(motion.angular_freqs, profile)
 
@@ -526,7 +551,14 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
         self._max_iterations = max_iterations
         self._strain_limit = strain_limit
 
-    def __call__(self, motion: Motion, profile: Profile, loc_input: Location):
+    def __call__(
+        self,
+        motion: Motion,
+        profile: Profile,
+        loc_input: Location,
+        reset_layers=True,
+        **kwds,
+    ):
         """Perform the wave propagation.
 
         Parameters
@@ -540,9 +572,11 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
         loc_input: :class:`~.base.site.Location`
             Location of the input motion.
         """
-        super().__call__(motion, profile, loc_input)
+        super().__call__(motion, profile, loc_input, reset_layers=reset_layers, **kwds)
 
-        self._estimate_strains()
+        if reset_layers:
+            # Use the previously established layer strains
+            self._estimate_strains()
 
         iteration = 0
         # The iteration at which strains were last limited
