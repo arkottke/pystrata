@@ -271,7 +271,7 @@ class SoilType:
     @property
     def damping_min(self) -> float:
         """Return the small-strain damping."""
-        if isinstance(self.damping, float):
+        if isinstance(self.damping, (float, int)):
             value = self.damping
         else:
             value = self.damping.values[0]
