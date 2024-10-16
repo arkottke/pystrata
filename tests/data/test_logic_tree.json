@@ -1,0 +1,226 @@
+[
+    {
+        "name": "soil_thick",
+        "alts": [
+            {
+                "value": 0,
+                "weight": 1,
+                "params": {
+                    "outputs": [
+                        {
+                            "depth": 0,
+                            "wavefield": "outcrop"
+                        }
+                    ]
+                }
+            },
+            {
+                "value": 4.6,
+                "weight": 1,
+                "params": {
+                    "outputs": [
+                        {
+                            "depth": 0,
+                            "wavefield": "outcrop"
+                        }
+                    ]
+                }
+            },
+            {
+                "value": 12.2,
+                "weight": 1,
+                "params": {
+                    "outputs": [
+                        {
+                            "depth": 0,
+                            "wavefield": "outcrop"
+                        },
+                        {
+                            "depth": 13.7,
+                            "wavefield": "outcrop"
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    {
+        "name": "method",
+        "alts": [
+            {
+                "value": "surface wave",
+                "weight": 0.5
+            },
+            {
+                "value": "borehole",
+                "weight": 0.5
+            }
+        ]
+    },
+    {
+        "name": "vel_source",
+        "alts": [
+            {
+                "value": "masw & mam",
+                "weight": 0.6,
+                "requires": {
+                    "method": "surface wave"
+                }
+            },
+            {
+                "value": "sasw",
+                "weight": 0.4,
+                "requires": {
+                    "method": "surface wave"
+                }
+            },
+            {
+                "value": "litho",
+                "weight": 1.0,
+                "requires": {
+                    "method": "borehole"
+                }
+            }
+        ]
+    },
+    {
+        "name": "shallow_source",
+        "alts": [
+            {
+                "value": "R0-LR1.5",
+                "weight": 0.25,
+                "requires": {
+                    "vel_source": "masw & mam"
+                }
+            },
+            {
+                "value": "R0-LR2.0",
+                "weight": 0.25,
+                "requires": {
+                    "vel_source": "masw & mam"
+                }
+            },
+            {
+                "value": "R0-LR2.5",
+                "weight": 0.25,
+                "requires": {
+                    "vel_source": "masw & mam"
+                }
+            },
+            {
+                "value": "R0-LR3.0",
+                "weight": 0.25,
+                "requires": {
+                    "vel_source": "masw & mam"
+                }
+            },
+            {
+                "value": "Array 1",
+                "weight": 0.4,
+                "requires": {
+                    "vel_source": "sasw"
+                }
+            },
+            {
+                "value": "Array 3",
+                "weight": 0.4,
+                "requires": {
+                    "vel_source": "sasw"
+                }
+            },
+            {
+                "value": "Array 4",
+                "weight": 0.2,
+                "requires": {
+                    "vel_source": "sasw"
+                }
+            },
+            {
+                "value": "w/o thin interbeds",
+                "weight": 0.3,
+                "requires": {
+                    "vel_source": "litho"
+                }
+            },
+            {
+                "value": "w/ thin interbeds",
+                "weight": 0.7,
+                "requires": {
+                    "vel_source": "litho"
+                }
+            }
+        ]
+    },
+    {
+        "name": "deep_source",
+        "alts": [
+            {
+                "value": "INEL-1",
+                "weight": 1
+            }
+        ]
+    },
+    {
+        "name": "deep_adj",
+        "alts": [
+            {
+                "value": "lower",
+                "weight": 0.185
+            },
+            {
+                "value": "center",
+                "weight": 0.630
+            },
+            {
+                "value": "upper",
+                "weight": 0.185
+            }
+        ]
+    },
+    {
+        "name": "site_atten",
+        "alts": [
+            {
+                "value": 0.0212,
+                "weight": 1
+            },
+            {
+                "value": 0.0308,
+                "weight": 1
+            },
+            {
+                "value": 0.0401,
+                "weight": 1
+            },
+            {
+                "value": 0.0510,
+                "weight": 1
+            },
+            {
+                "value": 0.0648,
+                "weight": 1
+            },
+            {
+                "value": 0.0846,
+                "weight": 1
+            },
+            {
+                "value": 0.1225,
+                "weight": 1
+            }
+        ]
+    },
+    {
+        "name": "mrd_curves",
+        "alts": [
+            {
+                "value": "site specific",
+                "weight": 0.7
+            },
+            {
+                "value": "darendeli",
+                "weight": 0.3
+            }
+        ]
+    }
+]

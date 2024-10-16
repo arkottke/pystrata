@@ -1,5 +1,11 @@
 # History
 
+## v0.5.5 (2024-10-16)
+
+-   Change: Use `method` to define FrequencyDependentEqlCalculator options
+-   Add: FrequencyDependentEqlCalculator method based on smoothing of the strain spectrum
+-   Add: Tools for creating logic trees
+
 ## v0.5.4 (2024-03-29)
 
 -   Fix: error in example-08 that didn't reference the modified profiles.

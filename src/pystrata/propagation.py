@@ -683,15 +683,20 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
     ----------
     method: str
         method for computing the strain spectrum:
-         - raw: no modification to the strain spectrum.
          - ka02: use the Kausel & Assimaki (2002) defined shape for a  smooth spectrum
            for the strain.
-         - ko:##: use Konno-Omachi with a bandwith of ##.
+         - zr15: use Zalachoris & Rathje (2015) approach of the strain
+         spectrum
+         - ko:##: use Konno-Omachi with a bandwith of ## to compute the smooth
+         spectrum. The strain is then computed as a running maximum from high
+         to low frequencies. A value of 20 or 30 is recommended based on
+         limited studies.
     strain_ratio: float, default=1.00
         ratio between the maximum strain and effective strain used to compute
         strain compatible properties. There is not clear guidance the use of
-        the effective strain ratio. However, given the nature of the method,
-        it would make sense not to include the an effective strain ratio.
+        the effective strain ratio. For the `ka02` the recommended value is
+        0.65 -- or consistent with an EQL approach. For `zr15` and `ko:##`, there is no
+        clear guidance but a value of 1.0 might make sense.
     tolerance: float, default=0.01
         tolerance in the iterative properties, which would cause the iterative
         process to terminate.
@@ -709,11 +714,9 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         Engineering Mechanics, 128(1), 34-47.
     """
 
-    name = "FDM-KA"
-
     def __init__(
         self,
-        method: str = "raw",
+        method: str = "ka02",
         strain_ratio: float = 1.0,
         tolerance: float = 0.01,
         max_iterations: int = 15,
@@ -724,6 +727,10 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
 
         self._method = method
         self._smoother = None
+
+    @property
+    def name(self):
+        return f"FDM-{self.method}"
 
     @property
     def method(self):
@@ -783,6 +790,7 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
             # strain_fas_sm = pykooh.smooth(freqs, freqs, strain_fas, self._bandwidth)
             strains = strain_eff * self._smoother(strain_fas) / np.max(strain_fas)
 
+            strains[::-1] = np.maximum.accumulate(strains[::-1])
         else:
             strains = strain_eff * strain_fas / np.max(strain_fas)
 

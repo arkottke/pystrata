@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pyStrata"
-version = "0.5.4"
+version = "0.5.5"
 authors = [{ name = "Albert Kottke", email = "albert.kottke@gmail.com" }]
 description = "Site response analysis with Python."
 readme = "README.md"
@@ -39,9 +39,7 @@ line-length = 88
 target-version = ['py310']
 
 [tool.ruff]
-exclude = [
-    "docs"
-]
+exclude = ["docs"]
 # Same as Black.
 line-length = 88
 indent-width = 4
@@ -59,18 +57,12 @@ ignore = ["E203"]
 
 [tool.hatch.envs.style]
 detached = true
-dependencies = [
-    "black[colorama,jupyter]",
-    "ruff"
-]
+dependencies = ["black[colorama,jupyter]", "ruff"]
 
 
 # Format with black first to wrap comments
 [tool.hatch.envs.style.scripts]
-fmt = [
-    'black .',
-    'ruff check --fix .'
-]
+fmt = ['black .', 'ruff check --fix .']
 
 
 [[tool.hatch.envs.test.matrix]]
@@ -78,6 +70,7 @@ python = ["3.10", "3.11", "3.12"]
 
 [tool.hatch.envs.test]
 dependencies = [
+    "numpy>=2.0",
     "coverage[toml]",
     "nbformat",
     "nbconvert",
@@ -85,12 +78,13 @@ dependencies = [
     "pytest-cov",
     "pytest-runner",
     "openpyxl",
-# FIXME: Add as dependency of pystrata
+    # FIXME: Add as dependency of pystrata
     "matplotlib",
     "pykooh",
     "tomli",
     "pandas",
-# Done
+    "pyexcel",
+    # Done
 ]
 
 [tool.hatch.envs.test.scripts]
