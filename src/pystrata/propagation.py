@@ -787,8 +787,8 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
                 )
 
             # Konno-Omachi smoothing
-            # strain_fas_sm = pykooh.smooth(freqs, freqs, strain_fas, self._bandwidth)
-            strains = strain_eff * self._smoother(strain_fas) / np.max(strain_fas)
+            strain_fas_sm = self._smoother(strain_fas)
+            strains = strain_eff * strain_fas_sm / np.max(strain_fas_sm)
 
             strains[::-1] = np.maximum.accumulate(strains[::-1])
         else:
