@@ -12,9 +12,9 @@ jobs:
         runs-on: ubuntu-latest
 
         steps:
-            - uses: actions/checkout@v4.1.7
+            - uses: actions/checkout@v4.2.2
             - name: Set up Python
-              uses: actions/setup-python@v5.2.0
+              uses: actions/setup-python@v5.3.0
               with:
                   python-version: "3.x"
             - name: Install dependencies
@@ -33,6 +33,6 @@ jobs:
                   --outdir dist/
                   .
             - name: Publish distribution package to PyPI
-              uses: pypa/gh-action-pypi-publish@v1.10.2
+              uses: pypa/gh-action-pypi-publish@v1.12.3
               with:
                   password: ${{ secrets.PYPI_API_TOKEN }}
