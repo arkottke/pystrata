@@ -1510,7 +1510,7 @@ class Layer:
 
     def copy(self) -> Layer:
         """Return a copy of the Layer instance with previously defined SoilType."""
-        return Layer(self.soil_type, self.thickness, self.shear_vel)
+        return Layer(self.soil_type, self.thickness, self.shear_vel, self.damping_min)
 
     @property
     def depth(self) -> float:
