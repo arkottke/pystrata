@@ -1899,7 +1899,14 @@ class Profile(collections.abc.Container):
                 count = max(np.ceil(layer.thickness / opt_thickness).astype(int), 1)
                 thickness = layer.thickness / count
                 for _ in range(count):
-                    layers.append(Layer(layer.soil_type, thickness, layer.shear_vel))
+                    layers.append(
+                        Layer(
+                            layer.soil_type,
+                            thickness,
+                            layer.shear_vel,
+                            layer.damping_min,
+                        )
+                    )
             else:
                 layers.append(layer)
         # Add the halfspace
