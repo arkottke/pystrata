@@ -227,7 +227,12 @@ class ToroThicknessVariation:
             for layer in profile:
                 if layer.depth < depth_mid <= layer.depth_base:
                     layers.append(
-                        site.Layer(layer.soil_type, thick, layer.initial_shear_vel)
+                        site.Layer(
+                            layer.soil_type,
+                            thick,
+                            layer.initial_shear_vel,
+                            layer.damping_min,
+                        )
                     )
                     break
             else:
@@ -953,6 +958,7 @@ def iter_varied_profiles(
                     varied[str(layer.soil_type)],
                     layer.thickness,
                     layer.initial_shear_vel,
+                    layer.damping_min,
                 )
                 for layer in _profile[:end]
             ]

@@ -1491,12 +1491,14 @@ class Layer:
         shear_vel = self._initial_shear_vel
         thickness = self._thickness
         st_name = self.soil_type.name
+        damping_min = self._damping
 
         return (
             f"<Layer(index={index}, "
             f"shear_vel={shear_vel:0.1f} m/s, "
             f"thickness={thickness:0.1f} m, "
             f"soil_type={st_name})>"
+            f"damping_min={damping_min:0.2f}"
         )
 
     def __eq__(self, other) -> bool:

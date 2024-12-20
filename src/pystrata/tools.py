@@ -337,6 +337,7 @@ def calc_atten_scatter(
                 site.SoilType(layer.soil_type.name, layer.soil_type.unit_wt, 0, 0.01),
                 layer.thickness,
                 layer.shear_vel,
+                layer.damping_min,
             )
             for layer in profile
         ]
@@ -397,6 +398,9 @@ def adjust_damping_values(
     site.Profile
         Modified profile
 
+    site_atten_scatter: float
+        Site attenuation associated with the scattering [sec]
+
     """
 
     if not inplace:
@@ -450,4 +454,4 @@ def adjust_damping_values(
     # Reset the initial properties
     profile.reset_layers()
 
-    return profile
+    return profile, site_atten_scatter
