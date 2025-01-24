@@ -1677,6 +1677,9 @@ class Layer:
         # Add the layer-specific minimum damping
         damping += self.damping_min
 
+        # Maximum damping value of less than 0.5
+        damping = np.minimum(damping, 0.49)
+
         self._damping.value = damping
 
     @property
