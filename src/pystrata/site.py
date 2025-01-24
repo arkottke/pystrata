@@ -93,7 +93,7 @@ class NonlinearProperty:
 
     PARAMS = ["mod_reduc", "damping"]
 
-    def __init__(self, name="", strains=None, values=None, param=None):
+    def __init__(self, name="", strains=None, values=None, param=None, limits=None):
         self.name = name
         self._strains = np.asarray(strains).astype(float)
         self._values = np.asarray(values).astype(float)
@@ -102,6 +102,12 @@ class NonlinearProperty:
 
         self._param = None
         self.param = param
+
+        if limits is None:
+            if param == "mod_reduc":
+                self._limits = 0.001, 1
+            else:
+                self._limits = 0, 0.49
 
         self._update()
 
@@ -147,7 +153,8 @@ class NonlinearProperty:
         else:
             ln_strains = np.atleast_1d(ln_strains)
             values = np.array([i(ln_strains[0]) for i in self._interpolater])
-        return values
+
+        return np.clip(values, *self._limits)
 
     @property
     def strains(self):
@@ -1575,7 +1582,10 @@ class Layer:
     @property
     def comp_shear_mod(self) -> complex:
         """Strain-compatible complex shear modulus [kN/m²]."""
-        damping = self.damping
+
+        # Maximum damping value of less than 0.5
+        damping = np.clip(self.damping, 0, 0.49)
+
         if COMP_MODULUS_MODEL == "seed":
             # Frequency independent model (Seed et al., 1970)
             # Correct dissipated energy
@@ -1676,9 +1686,6 @@ class Layer:
 
         # Add the layer-specific minimum damping
         damping += self.damping_min
-
-        # Maximum damping value of less than 0.5
-        damping = np.minimum(damping, 0.49)
 
         self._damping.value = damping
 
