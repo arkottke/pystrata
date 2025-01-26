@@ -524,7 +524,10 @@ class ToroVelocityVariation(VelocityVariation):
         depth = np.mean(np.c_[depths_mid[:-1], depths_mid[1:]], axis=1)
 
         # t variable from Toro; defined as the difference of the midpoint depths
-        thick = np.diff(depth)
+        # Here the thickness is limited to 100 m to prevent underflow on the
+        # exponent. For this thickness, the correlation will be minor
+        thick = np.minimum(np.diff(depth), 100)
+
         # Remove the depth associated with the final layer. We will set that it is
         # perfectly correlated later.
         depth = depth[:-1]
