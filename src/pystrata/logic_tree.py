@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Union
 
 import numpy as np
+import xarray as xr
 
 AlternativeValueType = Union[str, int, float, tuple[str]]
 
@@ -150,6 +151,22 @@ class Node:
         for a in self.alts:
             if a.weight > 0:
                 yield Realization(self.name, a.value, a.weight, a.params)
+
+    def to_xarray(self, dim_name: str, name: str = "") -> xr.DataArray:
+        """
+        Convert the node to a numpy array.
+
+        Returns
+        -------
+        xr.DataArray
+            A dataarray of the alternative values.
+        """
+        return xr.DataArray(
+            np.array([a.weight for a in self.alts]),
+            dims=(dim_name,),
+            coords={dim_name: [a.value for a in self.alts]},
+            name=name,
+        )
 
     @property
     def options(self):
