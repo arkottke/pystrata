@@ -1,15 +1,15 @@
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=64", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyStrata"
-version = "0.5.5"
+dynamic = ["version"]
 authors = [{ name = "Albert Kottke", email = "albert.kottke@gmail.com" }]
 description = "Site response analysis with Python."
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 dependencies = [
     "matplotlib",
     "numba",
@@ -19,20 +19,45 @@ dependencies = [
     "scipy",
     "setuptools",
     "tomli",
+    "xarray",
 ]
 
 [project.urls]
 Homepage = "https://github.com/arkottke/pystrata"
 Documentation = "https://pystrata.readthedocs.io"
 
-[tool.hatch.build.targets.sdist]
-exclude = ["/*.yml", "/.*", "/.github", "/docs"]
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/pystrata"]
-
-[tool.hatch.version]
-source = "vcs"
+[project.optional-dependencies]
+test = [
+    "numpy>=2.0",
+    "coverage[toml]",
+    "nbformat",
+    "nbconvert",
+    "pytest",
+    "pytest-cov",
+    "pytest-runner",
+    "openpyxl",
+    "matplotlib",
+    "pykooh",
+    "tomli",
+    "pandas",
+    "pyexcel",
+]
+style = [
+    "black[colorama,jupyter]",
+    "ruff",
+]
+docs = [
+    "mkdocs",
+    "markdown-callouts",
+    "mkdocstrings[python]",
+    "mkdocs-bibtex",
+    "mkdocs-gen-files",
+    "mkdocs-literate-nav",
+    "mkdocs-material",
+    "mkdocs-section-index",
+    "mkdocs-jupyter",
+    "black[colorama,jupyter]",
+]
 
 [tool.black]
 line-length = 88
@@ -55,57 +80,48 @@ quote-style = "double"
 select = ["E", "F", "W", "Q", "I"]
 ignore = ["E203"]
 
-[tool.hatch.envs.style]
-detached = true
-dependencies = ["black[colorama,jupyter]", "ruff"]
-
-
-# Format with black first to wrap comments
-[tool.hatch.envs.style.scripts]
-fmt = ['black .', 'ruff check --fix .']
-
-
-[[tool.hatch.envs.test.matrix]]
-python = ["3.10", "3.11", "3.12"]
-
-[tool.hatch.envs.test]
-dependencies = [
-    "numpy>=2.0",
+# uv configuration for development dependencies
+[tool.uv]
+dev-dependencies = [
+    # Build tools
+    "setuptools-scm>=8",
+    # Testing
+    "pytest>=3.5",
+    "pytest-cov",
+    "pytest-runner",
     "coverage[toml]",
     "nbformat",
     "nbconvert",
-    "pytest",
-    "pytest-cov",
-    "pytest-runner",
+    # Code quality
+    "black[colorama,jupyter]",
+    "ruff",
+    # Additional dependencies for development
     "openpyxl",
-    # FIXME: Add as dependency of pystrata
-    "matplotlib",
-    "pykooh",
-    "tomli",
     "pandas",
     "pyexcel",
-    # Done
 ]
 
-[tool.hatch.envs.test.scripts]
-run-coverage = "pytest --cov-config=pyproject.toml --cov=pkg --cov=tests"
-run-coverage-xml = "run-coverage --cov-report xml"
-run = "run-coverage --no-cov"
+# Coverage configuration
+[tool.coverage.run]
+source = ["pystrata"]
+omit = ["tests/*"]
 
-[tool.hatch.envs.docs]
-detached = true
-dependencies = [
-    "mkdocs",
-    "markdown-callouts",
-    "mkdocstrings[python]",
-    "mkdocs-bibtex",
-    "mkdocs-gen-files",
-    "mkdocs-literate-nav",
-    "mkdocs-material",
-    "mkdocs-section-index",
-    "mkdocs-jupyter",
-    "black[colorama,jupyter]",
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
 ]
-[tool.hatch.envs.docs.scripts]
-build = "mkdocs build --clean --strict"
-serve = "mkdocs serve --dev-addr localhost:8000"
+
+# setuptools-scm configuration
+[tool.setuptools_scm]
+write_to = "src/pystrata/_version.py"
+fallback_version = "0.5.5"
+
+# setuptools configuration
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+pystrata = ["py.typed"]

@@ -57,6 +57,23 @@ persistent advice to be better associated with
 
     pip install pystrata
 
+### Development Setup
+
+For development, we recommend using [uv](https://docs.astral.sh/uv/) for fast dependency management:
+
+    # Install uv
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+
+    # Clone and setup
+    git clone https://github.com/arkottke/pystrata.git
+    cd pystrata
+    uv sync --all-extras --dev
+
+    # Run tests
+    uv run pytest
+
+See [UV_MIGRATION.md](UV_MIGRATION.md) for details about the migration from hatch to uv.
+
 If you are using `conda` and a create a `pystrata` specific
 environmental make sure you install `ipykernels` and `nb_conda_kernels`
 so that the environment is discoverable by `Jupyter` with:
