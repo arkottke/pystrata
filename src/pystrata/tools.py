@@ -370,37 +370,50 @@ def adjust_damping_values(
     target_site_atten: float,
     exclude: None | str | list[str] | Callable = None,
     inplace: bool = False,
-) -> site.Profile:
-    """[TODO:description]
+) -> tuple[site.Profile, float]:
+    """
+    Adjust the minimum damping values of a site profile so that the total site
+    attenuation matches a specified target value. Optionally, certain layers can
+    be excluded from adjustment.
+
+    The function computes the attenuation due to impedance (scattering) effects
+    and any excluded layers, then distributes the remaining required attenuation
+    among the selected layers by updating their minimum damping values.  The
+    approach  assumes that Q is proportional to Vs (i.e., Q~ γ Vs, in which γ is
+    a proportionality constant; Silva and Darragh, 1995).
+
+    The profile can be modified in-place or a copy can be returned.
 
     Parameters
     ----------
     profile : site.Profile
-        Site profile to adjust
+        Site profile to adjust.
     target_site_atten : float
-        Target total site attenuation [sec]
-    exclude : None | str | list[str] | Callable
-        Pattern or callable used to exclude layers from this adjustment. If
-        *None, all layers are used. If
-        *str*, then `re.match` is used to test against the
-        `layer.soil_type.name`. If *list[str]*, then `layer.soil_type.name` is
-        tested not to be included in this list. If *callable*, then the
-        function should take `site.Layer` and return *True* for excluded
-        layers.
-    verbose : bool
-        If *True*, the asscoaited gamma value is computed.
-    inplace : bool
-        If *True*, then the provided profile is modified
-    max_damping: float, optional
-        The maximum damping in decimal
+        Target total site attenuation [sec].
+    exclude : None or str or list of str or Callable, optional
+        Pattern or callable used to exclude layers from this adjustment.
+        - If None, all layers are used.
+        - If str, `re.match` is used to test against `layer.soil_type.name`.
+        - If list of str, `layer.soil_type.name` is tested not to be included in
+        this list.
+        - If callable, the function should take a `site.Layer` and return True
+        for excluded layers.
+    inplace : bool, optional
+        If True, the provided profile is modified in-place. If False (default),
+        a copy is returned.
+
     Returns
     -------
     site.Profile
-        Modified profile
+        Modified profile with adjusted minimum damping values.
+    site_atten_scatter : float
+        Site attenuation associated with the scattering [sec].
 
-    site_atten_scatter: float
-        Site attenuation associated with the scattering [sec]
-
+    Raises
+    ------
+    RuntimeError
+        If no layers are selected for adjustment or if the target attenuation cannot
+        be achieved.
     """
 
     if not inplace:
