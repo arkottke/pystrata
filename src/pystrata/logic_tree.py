@@ -28,12 +28,56 @@ class Realization:
         The weight of the realization, by default 1.
     params : Dict[str, Any], optional
         Additional parameters for the realization, by default an empty dict.
+    requires : Dict[str, Any], optional
+        Requirements for this realization to be valid, by default an empty dict.
+    excludes : Dict[str, Any], optional
+        Exclusions for this realization to be valid, by default an empty dict.
     """
 
     name: str
     value: str | float | int
     weight: float = 1
     params: dict[str, Any] = field(default_factory=dict)
+    requires: dict[str, Any] = field(default_factory=dict)
+    excludes: dict[str, Any] = field(default_factory=dict)
+
+    def is_valid(self, branch):
+        """
+        Check if this realization is valid given a branch.
+
+        Parameters
+        ----------
+        branch : Branch
+            The branch to check against.
+
+        Returns
+        -------
+        bool
+            True if the realization is valid, False otherwise.
+        """
+
+        def matches(ref, check):
+            if isinstance(ref, list):
+                ret = check in ref
+            elif isinstance(ref, float):
+                ret = np.isclose(ref, check)
+            else:
+                ret = ref == check
+            return ret
+
+        okay = True
+
+        if self.requires:
+            # Check that the required realizations are present
+            okay = all(matches(v, branch[k].value) for k, v in self.requires.items())
+
+        if okay and self.excludes:
+            # Check that the excludes realizations are _not_ present
+            okay &= not all(
+                matches(v, branch[k].value) for k, v in self.excludes.items()
+            )
+
+        return okay
 
 
 @dataclass
@@ -150,7 +194,9 @@ class Node:
     def __iter__(self):
         for a in self.alts:
             if a.weight > 0:
-                yield Realization(self.name, a.value, a.weight, a.params)
+                yield Realization(
+                    self.name, a.value, a.weight, a.params, a.requires, a.excludes
+                )
 
     def to_xarray(self, dim_name: str, name: str = "") -> xr.DataArray:
         """
@@ -347,10 +393,18 @@ class LogicTree:
     nodes: list[Node]
 
     def __iter__(self) -> Branch:
+        # Keep track of seen branches to avoid duplicates when multiple alternatives
+        # have the same value but different conditional requirements
+        seen_branches = set()
+
         for reals in itertools.product(*self.nodes):
             branch = Branch({r.name: r for r in reals})
             if self.is_valid(branch):
-                yield branch
+                # Create a hashable representation of the branch values
+                branch_key = tuple(sorted((k, v) for k, v in branch.as_dict().items()))
+                if branch_key not in seen_branches:
+                    seen_branches.add(branch_key)
+                    yield branch
 
     def is_valid(self, branch):
         """
@@ -367,10 +421,10 @@ class LogicTree:
             True if the branch is valid, False otherwise.
         """
         for param in branch.params.values():
-            # Select the alternative on the logic tree
-            alt = self[param.name].by_value(param.value)
-            if not alt.is_valid(branch):
+            # Check if this specific realization is valid for the branch
+            if not param.is_valid(branch):
                 return False
+
         return True
 
     def __getitem__(self, key):
