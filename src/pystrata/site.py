@@ -291,6 +291,7 @@ class SoilType:
 
     @property
     def unit_wt(self) -> float:
+        """Unit weight of the soil in kN/m³."""
         return self._unit_wt
 
     @property
@@ -2079,14 +2080,15 @@ class Profile(collections.abc.Container):
     def plot(self, prop, ax=None, plot_kwds=None, axis_kwds=None):
         # Defaults
         xlabels = {
-            "density": "Density (kN/m³)",
-            "max_error": "Max. Error (%)",
-            "travel_time": "Travel time (sec)",
-            "slowness": "Slowness (1/s)",
-            "initial_shear_vel": "Initial $V_s$ (m/s)",
-            "shear_vel": "$V_s$ (m/s)",
-            "strain": "Strain (dec)",
             "damping": "Damping (dec)",
+            "density": "Density (kg/m³)",
+            "initial_shear_vel": "Initial $V_s$ (m/s)",
+            "max_error": "Max. Error (%)",
+            "shear_vel": "$V_s$ (m/s)",
+            "slowness": "Slowness (1/s)",
+            "strain": "Strain (dec)",
+            "travel_time": "Travel time (sec)",
+            "unit_wt": "Unit Wt. (kN/m³)",
         }
         _axis_kwds = {
             "ylabel": "Depth (m)",
