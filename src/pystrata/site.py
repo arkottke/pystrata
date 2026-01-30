@@ -1451,7 +1451,7 @@ class IterativeValue:
         """The relative error, in percent, between the two iterations."""
         if np.all(self.value > 0):
             err = 100.0 * np.max((self.previous - self.value) / self.value)
-        elif np.isclose(self.value, self.previous):
+        elif np.isclose(self.value, self.previous).all():
             # When value is zero and close to previous
             err = 0
         else:
@@ -1499,14 +1499,14 @@ class Layer:
         shear_vel = self._initial_shear_vel
         thickness = self._thickness
         st_name = self.soil_type.name
-        damping_min = self._damping
+        damping_min = self._damping_min
 
         return (
             f"<Layer(index={index}, "
             f"shear_vel={shear_vel:0.1f} m/s, "
             f"thickness={thickness:0.1f} m, "
-            f"soil_type={st_name})>"
-            f"damping_min={damping_min:0.2f}"
+            f"soil_type={st_name}, "
+            f"damping_min={damping_min:0.2f})>"
         )
 
     def __eq__(self, other) -> bool:
