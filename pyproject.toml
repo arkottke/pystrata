@@ -47,16 +47,14 @@ style = [
     "ruff",
 ]
 docs = [
-    "mkdocs",
-    "markdown-callouts",
-    "mkdocstrings[python]",
-    "mkdocs-bibtex",
-    "mkdocs-gen-files",
-    "mkdocs-literate-nav",
-    "mkdocs-material",
-    "mkdocs-section-index",
-    "mkdocs-jupyter",
-    "black[colorama,jupyter]",
+    "sphinx>=8.0",
+    "sphinx-rtd-theme>=3.0.2",
+    "sphinx-autobuild>=2024.9.3",
+    "nbsphinx>=0.9.7",
+    "nbsphinx-link",
+    "sphinxcontrib-bibtex>=2.6.5",
+    "furo",
+    "matplotlib",
 ]
 
 [tool.black]
@@ -79,27 +77,6 @@ quote-style = "double"
 [tool.ruff.lint]
 select = ["E", "F", "W", "Q", "I"]
 ignore = ["E203"]
-
-# uv configuration for development dependencies
-[tool.uv]
-dev-dependencies = [
-    # Build tools
-    "setuptools-scm>=8",
-    # Testing
-    "pytest>=3.5",
-    "pytest-cov",
-    "pytest-runner",
-    "coverage[toml]",
-    "nbformat",
-    "nbconvert",
-    # Code quality
-    "black[colorama,jupyter]",
-    "ruff",
-    # Additional dependencies for development
-    "openpyxl",
-    "pandas",
-    "pyexcel",
-]
 
 # Coverage configuration
 [tool.coverage.run]
@@ -125,3 +102,32 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 pystrata = ["py.typed"]
+
+[dependency-groups]
+dev = [
+    # Build tools
+    "setuptools-scm>=8",
+    # Testing
+    "pytest>=3.5",
+    "pytest-cov",
+    "pytest-runner",
+    "coverage[toml]",
+    "nbformat",
+    "nbconvert",
+    # Code quality
+    "black[colorama,jupyter]",
+    "ruff",
+    # Additional dependencies for development
+    "openpyxl",
+    "pandas",
+    "pyexcel",
+]
+docs = [
+    "nbsphinx>=0.9.7",
+    "nbsphinx-link",
+    "furo",
+    "ipykernel",
+    "sphinx-rtd-theme>=3.0.2",
+    "sphinxcontrib-bibtex>=2.6.5",
+    "sphinx-design",
+]
