@@ -296,6 +296,7 @@ class SoilType:
 
     @property
     def unit_wt(self) -> float:
+        """Unit weight of the soil in kN/m³."""
         return self._unit_wt
 
     @property
@@ -1455,7 +1456,7 @@ class IterativeValue:
         """The relative error, in percent, between the two iterations."""
         if np.all(self.value > 0):
             err = 100.0 * np.max((self.previous - self.value) / self.value)
-        elif np.isclose(self.value, self.previous):
+        elif np.isclose(self.value, self.previous).all():
             # When value is zero and close to previous
             err = 0
         else:
@@ -1503,14 +1504,14 @@ class Layer:
         shear_vel = self._initial_shear_vel
         thickness = self._thickness
         st_name = self.soil_type.name
-        damping_min = self._damping
+        damping_min = self._damping_min
 
         return (
             f"<Layer(index={index}, "
             f"shear_vel={shear_vel:0.1f} m/s, "
             f"thickness={thickness:0.1f} m, "
-            f"soil_type={st_name})>"
-            f"damping_min={damping_min:0.2f}"
+            f"soil_type={st_name}, "
+            f"damping_min={damping_min:0.2f})>"
         )
 
     def __eq__(self, other) -> bool:
@@ -2084,14 +2085,15 @@ class Profile(collections.abc.Container):
     def plot(self, prop, ax=None, plot_kwds=None, axis_kwds=None):
         # Defaults
         xlabels = {
-            "density": "Density (kN/m³)",
-            "max_error": "Max. Error (%)",
-            "travel_time": "Travel time (sec)",
-            "slowness": "Slowness (1/s)",
-            "initial_shear_vel": "Initial $V_s$ (m/s)",
-            "shear_vel": "$V_s$ (m/s)",
-            "strain": "Strain (dec)",
             "damping": "Damping (dec)",
+            "density": "Density (kg/m³)",
+            "initial_shear_vel": "Initial $V_s$ (m/s)",
+            "max_error": "Max. Error (%)",
+            "shear_vel": "$V_s$ (m/s)",
+            "slowness": "Slowness (1/s)",
+            "strain": "Strain (dec)",
+            "travel_time": "Travel time (sec)",
+            "unit_wt": "Unit Wt. (kN/m³)",
         }
         _axis_kwds = {
             "ylabel": "Depth (m)",

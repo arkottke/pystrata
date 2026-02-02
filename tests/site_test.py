@@ -219,7 +219,7 @@ def test_kishida_nlc(case, curve, attr, key):
         organic_content=case["organic_content"],
         strains=case["strains"],
     )
-    # Decimal damping used inside PYSRA
+    # Decimal damping used inside pyStrata
     scale = 100 if key == "dampings" else 1
     scale = 1
     assert_allclose(
