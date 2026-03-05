@@ -1661,6 +1661,20 @@ class Layer:
 
         return value
 
+    def _compute_damping(self, strain) -> float:
+        """Compute layer-adjusted damping at the given strain.
+
+        The soil type's minimum damping is replaced with the layer-specific
+        minimum damping.
+        """
+        try:
+            damping = self.soil_type.damping(strain)
+            damping -= self.soil_type.damping_min
+        except TypeError:
+            damping = 0.0
+
+        return damping + self.damping_min
+
     @strain.setter
     def strain(self, strain):
         if self.soil_type.is_nonlinear:
@@ -1676,19 +1690,22 @@ class Layer:
 
         self._shear_mod.value = self.initial_shear_mod * mod_reduc
 
-        try:
-            # Interpolate the damping at the strain, and then reduce by the
-            # minimum damping
-            damping = self.soil_type.damping(strain)
-            damping -= self.soil_type.damping_min
-        except TypeError:
+        # Update the damping value
+        self._damping.value = self._compute_damping(strain)
+
+    @property
+    def adjusted_damping_curves(self) -> np.recarray:
+        """Return the damping curve adjusted by the layer-specific minimum damping."""
+
+        if isinstance(self.soil_type.damping, (float, int)):
             # No iteration provided by damping
-            damping = 0
+            strains = np.asarray([np.nan])
+            values = np.asarray([self.damping_min])
+        else:
+            strains = np.asarray(self.soil_type.damping.strains)
+            values = np.array([self._compute_damping(s) for s in strains])
 
-        # Add the layer-specific minimum damping
-        damping += self.damping_min
-
-        self._damping.value = damping
+        return np.rec.array((strains, values), names=["strain", "damping"])
 
     @property
     def soil_type(self):

@@ -468,3 +468,70 @@ def adjust_damping_values(
     profile.reset_layers()
 
     return profile, site_atten_scatter
+
+
+def calc_mean_eff_stress(
+    depths: npt.ArrayLike,
+    unit_wt: npt.ArrayLike,
+    water_table_depth: float,
+    k0: float = 0.5,
+) -> np.ndarray:
+    """Compute mean effective stress at layer midpoints.
+
+    Calculates the total vertical stress from the overburden, subtracts pore
+    water pressure below the water table, and converts to mean effective stress
+    using the at-rest earth pressure coefficient.
+
+    Parameters
+    ----------
+    depths : array_like
+        Depth to the top of each layer [m].
+    unit_wt : array_like
+        Unit weight of each layer [kN/m³]. Values outside the typical range of
+        12–30 kN/m³ trigger a warning.
+    water_table_depth : float
+        Depth to the water table from the surface [m].
+    k0 : float, optional
+        At-rest earth pressure coefficient (default 0.5).
+
+    Returns
+    -------
+    np.ndarray
+        Mean effective stress at the midpoint of each layer [kN/m²].
+
+    Warns
+    -----
+    UserWarning
+        If any ``unit_wt`` values fall outside 12–30 kN/m³, which may indicate
+        incorrect units (e.g., kg/m³ instead of kN/m³).
+    """
+    import warnings
+
+    depths = np.asarray(depths, dtype=float)
+    unit_wt = np.asarray(unit_wt, dtype=float)
+
+    if np.any((unit_wt < 10) | (unit_wt > 30)):
+        warnings.warn(
+            "Some unit_wt values are outside the typical range of 10–30 kN/m³. "
+            "Ensure values are in kN/m³ (not kg/m³ or pcf).",
+            stacklevel=2,
+        )
+
+    UNIT_WT_WATER = 9.81  # kN/m³
+
+    # Layer thicknesses (last layer = halfspace with 0 thickness)
+    thicknesses = np.diff(depths, append=depths[-1])
+
+    # Total vertical stress at layer midpoints
+    depth_mids = depths + thicknesses / 2
+    stress_increments = unit_wt * thicknesses
+    stress_vert_total = np.cumsum(stress_increments) - stress_increments / 2
+
+    # Pore water pressure (zero above water table)
+    pore_pressure = np.maximum(0.0, UNIT_WT_WATER * (depth_mids - water_table_depth))
+
+    # Effective vertical stress -> mean effective stress
+    stress_vert_eff = stress_vert_total - pore_pressure
+    stress_mean = stress_vert_eff * (1 + 2 * k0) / 3
+
+    return stress_mean
