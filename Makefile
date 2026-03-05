@@ -46,8 +46,7 @@ clean-test:
 	rm -fr .cache
 
 test:
-	pip install -e .
-	pytest --cov-report html --cov=pystrata tests/
+	uv run pytest --cov-report html --cov=pystrata tests/
 
 examples:
 	find examples -name 'example*.py' -exec python {} \;

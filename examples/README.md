@@ -21,6 +21,9 @@ The examples included here are used to demonstrate the capabilities of
 13. Show the impact of the strain limit on the EQL calculation.
 14. Example with multiple input motions and simulated soil profiles.
 15. List of provided nonlinear curves.
+16. Example of using the logic tree.
+17. Building a site profile from the USGS National Crustal Model with
+    Darendeli nonlinear curves and κ₀-adjusted damping.
 
 To be added:
 

@@ -3,19 +3,133 @@
 Installation
 ============
 
-Prior to using `pyStrata`, Python and a number of packages need to be installed. In
-addition to Python, the following packages need to be installed:
- - numpy -- fast vector operations
- - scipy -- indefinite integration
- - matplotlib -- used for plotting
- - pytest -- test suite
+PyStrata can be installed using pip, conda, or built from source. Python 3.10 or higher is required.
 
-Install Python dependencies is best accomplished with a package manager. On
-Windows or OS-X, I recommend using Miniconda3. On Linux, the package manager
-is preferred.
+Quick Install
+-------------
 
-Miniconda has installers for `Windows 32-bit`_, `Windows 64-bit`_, and `OS-X`_.
-While pyRVT has support Python27, Python3 is preferred.
+The easiest way to install PyStrata is using pip:
+
+.. code-block:: bash
+
+   pip install pystrata
+
+Or using conda:
+
+.. code-block:: bash
+
+   conda install -c conda-forge pystrata
+
+Dependencies
+------------
+
+PyStrata requires the following packages:
+
+* **numpy** -- Fast numerical arrays and linear algebra
+* **scipy** -- Scientific computing and signal processing
+* **matplotlib** -- Plotting and visualization
+* **xarray** -- Labeled multi-dimensional arrays
+* **numba** -- Just-in-time compilation for performance
+* **pyrvt** -- Random vibration theory calculations
+* **pykooh** -- Peak factor calculations
+
+These dependencies are automatically installed when using pip or conda.
+
+Development Installation
+------------------------
+
+To install PyStrata for development or to get the latest features:
+
+.. code-block:: bash
+
+   git clone https://github.com/arkottke/pystrata.git
+   cd pystrata
+   pip install -e .
+
+For development with all optional dependencies:
+
+.. code-block:: bash
+
+   git clone https://github.com/arkottke/pystrata.git
+   cd pystrata
+   pip install -e ".[test,docs]"
+
+Using UV (Recommended for Development)
+--------------------------------------
+
+For the fastest development setup, use UV:
+
+.. code-block:: bash
+
+   git clone https://github.com/arkottke/pystrata.git
+   cd pystrata
+   uv sync
+   uv run pytest  # Run tests
+
+System Requirements
+-------------------
+
+* **Python**: 3.10 or higher
+* **Operating System**: Windows, macOS, or Linux
+* **Memory**: 4GB RAM minimum, 8GB recommended for large analyses
+* **Storage**: 1GB free space for installation and examples
+
+Optional Dependencies
+---------------------
+
+Additional packages for enhanced functionality:
+
+* **jupyter** -- For running example notebooks
+* **pandas** -- Enhanced data handling
+* **openpyxl** -- Excel file support
+
+Install optional dependencies:
+
+.. code-block:: bash
+
+   pip install pystrata[test,docs]
+
+Verification
+------------
+
+Test your installation:
+
+.. code-block:: python
+
+   import pystrata
+   print(pystrata.__version__)
+
+   # Run a simple example
+   motion = pystrata.motion.SourceTheoryRvtMotion(6.5, 20, "wna")
+   print("Installation successful!")
+
+Troubleshooting
+---------------
+
+**Import Errors**
+   If you encounter import errors, ensure all dependencies are installed:
+
+   .. code-block:: bash
+
+      pip install --upgrade numpy scipy matplotlib
+
+**Permission Errors**
+   On some systems, you may need to use ``--user`` flag:
+
+   .. code-block:: bash
+
+      pip install --user pystrata
+
+**Environment Conflicts**
+   Consider using a virtual environment:
+
+   .. code-block:: bash
+
+      python -m venv pystrata-env
+      source pystrata-env/bin/activate  # On Windows: pystrata-env\Scripts\activate
+      pip install pystrata
+
+For additional help, see the GitHub repository issues page or the documentation.
 
 .. _Windows 32-bit: http://repo.continuum.io/miniconda/Miniconda3-latest-Windows-x86.exe
 .. _Windows 64-bit: http://repo.continuum.io/miniconda/Miniconda3-latest-Windows-x86_64.exe

@@ -1,0 +1,124 @@
+[
+  {
+    "name": "site_classification",
+    "alts": [
+      {
+        "value": "C",
+        "weight": 0.3,
+        "params": {
+          "vs30_range": [
+            360,
+            760
+          ]
+        }
+      },
+      {
+        "value": "D",
+        "weight": 0.6,
+        "params": {
+          "vs30_range": [
+            180,
+            360
+          ]
+        }
+      },
+      {
+        "value": "E",
+        "weight": 0.1,
+        "params": {
+          "vs30_range": [
+            0,
+            180
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "kappa",
+    "alts": [
+      {
+        "value": 0.02,
+        "weight": 0.2,
+        "requires": {
+          "site_classification": "C"
+        }
+      },
+      {
+        "value": 0.03,
+        "weight": 0.6,
+        "requires": {
+          "site_classification": "C"
+        }
+      },
+      {
+        "value": 0.04,
+        "weight": 0.2,
+        "requires": {
+          "site_classification": "C"
+        }
+      },
+      {
+        "value": 0.03,
+        "weight": 0.2,
+        "requires": {
+          "site_classification": "D"
+        }
+      },
+      {
+        "value": 0.04,
+        "weight": 0.6,
+        "requires": {
+          "site_classification": "D"
+        }
+      },
+      {
+        "value": 0.05,
+        "weight": 0.2,
+        "requires": {
+          "site_classification": "D"
+        }
+      },
+      {
+        "value": 0.05,
+        "weight": 0.4,
+        "requires": {
+          "site_classification": "E"
+        }
+      },
+      {
+        "value": 0.06,
+        "weight": 0.6,
+        "requires": {
+          "site_classification": "E"
+        }
+      }
+    ]
+  },
+  {
+    "name": "randomization_method",
+    "alts": [
+      {
+        "value": "monte_carlo",
+        "weight": 0.4,
+        "params": {
+          "n_realizations": 1000
+        }
+      },
+      {
+        "value": "latin_hypercube",
+        "weight": 0.4,
+        "params": {
+          "n_realizations": 100
+        }
+      },
+      {
+        "value": "deterministic",
+        "weight": 0.2,
+        "params": {
+          "n_realizations": 1
+        }
+      }
+    ]
+  }
+]

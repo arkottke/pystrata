@@ -74,14 +74,12 @@ def _parse_curves(block, **kwargs):
     for _ in range(count):
         for param in ["mod_reduc", "damping"]:
             length, name = parse_fixed_width([(5, int), (65, to_str)], block)
-            curves.append(
-                site.NonlinearProperty(
-                    name,
-                    parse_fixed_width(length * [(10, float)], block),
-                    parse_fixed_width(length * [(10, float)], block),
-                    param,
-                )
-            )
+            strains = parse_fixed_width(length * [(10, float)], block)
+            values = parse_fixed_width(length * [(10, float)], block)
+            if param == "mod_reduc":
+                curves.append(site.ModulusReductionCurve(name, strains, values))
+            else:
+                curves.append(site.DampingCurve(name, strains, values))
 
     length = int(block[0][:5])
     soil_types = parse_fixed_width((length + 1) * [(5, int)], block)[1:]
@@ -370,37 +368,50 @@ def adjust_damping_values(
     target_site_atten: float,
     exclude: None | str | list[str] | Callable = None,
     inplace: bool = False,
-) -> site.Profile:
-    """[TODO:description]
+) -> tuple[site.Profile, float]:
+    """
+    Adjust the minimum damping values of a site profile so that the total site
+    attenuation matches a specified target value. Optionally, certain layers can
+    be excluded from adjustment.
+
+    The function computes the attenuation due to impedance (scattering) effects
+    and any excluded layers, then distributes the remaining required attenuation
+    among the selected layers by updating their minimum damping values.  The
+    approach  assumes that Q is proportional to Vs (i.e., Q~ γ Vs, in which γ is
+    a proportionality constant; Silva and Darragh, 1995).
+
+    The profile can be modified in-place or a copy can be returned.
 
     Parameters
     ----------
     profile : site.Profile
-        Site profile to adjust
+        Site profile to adjust.
     target_site_atten : float
-        Target total site attenuation [sec]
-    exclude : None | str | list[str] | Callable
-        Pattern or callable used to exclude layers from this adjustment. If
-        *None, all layers are used. If
-        *str*, then `re.match` is used to test against the
-        `layer.soil_type.name`. If *list[str]*, then `layer.soil_type.name` is
-        tested not to be included in this list. If *callable*, then the
-        function should take `site.Layer` and return *True* for excluded
-        layers.
-    verbose : bool
-        If *True*, the asscoaited gamma value is computed.
-    inplace : bool
-        If *True*, then the provided profile is modified
-    max_damping: float, optional
-        The maximum damping in decimal
+        Target total site attenuation [sec].
+    exclude : None or str or list of str or Callable, optional
+        Pattern or callable used to exclude layers from this adjustment.
+        - If None, all layers are used.
+        - If str, `re.match` is used to test against `layer.soil_type.name`.
+        - If list of str, `layer.soil_type.name` is tested not to be included in
+        this list.
+        - If callable, the function should take a `site.Layer` and return True
+        for excluded layers.
+    inplace : bool, optional
+        If True, the provided profile is modified in-place. If False (default),
+        a copy is returned.
+
     Returns
     -------
     site.Profile
-        Modified profile
+        Modified profile with adjusted minimum damping values.
+    site_atten_scatter : float
+        Site attenuation associated with the scattering [sec].
 
-    site_atten_scatter: float
-        Site attenuation associated with the scattering [sec]
-
+    Raises
+    ------
+    RuntimeError
+        If no layers are selected for adjustment or if the target attenuation cannot
+        be achieved.
     """
 
     if not inplace:
@@ -455,3 +466,70 @@ def adjust_damping_values(
     profile.reset_layers()
 
     return profile, site_atten_scatter
+
+
+def calc_mean_eff_stress(
+    depths: npt.ArrayLike,
+    unit_wt: npt.ArrayLike,
+    water_table_depth: float,
+    k0: float = 0.5,
+) -> np.ndarray:
+    """Compute mean effective stress at layer midpoints.
+
+    Calculates the total vertical stress from the overburden, subtracts pore
+    water pressure below the water table, and converts to mean effective stress
+    using the at-rest earth pressure coefficient.
+
+    Parameters
+    ----------
+    depths : array_like
+        Depth to the top of each layer [m].
+    unit_wt : array_like
+        Unit weight of each layer [kN/m³]. Values outside the typical range of
+        12–30 kN/m³ trigger a warning.
+    water_table_depth : float
+        Depth to the water table from the surface [m].
+    k0 : float, optional
+        At-rest earth pressure coefficient (default 0.5).
+
+    Returns
+    -------
+    np.ndarray
+        Mean effective stress at the midpoint of each layer [kN/m²].
+
+    Warns
+    -----
+    UserWarning
+        If any ``unit_wt`` values fall outside 12–30 kN/m³, which may indicate
+        incorrect units (e.g., kg/m³ instead of kN/m³).
+    """
+    import warnings
+
+    depths = np.asarray(depths, dtype=float)
+    unit_wt = np.asarray(unit_wt, dtype=float)
+
+    if np.any((unit_wt < 10) | (unit_wt > 30)):
+        warnings.warn(
+            "Some unit_wt values are outside the typical range of 10–30 kN/m³. "
+            "Ensure values are in kN/m³ (not kg/m³ or pcf).",
+            stacklevel=2,
+        )
+
+    UNIT_WT_WATER = 9.81  # kN/m³
+
+    # Layer thicknesses (last layer = halfspace with 0 thickness)
+    thicknesses = np.diff(depths, append=depths[-1])
+
+    # Total vertical stress at layer midpoints
+    depth_mids = depths + thicknesses / 2
+    stress_increments = unit_wt * thicknesses
+    stress_vert_total = np.cumsum(stress_increments) - stress_increments / 2
+
+    # Pore water pressure (zero above water table)
+    pore_pressure = np.maximum(0.0, UNIT_WT_WATER * (depth_mids - water_table_depth))
+
+    # Effective vertical stress -> mean effective stress
+    stress_vert_eff = stress_vert_total - pore_pressure
+    stress_mean = stress_vert_eff * (1 + 2 * k0) / 3
+
+    return stress_mean
