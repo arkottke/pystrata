@@ -16,7 +16,9 @@ Classes
    Layer
    SoilType
    Location
-   NonlinearProperty
+   NonlinearCurve
+   ModulusReductionCurve
+   DampingCurve
 
 Site Profile
 ------------
@@ -43,9 +45,17 @@ Output Locations
    :members:
    :show-inheritance:
 
-Nonlinear Properties
---------------------
+Nonlinear Curves
+----------------
 
-.. autoclass:: NonlinearProperty
+.. autoclass:: NonlinearCurve
+   :members:
+   :show-inheritance:
+
+.. autoclass:: ModulusReductionCurve
+   :members:
+   :show-inheritance:
+
+.. autoclass:: DampingCurve
    :members:
    :show-inheritance:

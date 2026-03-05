@@ -74,14 +74,12 @@ def _parse_curves(block, **kwargs):
     for _ in range(count):
         for param in ["mod_reduc", "damping"]:
             length, name = parse_fixed_width([(5, int), (65, to_str)], block)
-            curves.append(
-                site.NonlinearProperty(
-                    name,
-                    parse_fixed_width(length * [(10, float)], block),
-                    parse_fixed_width(length * [(10, float)], block),
-                    param,
-                )
-            )
+            strains = parse_fixed_width(length * [(10, float)], block)
+            values = parse_fixed_width(length * [(10, float)], block)
+            if param == "mod_reduc":
+                curves.append(site.ModulusReductionCurve(name, strains, values))
+            else:
+                curves.append(site.DampingCurve(name, strains, values))
 
     length = int(block[0][:5])
     soil_types = parse_fixed_width((length + 1) * [(5, int)], block)[1:]

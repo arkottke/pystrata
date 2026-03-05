@@ -28,8 +28,8 @@ from pystrata import site
 from . import FPATH_DATA
 
 
-def test_published_nonlinear_property():
-    site.NonlinearProperty.from_published("Vucetic & Dobry (91), PI=0", "damping")
+def test_published_nonlinear_curve():
+    site.NonlinearCurve.from_published("Vucetic & Dobry (91), PI=0", "damping")
 
 
 def test_published_soiltype_same():
@@ -43,8 +43,9 @@ def test_published_soiltype_same():
 
 @pytest.fixture
 def nlp():
-    """Create an example NonlinearProperty."""
-    return site.NonlinearProperty("", [0.01, 1], [0.0, 1.0])
+    """Create an example NonlinearCurve for testing interpolation."""
+    # Use explicit limits to allow full range for interpolation testing
+    return site.ModulusReductionCurve("", [0.01, 1], [0.0, 1.0], limits=(0, 1))
 
 
 @pytest.mark.parametrize(
@@ -56,7 +57,7 @@ def nlp():
     ],
 )
 def test_nlp(nlp, strain, expected):
-    """Test NonlinearProperty interpolation."""
+    """Test NonlinearCurve interpolation."""
     assert_allclose(nlp(strain), expected)
 
 
@@ -159,9 +160,9 @@ def test_soil_type_linear():
 
 
 def test_soil_type_iterative():
-    """Test the soil type update process on a nonlinear property."""
-    mod_reduc = site.NonlinearProperty("", [0.0001, 0.01], [1, 0])
-    damping = site.NonlinearProperty("", [0.0001, 0.01], [0, 0.10])
+    """Test the soil type update process on a nonlinear curve."""
+    mod_reduc = site.ModulusReductionCurve("", [0.0001, 0.01], [1, 0])
+    damping = site.DampingCurve("", [0.0001, 0.01], [0, 0.10])
 
     st = site.SoilType("", 18.0, mod_reduc, damping)
     layer = site.Layer(st, 2.0, 500.0)

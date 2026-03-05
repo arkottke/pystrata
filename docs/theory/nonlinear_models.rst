@@ -50,19 +50,13 @@ PyStrata allows specification of custom modulus reduction and damping curves fro
 Implementation in PyStrata
 ---------------------------
 
-Nonlinear soil properties are handled through the `SoilType` class with `NonlinearProperty` objects that define the strain-dependent curves.
+Nonlinear soil properties are handled through the `SoilType` class with `NonlinearCurve` objects that define the strain-dependent curves.
 
 .. code-block:: python
 
    # Darendeli model for clay
-   nonlinear_property = pystrata.site.DarendeliNonlinearProperty(
-       plasticity_index=30,
+   soil_type = pystrata.site.DarendeliSoilType(
+       plas_index=30,
        stress_mean=100,  # kPa
-   )
-
-   soil_type = pystrata.site.SoilType(
-       name="Clay",
        unit_wt=18.0,
-       nonlinear_property=nonlinear_property,
-       damping_min=0.02
    )
