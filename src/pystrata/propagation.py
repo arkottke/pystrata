@@ -717,7 +717,7 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
     def __init__(
         self,
         method: str = "ka02",
-        strain_ratio: float = 1.0,
+        strain_ratio: float = 0.65,
         tolerance: float = 0.01,
         max_iterations: int = 15,
         strain_limit: float = 0.05,

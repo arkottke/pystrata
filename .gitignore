@@ -19,6 +19,8 @@
 .idea/**/dynamic.xml
 .idea/**/uiDesigner.xml
 
+.vscode/
+
 # Gradle:
 .idea/**/gradle.xml
 .idea/**/libraries
@@ -122,6 +124,7 @@ target/
 
 # pyenv
 .python-version
+src/pystrata/_version.py
 
 # celery beat schedule file
 celerybeat-schedule

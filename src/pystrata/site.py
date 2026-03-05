@@ -69,8 +69,8 @@ def known_published_curves() -> list[dict]:
     return list(PUBLISHED_CURVES.keys())
 
 
-class NonlinearProperty:
-    """Class for nonlinear property with a method for log-linear interpolation.
+class NonlinearCurve(ABC):
+    """Abstract base class for nonlinear curve with log-linear interpolation.
 
     Parameters
     ----------
@@ -81,47 +81,67 @@ class NonlinearProperty:
     values: :class:`numpy.ndarray`, optional
         value of the property corresponding to each strain. Damping should be
         specified in decimal, e.g., 0.05 for 5%.
-    param: str, optional
-        type of parameter. Possible values are:
-
-            mod_reduc
-                Shear-modulus reduction curve
-
-            damping
-                Damping ratio curve [decimal]
+    limits: tuple, optional
+        (min, max) limits for clipping interpolated values
     """
 
     PARAMS = ["mod_reduc", "damping"]
 
-    def __init__(self, name="", strains=None, values=None, param=None, limits=None):
+    def __init__(self, name="", strains=None, values=None, limits=None):
         self.name = name
         self._strains = np.asarray(strains).astype(float)
         self._values = np.asarray(values).astype(float)
 
         self._interpolater = None
 
-        self._param = None
-        self.param = param
-
         if limits is None:
-            if param == "mod_reduc":
-                self._limits = 0.001, 1
-            else:
-                self._limits = 0, 0.49
+            limits = self._default_limits
+        self._limits = limits
 
         self._update()
 
+    @property
+    @abstractmethod
+    def param(self) -> str:
+        """Nonlinear parameter name ('mod_reduc' or 'damping')."""
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def _default_limits(self) -> tuple[float, float]:
+        """Default (min, max) limits for this property type."""
+        raise NotImplementedError
+
     @classmethod
-    def from_published(cls, name, param):
-        assert param in cls.PARAMS
+    def from_published(cls, name: str, param: str):
+        """Create a NonlinearCurve from published curves.
+
+        Parameters
+        ----------
+        name : str
+            Name of the published curve model
+        param : str
+            Type of parameter: 'mod_reduc' or 'damping'
+
+        Returns
+        -------
+        ModulusReductionCurve or DampingCurve
+            The appropriate subclass instance
+        """
+        assert param in cls.PARAMS, f"param must be one of {cls.PARAMS}"
         if not PUBLISHED_CURVES:
             _load_published_curves()
 
         selected = PUBLISHED_CURVES[name][param]
 
-        return cls(
-            name, strains=selected["strains"], values=selected["values"], param=param
-        )
+        if param == "mod_reduc":
+            return ModulusReductionCurve(
+                name, strains=selected["strains"], values=selected["values"]
+            )
+        else:
+            return DampingCurve(
+                name, strains=selected["strains"], values=selected["values"]
+            )
 
     def __call__(self, strains):
         """Return the nonlinear property at a specific strain.
@@ -176,17 +196,6 @@ class NonlinearProperty:
         self._values = np.asarray(values).astype(float)
         self._update()
 
-    @property
-    def param(self):
-        """Nonlinear parameter name."""
-        return self._param
-
-    @param.setter
-    def param(self, value):
-        if value:
-            assert value in self.PARAMS
-        self._param = value
-
     def _update(self):
         """Initialize the interpolation."""
 
@@ -217,6 +226,56 @@ class NonlinearProperty:
             self._interpolater = None
 
 
+class ModulusReductionCurve(NonlinearCurve):
+    """Shear-modulus reduction curve.
+
+    Parameters
+    ----------
+    name: str, optional
+        used for identification
+    strains: :class:`numpy.ndarray`, optional
+        strains for each of the values [decimal].
+    values: :class:`numpy.ndarray`, optional
+        shear-modulus reduction values (G/Gmax) corresponding to each strain.
+    limits: tuple, optional
+        (min, max) limits for clipping interpolated values.
+        Default: (0.001, 1)
+    """
+
+    @property
+    def param(self) -> str:
+        return "mod_reduc"
+
+    @property
+    def _default_limits(self) -> tuple[float, float]:
+        return (0.001, 1)
+
+
+class DampingCurve(NonlinearCurve):
+    """Damping ratio curve.
+
+    Parameters
+    ----------
+    name: str, optional
+        used for identification
+    strains: :class:`numpy.ndarray`, optional
+        strains for each of the values [decimal].
+    values: :class:`numpy.ndarray`, optional
+        damping ratio values [decimal] corresponding to each strain.
+    limits: tuple, optional
+        (min, max) limits for clipping interpolated values.
+        Default: (0, 0.49)
+    """
+
+    @property
+    def param(self) -> str:
+        return "damping"
+
+    @property
+    def _default_limits(self) -> tuple[float, float]:
+        return (0, 0.49)
+
+
 class SoilType:
     """Soiltype that combines nonlinear behavior and material properties.
 
@@ -226,10 +285,10 @@ class SoilType:
         used for identification
     unit_wt:  float
         unit weight of the material in [kN/m³]
-    mod_reduc: :class:`NonlinearProperty` or None
+    mod_reduc: :class:`NonlinearCurve` or None
         shear-modulus reduction curves. If None, linear behavior with no
         reduction is used
-    damping: :class:`NonlinearProperty` or float
+    damping: :class:`NonlinearCurve` or float
         damping ratio. [decimal] If float, then linear behavior with constant
         damping is used.
     """
@@ -238,8 +297,8 @@ class SoilType:
         self,
         name: str = "",
         unit_wt: float = 0.0,
-        mod_reduc: None | NonlinearProperty = None,
-        damping: float | NonlinearProperty = 0.0,
+        mod_reduc: None | NonlinearCurve = None,
+        damping: float | NonlinearCurve = 0.0,
     ) -> None:
         self.name = name
         self._unit_wt = unit_wt
@@ -263,8 +322,8 @@ class SoilType:
         return cls(
             name,
             unit_wt=unit_wt,
-            mod_reduc=NonlinearProperty.from_published(model, "mod_reduc"),
-            damping=NonlinearProperty.from_published(model_damping, "damping"),
+            mod_reduc=NonlinearCurve.from_published(model, "mod_reduc"),
+            damping=NonlinearCurve.from_published(model_damping, "damping"),
         )
 
     def copy(self) -> SoilType:
@@ -291,13 +350,14 @@ class SoilType:
 
     @property
     def unit_wt(self) -> float:
+        """Unit weight of the soil in kN/m³."""
         return self._unit_wt
 
     @property
     def is_nonlinear(self) -> bool:
         """If nonlinear properties are specified."""
         return any(
-            isinstance(p, NonlinearProperty) for p in [self.mod_reduc, self.damping]
+            isinstance(p, NonlinearCurve) for p in [self.mod_reduc, self.damping]
         )
 
     def __eq__(self, other) -> bool:
@@ -331,7 +391,7 @@ class ModifiedHyperbolicSoilType(SoilType, ABC):
 
         # Modified hyperbolic shear modulus reduction
         mod_reduc = 1 / (1 + (strains / self.strain_ref) ** self.curvature)
-        self.mod_reduc = NonlinearProperty(name, strains, mod_reduc, "mod_reduc")
+        self.mod_reduc = ModulusReductionCurve(name, strains, mod_reduc)
 
         # Masing damping based on shear -modulus reduction [%]
         strains_percent = strains * 100
@@ -371,7 +431,7 @@ class ModifiedHyperbolicSoilType(SoilType, ABC):
             damping += damping_min
 
         # Convert to decimal values
-        self.damping = NonlinearProperty(name, strains, damping, "damping")
+        self.damping = DampingCurve(name, strains, damping)
 
     @property
     @abstractmethod
@@ -451,7 +511,7 @@ class TwoParamModifiedHyperbolicSoilType(SoilType):
         strain_mr = C.g1 * stress_mean_atm**C.g2 / 100
         b = C.b1 + C.b2 * stress_mean_atm
         values_mr = 1 / (1 + (strains / strain_mr) ** C.a) ** b
-        mod_reduc = NonlinearProperty(name, strains, values_mr)
+        mod_reduc = ModulusReductionCurve(name, strains, values_mr)
 
         d_min = C.d0 * stress_mean_atm**C.d1
         # Convert from percent to decimal strain
@@ -459,7 +519,7 @@ class TwoParamModifiedHyperbolicSoilType(SoilType):
         term = (strains / strain_dr) ** C.c
         # Convert to damping in decimal
         values_d = (C.d * term + d_min) / (term + 1) / 100
-        damping = NonlinearProperty(name, strains, values_d)
+        damping = DampingCurve(name, strains, values_d)
 
         super().__init__(name, unit_wt, mod_reduc, damping)
 
@@ -817,8 +877,8 @@ class WangSoilType(SoilType):
         super().__init__(
             name,
             unit_wt,
-            NonlinearProperty(name, strains, mod_reduc),
-            NonlinearProperty(name, strains, damping),
+            ModulusReductionCurve(name, strains, mod_reduc),
+            DampingCurve(name, strains, damping),
         )
 
     @classmethod
@@ -1339,8 +1399,8 @@ class KishidaSoilType(SoilType):
         dampings = self._calc_damping(mod_reducs, x_2, x_2_mean, x_3, x_3_mean)
 
         name = self._create_name()
-        self.mod_reduc = NonlinearProperty(name, strains, mod_reducs, "mod_reduc")
-        self.damping = NonlinearProperty(name, strains, dampings, "damping")
+        self.mod_reduc = ModulusReductionCurve(name, strains, mod_reducs)
+        self.damping = DampingCurve(name, strains, dampings)
 
     @staticmethod
     def _calc_strain_ref(x_3, x_3_mean):
@@ -1450,7 +1510,7 @@ class IterativeValue:
         """The relative error, in percent, between the two iterations."""
         if np.all(self.value > 0):
             err = 100.0 * np.max((self.previous - self.value) / self.value)
-        elif np.isclose(self.value, self.previous):
+        elif np.isclose(self.value, self.previous).all():
             # When value is zero and close to previous
             err = 0
         else:
@@ -1498,14 +1558,14 @@ class Layer:
         shear_vel = self._initial_shear_vel
         thickness = self._thickness
         st_name = self.soil_type.name
-        damping_min = self._damping
+        damping_min = self._damping_min
 
         return (
             f"<Layer(index={index}, "
             f"shear_vel={shear_vel:0.1f} m/s, "
             f"thickness={thickness:0.1f} m, "
-            f"soil_type={st_name})>"
-            f"damping_min={damping_min:0.2f}"
+            f"soil_type={st_name}, "
+            f"damping_min={damping_min:0.2f})>"
         )
 
     def __eq__(self, other) -> bool:
@@ -1660,6 +1720,20 @@ class Layer:
 
         return value
 
+    def _compute_damping(self, strain) -> float:
+        """Compute layer-adjusted damping at the given strain.
+
+        The soil type's minimum damping is replaced with the layer-specific
+        minimum damping.
+        """
+        try:
+            damping = self.soil_type.damping(strain)
+            damping -= self.soil_type.damping_min
+        except TypeError:
+            damping = 0.0
+
+        return damping + self.damping_min
+
     @strain.setter
     def strain(self, strain):
         if self.soil_type.is_nonlinear:
@@ -1675,19 +1749,22 @@ class Layer:
 
         self._shear_mod.value = self.initial_shear_mod * mod_reduc
 
-        try:
-            # Interpolate the damping at the strain, and then reduce by the
-            # minimum damping
-            damping = self.soil_type.damping(strain)
-            damping -= self.soil_type.damping_min
-        except TypeError:
+        # Update the damping value
+        self._damping.value = self._compute_damping(strain)
+
+    @property
+    def adjusted_damping_curve(self) -> np.recarray:
+        """Return the damping curve adjusted by the layer-specific minimum damping."""
+
+        if isinstance(self.soil_type.damping, (float, int)):
             # No iteration provided by damping
-            damping = 0
+            strains = np.asarray([np.nan])
+            values = np.asarray([self.damping_min])
+        else:
+            strains = np.asarray(self.soil_type.damping.strains)
+            values = np.array([self._compute_damping(s) for s in strains])
 
-        # Add the layer-specific minimum damping
-        damping += self.damping_min
-
-        self._damping.value = damping
+        return np.rec.array((strains, values), names=["strain", "damping"])
 
     @property
     def soil_type(self):
@@ -2079,14 +2156,15 @@ class Profile(collections.abc.Container):
     def plot(self, prop, ax=None, plot_kwds=None, axis_kwds=None):
         # Defaults
         xlabels = {
-            "density": "Density (kN/m³)",
-            "max_error": "Max. Error (%)",
-            "travel_time": "Travel time (sec)",
-            "slowness": "Slowness (1/s)",
-            "initial_shear_vel": "Initial $V_s$ (m/s)",
-            "shear_vel": "$V_s$ (m/s)",
-            "strain": "Strain (dec)",
             "damping": "Damping (dec)",
+            "density": "Density (kg/m³)",
+            "initial_shear_vel": "Initial $V_s$ (m/s)",
+            "max_error": "Max. Error (%)",
+            "shear_vel": "$V_s$ (m/s)",
+            "slowness": "Slowness (1/s)",
+            "strain": "Strain (dec)",
+            "travel_time": "Travel time (sec)",
+            "unit_wt": "Unit Wt. (kN/m³)",
         }
         _axis_kwds = {
             "ylabel": "Depth (m)",

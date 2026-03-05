@@ -29,4 +29,16 @@ __author__ = "Albert Kottke"
 __copyright__ = "Copyright 2016-2024 Albert Kottke"
 __license__ = "MIT"
 __title__ = "pyStrata"
-__version__ = version("pyRVT")
+
+# Get version from setuptools-scm
+try:
+    # First try to get version from setuptools-scm generated file
+    from ._version import __version__
+except ImportError:
+    # Fallback to package metadata
+    try:
+        from importlib.metadata import version
+
+        __version__ = version("pyStrata")
+    except Exception:
+        __version__ = "unknown"
