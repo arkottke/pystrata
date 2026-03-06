@@ -271,3 +271,107 @@ def test_simplified_rayleigh_vel():
         1349.076,
         atol=0.001,
     )
+
+
+def create_soil_types():
+    """Generate all soil types for interpolation testing."""
+    soil_types = []
+
+    # Base SoilType with custom NonlinearCurves
+    strains = np.logspace(-6, -1.5, num=20)
+    mr = site.ModulusReductionCurve("test_mr", strains, np.linspace(1, 0.1, 20))
+    d = site.DampingCurve("test_d", strains, np.linspace(0.01, 0.15, 20))
+    soil_types.append(("SoilType", site.SoilType("test", 18.0, mr, d)))
+
+    # DarendeliSoilType
+    soil_types.append((
+        "DarendeliSoilType",
+        site.DarendeliSoilType(
+            plas_index=30, ocr=1.0, stress_mean=100, freq=1, num_cycles=10
+        ),
+    ))
+
+    # MenqSoilType
+    soil_types.append((
+        "MenqSoilType",
+        site.MenqSoilType(coef_unif=10, diam_mean=5, stress_mean=100, num_cycles=10),
+    ))
+
+    # TwoParamModifiedHyperbolicSoilType
+    soil_types.append((
+        "TwoParamModifiedHyperbolicSoilType",
+        site.TwoParamModifiedHyperbolicSoilType(stress_mean=100),
+    ))
+
+    # WangSoilType - all soil groups
+    for soil_group in site.WangSoilType.FACTORS:
+        soil_types.append((
+            f"WangSoilType_{soil_group}",
+            site.WangSoilType(soil_group, stress_mean=200, void_ratio=0.6),
+        ))
+
+    # KishidaSoilType
+    soil_types.append((
+        "KishidaSoilType",
+        site.KishidaSoilType(stress_vert=100, organic_content=20),
+    ))
+
+    return soil_types
+
+
+@pytest.mark.parametrize("name,soil_type", create_soil_types())
+@pytest.mark.parametrize("curve_name", ["mod_reduc", "damping"])
+def test_nonlinear_curve_interpolation_matches_underlying(name, soil_type, curve_name):
+    """Test that interpolating at underlying strain values returns original values.
+
+    This test ensures that limits are properly applied and do not clip values
+    that are within the expected range of the nonlinear curves. The interpolated
+    values at the underlying strains should match the original curve values.
+    """
+    curve = getattr(soil_type, curve_name)
+
+    if curve is None or isinstance(curve, (int, float)):
+        pytest.skip(f"{name} has no {curve_name} curve")
+
+    strains = curve.strains
+    expected = curve.values
+
+    # Interpolate at the same strains used to construct the curve
+    actual = curve(strains)
+
+    # Values should match closely - any significant difference indicates
+    # limits are improperly clipping values
+    assert_allclose(
+        actual,
+        expected,
+        rtol=1e-5,
+        atol=1e-7,
+        err_msg=f"{name}.{curve_name} interpolation does not match underlying curve",
+    )
+
+
+@pytest.mark.parametrize("name,soil_type", create_soil_types())
+@pytest.mark.parametrize("curve_name", ["mod_reduc", "damping"])
+def test_nonlinear_curve_limits_not_too_restrictive(name, soil_type, curve_name):
+    """Test that curve limits do not clip values within the underlying curve range.
+
+    This test detects issues where default limits improperly clip values at
+    the extremes of the curve (e.g., low strain mod_reduc near 1.0 or high
+    strain damping values).
+    """
+    curve = getattr(soil_type, curve_name)
+
+    if curve is None or isinstance(curve, (int, float)):
+        pytest.skip(f"{name} has no {curve_name} curve")
+
+    values = curve.values.ravel() if curve.values.ndim > 1 else curve.values
+
+    min_val, max_val = curve._limits
+
+    # Values at curve extremes should not be clipped by limits
+    assert values.min() >= min_val, (
+        f"{name}.{curve_name}: min value {values.min()} below limit {min_val}"
+    )
+    assert values.max() <= max_val, (
+        f"{name}.{curve_name}: max value {values.max()} above limit {max_val}"
+    )
