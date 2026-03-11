@@ -1309,6 +1309,111 @@ class WangSoilType(SoilType):
         return (d * gamma_ratio + 100 * damping_min) / (gamma_ratio + 1) / 100
 
 
+class TransitionalSiltsSoilType(SoilType):
+    """Alemu et al. (2025) empirical nonlinear model for transitional silts.
+
+    Based on Alemu et al. (2025), "Nonlinear Dynamic Soil Properties for
+    Transitional Silts," J. Geotech. Geoenviron. Eng., 151(9): 04025091.
+
+    Model is valid for: 0 ≤ PI ≤ 32, 10 ≤ p′ ≤ 125 kPa, 1 ≤ OCR ≤ 9.1.
+
+    The G/Gmax backbone uses the Wang & Stokoe (2022) two-parameter modified
+    hyperbolic form (Eq. 2) with the reference strain model of Eq. 11.
+    The damping model adds a strain-dependent Hardin-Drnevich component
+    (Eq. 17) to a stress- and plasticity-dependent minimum damping (Eq. 16).
+
+    Parameters
+    ----------
+    unit_wt : float
+        unit weight of the material [kN/m³]
+    name : str, optional
+        name used for identification
+    plas_index : float, default=0
+        plasticity index [percent]
+    ocr : float, default=1
+        over-consolidation ratio
+    stress_mean : float, default=101.3
+        mean effective stress [kN/m²]
+    fines_cont : float, default=1.0
+        fines content [decimal]; typical range 0.5–1.0 for transitional silts
+    strains : array_like, optional
+        shear strain levels [decimal]
+    """
+
+    # Table 2 — G/Gmax backbone (Eqs. 2 and 11)
+    _B1 = 0.166
+    _B2 = -1.678
+    _B3 = 0.196
+    _B4 = 0.025
+    _B5 = 0.675
+    _A = 0.905
+    _B = 1.373
+
+    # Table 3 — minimum damping (Eq. 16)
+    _D1 = 3.64e-4
+    _D2 = 0.012
+
+    # Table 4 — strain-dependent damping (Eq. 17)
+    _E1 = 29.805
+    _E2 = -0.381
+    _E3 = 0.853
+    _E4 = 0.021
+    _E5 = 1.249
+    _E6 = 0.680
+
+    def __init__(
+        self,
+        unit_wt: float = 0.0,
+        name: str = "",
+        plas_index: float = 0.0,
+        ocr: float = 1.0,
+        stress_mean: float = 101.3,
+        fines_cont: float = 1.0,
+        strains: npt.ArrayLike | None = None,
+    ):
+        self._plas_index = plas_index
+        self._ocr = ocr
+        self._stress_mean = stress_mean
+        self._fines_cont = fines_cont
+
+        if strains is None:
+            strains = np.logspace(-6, -1.5, num=20)
+        else:
+            strains = np.asarray(strains)
+
+        if not name:
+            name = (
+                f"Alemu et al. (2025) - "
+                f"PI={plas_index:.0f}, OCR={ocr:.1f}, p'={stress_mean:.0f} kPa"
+            )
+
+        stress_ratio = stress_mean * KPA_TO_ATM  # p'/pa (dimensionless)
+
+        # G/Gmax backbone (Eqs. 2, 11): γ_mr computed in percent, converted to decimal
+        gamma_mr = (
+            self._B1 * ocr ** self._B2 * stress_ratio ** self._B3
+            + self._B4 * (plas_index + 1) ** self._B5
+        ) / 100
+        mod_reduc_vals = 1.0 / (1.0 + (strains / gamma_mr) ** self._A) ** self._B
+        mod_reduc = ModulusReductionCurve(name, strains, mod_reduc_vals)
+
+        # Minimum damping (Eq. 16): result in decimal
+        d_min = (
+            self._D1 * ocr * (plas_index + 1) + self._D2 * fines_cont
+        ) / stress_ratio
+
+        # Strain-dependent damping (Eq. 17): γ_D computed in percent, converted to decimal
+        gamma_d = (
+            ocr ** self._E2 * stress_ratio ** self._E3 + self._E4 * plas_index
+        ) ** self._E5 / 100
+        ratio = strains / gamma_d
+        # ε₁ is in percent; divide by 100 to express damping in decimal
+        damping_vals = d_min + (self._E1 / 100) * ratio / (1.0 + ratio) ** self._E6
+        damping = DampingCurve(name, strains, damping_vals)
+
+        super().__init__(name, unit_wt, mod_reduc, damping)
+
+
 class FixedValues:
     """Utility class to store fixed values"""
 
