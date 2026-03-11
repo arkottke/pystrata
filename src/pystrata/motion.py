@@ -30,6 +30,9 @@ import pyrvt
 # Gravity in m/sec²
 from scipy.constants import g as GRAVITY
 
+# NumPy 2.0 renamed trapz to trapezoid
+_trapezoid = getattr(np, "trapezoid", np.trapz)
+
 
 class WaveField(enum.Enum):
     outcrop = 0
@@ -44,6 +47,8 @@ class Motion:
         self._freqs = np.array([] if freqs is None else freqs)
         self._pga = None
         self._pgv = None
+        self._arias_intensity = None
+        self._cav = None
 
     @property
     def freqs(self):
@@ -67,6 +72,20 @@ class Motion:
             self._pga = self.calc_pga()
         return self._pga
 
+    @property
+    def arias_intensity(self):
+        """Arias intensity [m/s]."""
+        if self._arias_intensity is None:
+            self._arias_intensity = self.calc_arias_intensity()
+        return self._arias_intensity
+
+    @property
+    def cav(self):
+        """Cumulative absolute velocity [m/s]."""
+        if self._cav is None:
+            self._cav = self.calc_cav()
+        return self._cav
+
     def calc_pgv(self, tf=None):
         tf = 1 if tf is None else np.asarray(tf)
         # Compute transfer function from acceleration to velocity
@@ -81,6 +100,18 @@ class Motion:
     def calc_pga(self, tf=None):
         tf = 1 if tf is None else np.asarray(tf)
         return self.calc_peak(tf)
+
+    def calc_arias_intensity(self, tf=None):
+        tf = 1 if tf is None else np.asarray(tf)
+        fa = np.abs(tf) * self.fourier_amps
+        m0 = _trapezoid(fa**2, self.freqs)
+        return np.pi * GRAVITY / 2 * m0
+
+    def calc_cav(self, tf=None):
+        tf = 1 if tf is None else np.asarray(tf)
+        fa = np.abs(tf) * self.fourier_amps
+        m0 = _trapezoid(fa**2, self.freqs)
+        return GRAVITY * np.sqrt(2 / np.pi) * np.sqrt(m0 * self.duration)
 
     def calc_peak(self, tf=None, **kwargs):
         raise NotImplementedError
@@ -167,6 +198,16 @@ class TimeSeriesMotion(Motion):
     def calc_peak(self, tf=None, **kwargs):
         ts = self.calc_time_series(tf)
         return np.abs(ts).max()
+
+    def calc_arias_intensity(self, tf=None):
+        tf = 1 if tf is None else np.asarray(tf)
+        ts = self.calc_time_series(tf)
+        return np.pi * GRAVITY / 2 * _trapezoid(ts**2, dx=self.time_step)
+
+    def calc_cav(self, tf=None):
+        tf = 1 if tf is None else np.asarray(tf)
+        ts = self.calc_time_series(tf)
+        return GRAVITY * _trapezoid(np.abs(ts), dx=self.time_step)
 
     def calc_osc_accels(self, osc_freqs, osc_damping=0.05, tf=None):
         """Compute the pseudo-acceleration spectral response of an oscillator
