@@ -97,6 +97,128 @@ def test_darendeli(soil_type_darendeli, attr, expected):
     assert_allclose(actual, expected, rtol=0.01)
 
 
+# ---------------------------------------------------------------------------
+# RollinsEtAlSoilType tests
+# Reference values computed analytically from Eqs. (1), (5), (8) in
+# Rollins et al. (2020), J. Geotech. Geoenviron. Eng., 146(9): 04020076.
+# G/Gmax = 1 / (1 + (γ/γ_ref)^0.84)
+# Eq. 5 (no Cu):  γ_ref [%] = 0.0039 * σ'₀^0.42
+# Eq. 8 (with Cu): γ_ref [%] = 0.0046 * Cu^(-0.197) * σ'₀^0.52
+# ---------------------------------------------------------------------------
+
+_ROLLINS_TEST_STRAINS = [1e-6, 1e-4, 1e-3, 1e-2]
+
+# (stress_mean_kPa, coef_unif_or_None, expected_strain_ref_decimal,
+#  expected_mod_reduc_at_strains, expected_damping_min)
+_ROLLINS_CASES = [
+    (
+        # Eq. 5: no Cu, σ'₀ = 100 kPa
+        100.0,
+        None,
+        2.698141e-04,
+        [0.991, 0.6971, 0.2497, 0.0459],
+        0.01,
+    ),
+    (
+        # Eq. 8: Cu = 7, σ'₀ = 100 kPa
+        100.0,
+        7.0,
+        3.437744e-04,
+        [0.9926, 0.7383, 0.2897, 0.0557],
+        0.01,
+    ),
+    (
+        # Eq. 8: Cu = 7, σ'₀ = 25 kPa  (lower confining pressure)
+        25.0,
+        7.0,
+        1.671869e-04,
+        [0.9866, 0.6063, 0.1821, 0.0312],
+        0.01,
+    ),
+    (
+        # Eq. 8: Cu = 7, σ'₀ = 400 kPa  (higher confining pressure)
+        400.0,
+        7.0,
+        7.068784e-04,
+        [0.996, 0.8379, 0.4277, 0.0975],
+        0.01,
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "stress_mean,coef_unif,expected_strain_ref,expected_mr,expected_dmin",
+    _ROLLINS_CASES,
+)
+def test_rollins_mod_reduc(
+    stress_mean, coef_unif, expected_strain_ref, expected_mr, expected_dmin
+):
+    """G/Gmax backbone matches Eqs. (1), (5) and (8) of Rollins et al. (2020)."""
+    st = site.RollinsEtAlSoilType(
+        unit_wt=20.0,
+        stress_mean=stress_mean,
+        coef_unif=coef_unif,
+        num_cycles=10,
+        strains=_ROLLINS_TEST_STRAINS,
+    )
+    # Reference strain matches the paper equation
+    assert_allclose(st.strain_ref, expected_strain_ref, rtol=1e-4)
+    # G/Gmax at reference strain is exactly 0.5 by definition
+    assert_allclose(
+        1.0 / (1.0 + (st.strain_ref / st.strain_ref) ** st.curvature),
+        0.5,
+        rtol=1e-10,
+    )
+    # G/Gmax values match analytical calculation
+    assert_allclose(st.mod_reduc.values, expected_mr, rtol=0.01)
+    # Curvature is fixed at 0.84
+    assert st.curvature == 0.84
+
+
+@pytest.mark.parametrize(
+    "stress_mean,coef_unif,expected_strain_ref,expected_mr,expected_dmin",
+    _ROLLINS_CASES,
+)
+def test_rollins_damping_min(
+    stress_mean, coef_unif, expected_strain_ref, expected_mr, expected_dmin
+):
+    """Minimum damping defaults to 1 % and is approached at small strains."""
+    st = site.RollinsEtAlSoilType(
+        unit_wt=20.0,
+        stress_mean=stress_mean,
+        coef_unif=coef_unif,
+        num_cycles=10,
+        strains=_ROLLINS_TEST_STRAINS,
+    )
+    assert_allclose(st.damping.values[0], expected_dmin, rtol=0.10)
+    # Damping must increase monotonically (or stay the same) with strain
+    assert np.all(np.diff(st.damping.values) >= 0)
+
+
+@pytest.mark.parametrize(
+    "num_cycles,expected_b",
+    [
+        (1, 0.530000),
+        (10, 0.516875),
+        (30, 0.510613),
+    ],
+)
+def test_rollins_masing_scaling(num_cycles, expected_b):
+    """Masing scaling factor matches Eq. (14): b = 0.53 - 0.0057*ln(N)."""
+    st = site.RollinsEtAlSoilType(unit_wt=20.0, stress_mean=100.0, num_cycles=num_cycles)
+    assert_allclose(st.masing_scaling, expected_b, rtol=1e-4)
+
+
+def test_rollins_damping_custom_min():
+    """User-supplied damping_min overrides the 1 % default."""
+    st = site.RollinsEtAlSoilType(
+        unit_wt=20.0, stress_mean=100.0, damping_min=0.02,
+        strains=[1e-6, 1e-4, 1e-3, 1e-2],
+    )
+    # At very small strains damping should be close to d_min = 2 %
+    assert_allclose(st.damping.values[0], 0.02, rtol=0.05)
+
+
 def iter_wang_stokoe_cases():
     # Ranges for the test cases
     ranges = {
@@ -314,6 +436,16 @@ def create_soil_types():
     soil_types.append((
         "KishidaSoilType",
         site.KishidaSoilType(stress_vert=100, organic_content=20),
+    ))
+
+    # RollinsEtAlSoilType - without and with uniformity coefficient
+    soil_types.append((
+        "RollinsEtAlSoilType_no_cu",
+        site.RollinsEtAlSoilType(unit_wt=20.0, stress_mean=100.0),
+    ))
+    soil_types.append((
+        "RollinsEtAlSoilType_cu7",
+        site.RollinsEtAlSoilType(unit_wt=20.0, stress_mean=100.0, coef_unif=7.0),
     ))
 
     return soil_types

@@ -1414,6 +1414,99 @@ class TransitionalSiltsSoilType(SoilType):
         super().__init__(name, unit_wt, mod_reduc, damping)
 
 
+class RollinsEtAlSoilType(ModifiedHyperbolicSoilType):
+    """Rollins et al. (2020) empirical nonlinear model for gravels.
+
+    Based on Rollins, K. M., Amoroso, S., Kang, T., Verástegui-Flores, R. D.,
+    and Di Sarno, L. (2020). "Modulus and Damping of Gravels Based on Large-
+    Scale Field Testing." J. Geotech. Geoenviron. Eng., 146(9): 04020076.
+
+    The G/Gmax backbone uses the Stokoe et al. (1999) modified-hyperbolic form
+    (Eq. 1) with curvature ``a = 0.84``. The reference strain is computed from
+    either Eq. 8 (when the uniformity coefficient *Cu* is available) or the
+    simpler Eq. 5 (when *Cu* is unknown). Damping follows the Modified Masing
+    approach (Eqs. 11–14).
+
+    Parameters
+    ----------
+    unit_wt : float
+        Unit weight of the material [kN/m³].
+    name : str, optional
+        Name used for identification.
+    stress_mean : float, default=101.3
+        Mean effective confining pressure [kN/m²].
+    coef_unif : float or None, default=None
+        Uniformity coefficient *Cu* = D60/D10.  When provided, Eq. 8 is used
+        for the reference strain; otherwise the simpler Eq. 5 is used.
+    num_cycles : float, default=10
+        Number of loading cycles (controls Masing scaling factor *b*).
+    damping_min : float or None, default=None
+        Minimum damping at low strains [decimal].  Defaults to 0.01 (1 %)
+        when not provided.
+    strains : array_like or None, default=None
+        Shear strain levels [decimal].  Defaults to
+        ``np.logspace(-6, -1.5, num=20)``.
+    """
+
+    def __init__(
+        self,
+        unit_wt: float = 0.0,
+        name: str = "",
+        stress_mean: float = 101.3,
+        coef_unif: float | None = None,
+        num_cycles: float = 10,
+        damping_min: float | None = None,
+        strains: npt.ArrayLike | None = None,
+    ):
+        self._stress_mean = stress_mean
+        self._coef_unif = coef_unif
+        self._num_cycles = num_cycles
+
+        if damping_min is None:
+            damping_min = 0.01  # 1% default (Rollins paper, Eq. 11)
+
+        if not name:
+            if coef_unif is not None:
+                name = (
+                    f"Rollins et al. (2020) - "
+                    f"Cu={coef_unif:.1f}, σ'₀={stress_mean:.0f} kPa"
+                )
+            else:
+                name = (
+                    f"Rollins et al. (2020) - σ'₀={stress_mean:.0f} kPa"
+                )
+
+        super().__init__(name, unit_wt, damping_min, strains)
+
+    @property
+    def strain_ref(self) -> float:
+        """Reference strain [decimal].
+
+        Uses Eq. 8 (with *Cu*) when available, else Eq. 5.
+        Both equations return γ_ref in percent; divide by 100 for decimal.
+        """
+        if self._coef_unif is not None:
+            # Eq. 8: γ_ref [%] = 0.0046 * Cu^(-0.197) * σ'_0^0.52
+            return (
+                0.0046
+                * self._coef_unif ** (-0.197)
+                * self._stress_mean ** 0.52
+            ) / 100
+        else:
+            # Eq. 5: γ_ref [%] = 0.0039 * σ'_0^0.42
+            return 0.0039 * self._stress_mean ** 0.42 / 100
+
+    @property
+    def curvature(self) -> float:
+        """Curvature parameter *a* = 0.84 (mean fitted value, Eq. 1)."""
+        return 0.84
+
+    @property
+    def masing_scaling(self) -> float:
+        """Masing scaling factor *b* (Eq. 14): b = 0.53 − 0.0057·ln(N)."""
+        return 0.53 - 0.0057 * np.log(self._num_cycles)
+
+
 class FixedValues:
     """Utility class to store fixed values"""
 

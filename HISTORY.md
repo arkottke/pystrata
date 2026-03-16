@@ -1,5 +1,12 @@
 # History
 
+## Unreleased
+
+-   Add: `TransitionalSiltsSoilType` — empirical nonlinear model for transitional silts (Alemu et al. 2025, JGGE).
+-   Add: `RollinsEtAlSoilType` — empirical nonlinear model for gravels based on large-scale field testing (Rollins et al. 2020, JGGE).
+-   Add: Tests for both new soil types in `tests/site_test.py`.
+-   Update: example-15 restructured with model comparison sections (fine-grained, transitional silts, gravels) followed by site response.
+
 ## v0.5.5 (2024-10-16)
 
 -   Change: Use `method` to define FrequencyDependentEqlCalculator options
