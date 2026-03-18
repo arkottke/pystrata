@@ -13,7 +13,7 @@ requires-python = ">=3.10"
 dependencies = [
     "matplotlib",
     "numba",
-    "numpy",
+    "numpy>=2.0",
     "pykooh",
     "pyrvt",
     "scipy",
