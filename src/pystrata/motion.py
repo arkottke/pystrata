@@ -30,8 +30,7 @@ import pyrvt
 # Gravity in m/sec²
 from scipy.constants import g as GRAVITY
 
-# NumPy 2.0 renamed trapz to trapezoid
-_trapezoid = getattr(np, "trapezoid", np.trapz)
+_trapezoid = np.trapezoid
 
 
 class WaveField(enum.Enum):
@@ -210,8 +209,8 @@ class TimeSeriesMotion(Motion):
         return GRAVITY * _trapezoid(np.abs(ts), dx=self.time_step)
 
     def calc_osc_accels(self, osc_freqs, osc_damping=0.05, tf=None):
-        """Compute the pseudo-acceleration spectral response of an oscillator
-        with a specific frequency and damping.
+        """Compute the pseudo-acceleration spectral response of an oscillator with a
+        specific frequency and damping.
 
         Parameters
         ----------
@@ -259,8 +258,7 @@ class TimeSeriesMotion(Motion):
         self._freqs = freq_step * np.arange(1 + n / 2)
 
     def _calc_sdof_tf(self, osc_freq, damping=0.05):
-        """Compute the transfer function for a single-degree-of-freedom
-        oscillator.
+        """Compute the transfer function for a single-degree-of-freedom oscillator.
 
         The transfer function computes the pseudo-spectral acceleration.
 
