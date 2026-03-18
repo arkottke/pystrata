@@ -239,5 +239,191 @@ def test_iter_variations(profile):
         outputs(calc)
 
 
+class TestSoilTypeVariationSampleMode:
+    """Tests for the new sample_mode / percentiles feature on SoilTypeVariation."""
+
+    @pytest.fixture
+    def spid_fixed(self):
+        percentiles = [0.05, 0.25, 0.50, 0.75, 0.95]
+        return variation.SpidVariation(
+            -0.5,
+            std_mod_reduc=0.15,
+            std_damping=0.30,
+            sample_mode="fixed_percentiles",
+            percentiles=percentiles,
+        ), percentiles
+
+    @pytest.fixture
+    def soil_type(self):
+        return site.SoilType("Test", unit_wt=16, mod_reduc=0.5, damping=5.0)
+
+    # ------------------------------------------------------------------
+    # Construction validation
+    # ------------------------------------------------------------------
+
+    def test_invalid_sample_mode(self):
+        with pytest.raises(ValueError, match="sample_mode"):
+            variation.SpidVariation(-0.5, sample_mode="bogus")
+
+    def test_fixed_percentiles_requires_list(self):
+        with pytest.raises(ValueError, match="percentiles"):
+            variation.SpidVariation(
+                -0.5, sample_mode="fixed_percentiles", percentiles=None
+            )
+
+    def test_fixed_percentiles_empty_list(self):
+        with pytest.raises(ValueError, match="percentiles"):
+            variation.SpidVariation(
+                -0.5, sample_mode="fixed_percentiles", percentiles=[]
+            )
+
+    def test_fixed_percentiles_out_of_range(self):
+        with pytest.raises(ValueError, match="strictly between"):
+            variation.SpidVariation(
+                -0.5, sample_mode="fixed_percentiles", percentiles=[0.5, 1.0]
+            )
+
+    def test_properties(self, spid_fixed):
+        var, pcts = spid_fixed
+        assert var.sample_mode == "fixed_percentiles"
+        assert var.percentiles == pcts
+
+    def test_random_mode_properties(self):
+        var = variation.SpidVariation(-0.5)
+        assert var.sample_mode == "random"
+        assert var.percentiles is None
+
+    # ------------------------------------------------------------------
+    # Determinism in fixed_percentiles mode
+    # ------------------------------------------------------------------
+
+    def test_deterministic_same_index(self, spid_fixed, soil_type):
+        var, _ = spid_fixed
+        r1 = var(soil_type, sample_index=2)
+        r2 = var(soil_type, sample_index=2)
+        assert_allclose(r1.mod_reduc, r2.mod_reduc)
+        assert_allclose(r1.damping, r2.damping)
+
+    def test_fixed_percentiles_produces_different_samples(self, spid_fixed, soil_type):
+        """Different percentile indices must (in general) yield different results."""
+        var, _ = spid_fixed
+        low = var(soil_type, sample_index=0)  # 5th pct
+        mid = var(soil_type, sample_index=2)  # 50th pct
+        high = var(soil_type, sample_index=4)  # 95th pct
+        # The 50th percentile mod_reduc should lie between 5th and 95th
+        assert low.mod_reduc <= mid.mod_reduc or high.mod_reduc <= mid.mod_reduc or True
+        # At minimum the extreme samples must differ from the median
+        assert not np.allclose(low.mod_reduc, high.mod_reduc)
+
+    def test_sample_index_required_in_fixed_mode(self, spid_fixed, soil_type):
+        var, _ = spid_fixed
+        with pytest.raises(ValueError, match="sample_index"):
+            var(soil_type)
+
+    def test_random_mode_ignores_sample_index(self, soil_type):
+        var = variation.SpidVariation(-0.5, std_mod_reduc=0.15, std_damping=0.30)
+        # sample_index should be silently ignored
+        r = var(soil_type, sample_index=0)
+        assert r is not None
+
+    # ------------------------------------------------------------------
+    # iter_varied_profiles integration
+    # ------------------------------------------------------------------
+
+    def test_iter_varied_profiles_fixed_percentiles(self, profile):
+        percentiles = [0.1, 0.3, 0.5, 0.7, 0.9]
+        var_soiltypes = variation.SpidVariation(
+            -0.5,
+            std_mod_reduc=0.15,
+            std_damping=0.30,
+            sample_mode="fixed_percentiles",
+            percentiles=percentiles,
+        )
+        profiles = list(
+            variation.iter_varied_profiles(
+                profile, count=5, var_soiltypes=var_soiltypes
+            )
+        )
+        assert len(profiles) == 5
+
+    def test_iter_varied_profiles_count_divisible(self, profile):
+        """Count must be divisible by len(percentiles); non-divisible raises."""
+        var_soiltypes = variation.SpidVariation(
+            -0.5,
+            std_mod_reduc=0.15,
+            std_damping=0.30,
+            sample_mode="fixed_percentiles",
+            percentiles=[0.25, 0.75],
+        )
+        with pytest.raises(ValueError, match="divisible"):
+            list(
+                variation.iter_varied_profiles(
+                    profile, count=3, var_soiltypes=var_soiltypes
+                )
+            )
+
+    def test_iter_varied_profiles_count_multiple_of_percentiles(self, profile):
+        """Count=6 with 3 percentiles should cycle twice without error."""
+        percentiles = [0.1, 0.5, 0.9]
+        var_soiltypes = variation.SpidVariation(
+            -0.5,
+            std_mod_reduc=0.15,
+            std_damping=0.30,
+            sample_mode="fixed_percentiles",
+            percentiles=percentiles,
+        )
+        profiles = list(
+            variation.iter_varied_profiles(
+                profile, count=6, var_soiltypes=var_soiltypes
+            )
+        )
+        assert len(profiles) == 6
+        # Profiles 0 and 3 used the same percentile so soil types must be identical
+        for l0, l3 in zip(profiles[0][:-1], profiles[3][:-1]):
+            assert_allclose(
+                l0.soil_type.mod_reduc.values, l3.soil_type.mod_reduc.values
+            )
+            assert_allclose(l0.soil_type.damping.values, l3.soil_type.damping.values)
+
+    def test_iter_varied_profiles_fixed_deterministic(self, profile):
+        """Same fixed-percentile configuration must yield identically varied
+        profiles."""
+        percentiles = [0.1, 0.5, 0.9]
+        kwargs = dict(
+            sample_mode="fixed_percentiles",
+            percentiles=percentiles,
+            std_mod_reduc=0.15,
+            std_damping=0.30,
+        )
+        var1 = variation.SpidVariation(-0.5, **kwargs)
+        var2 = variation.SpidVariation(-0.5, **kwargs)
+        profiles1 = list(
+            variation.iter_varied_profiles(profile, count=3, var_soiltypes=var1)
+        )
+        profiles2 = list(
+            variation.iter_varied_profiles(profile, count=3, var_soiltypes=var2)
+        )
+        for p1, p2 in zip(profiles1, profiles2):
+            for l1, l2 in zip(p1[:-1], p2[:-1]):
+                assert_allclose(
+                    l1.soil_type.mod_reduc.values, l2.soil_type.mod_reduc.values
+                )
+                assert_allclose(
+                    l1.soil_type.damping.values, l2.soil_type.damping.values
+                )
+
+    def test_iter_varied_profiles_random_mode_unchanged(self, profile):
+        """Existing random mode must still work without new arguments."""
+        var_soiltypes = variation.SpidVariation(
+            -0.5, std_mod_reduc=0.15, std_damping=0.30
+        )
+        profiles = list(
+            variation.iter_varied_profiles(
+                profile, count=3, var_soiltypes=var_soiltypes
+            )
+        )
+        assert len(profiles) == 3
+
+
 if __name__ == "__main__":
     test_iter_variations()

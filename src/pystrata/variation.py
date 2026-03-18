@@ -108,6 +108,45 @@ class TruncatedNorm:
                 # Return the first valid value
                 return randvar[valid][0]
 
+    def correlated_at_percentile(self, correl, percentile):
+        """Return a deterministic correlated pair for a given percentile.
+
+        The primary variate ``z1`` is the inverse CDF of the *scaled*
+        truncated normal at ``percentile``.  The secondary variate ``z2``
+        is drawn from the conditional distribution
+        :math:`z_2 | z_1 = \\rho z_1 + \\sqrt{1 - \\rho^2}\\, z_1`,
+        also clipped to ``[-limit, +limit]``.
+
+        Both variates are expressed in the same units as the samples
+        returned by :meth:`correlated` (unit standard deviation, truncated
+        at ``±limit``).
+
+        Parameters
+        ----------
+        correl : float
+            Correlation coefficient between the two variates.
+        percentile : float
+            Quantile in ``(0, 1)`` to evaluate.
+
+        Returns
+        -------
+        pair : ndarray, shape (2,)
+            Deterministic correlated variate pair.
+        """
+        # Map the percentile through the scaled truncated-normal CDF so that
+        # the resulting z1 sits at exactly that percentile of the marginal
+        # distribution used by the random sampler.
+        # stats.truncnorm with scale == self._scale and limits
+        # [-limit/scale, +limit/scale] (un-scaled) matches the marginals.
+        a, b = -self._limit / self._scale, self._limit / self._scale
+        z1 = stats.truncnorm.ppf(percentile, a, b, scale=self._scale)
+        # Conditional mean of z2 given z1 under bivariate normal
+        z2 = correl * z1 + np.sqrt(max(1.0 - correl**2, 0.0)) * z1
+        # Clip both to the truncation window
+        z1 = np.clip(z1, -self._limit, self._limit)
+        z2 = np.clip(z2, -self._limit, self._limit)
+        return np.array([z1, z2])
+
 
 # Random number generator used for all random number. Limited to +/- 2,
 # and the standard deviation is scaled to maintain the standard deviation
@@ -134,7 +173,6 @@ class ToroThicknessVariation:
         :math:`c_2` model parameter.
     c_3: float, optional
         :math:`c_3` model parameter.
-
     """
 
     def __init__(self, c_1=10.86, c_2=-0.89, c_3=1.98):
@@ -176,7 +214,6 @@ class ToroThicknessVariation:
         ------
         float
             Varied thickness.
-
         """
         total = 0
         depth_prev = 0
@@ -219,7 +256,6 @@ class ToroThicknessVariation:
         -------
         site.Profile
             Varied site profile.
-
         """
         layers = []
         for thick, depth_mid in self.iter_thickness(profile[-2].depth_base):
@@ -506,7 +542,7 @@ class ToroVelocityVariation(VelocityVariation):
         self._b = b
 
     def _calc_corr(self, profile: site.Profile) -> np.ndarray:
-        """Compute the adjacent-layer correlations
+        """Compute the adjacent-layer correlations.
 
         Parameters
         ----------
@@ -626,8 +662,8 @@ class ToroVelocityVariation(VelocityVariation):
 
 
 class DepthDependToroVelVariation(ToroVelocityVariation):
-    r"""Toro (1995) [T95] velocity variation model modified for a depth
-    dependent standard deviation that can be overridden by the soil_type name.
+    r"""Toro (1995) [T95] velocity variation model modified for a depth dependent
+    standard deviation that can be overridden by the soil_type name.
 
     Default values can be selected with :meth:`.generic_model`.
 
@@ -741,19 +777,85 @@ class DepthDependToroVelVariation(ToroVelocityVariation):
 
 
 class SoilTypeVariation:
+    """Base class for soil-type (modulus-reduction and damping) variation.
+
+    Parameters
+    ----------
+    correlation : float
+        Correlation coefficient between the modulus-reduction and damping
+        random variables.
+    limits_mod_reduc : list[float], optional
+        ``[min, max]`` clipping bounds for modulus reduction.
+    limits_damping : list[float], optional
+        ``[min, max]`` clipping bounds for damping.
+    vary_bedrock : bool, optional
+        Whether to include the half-space in the variation.
+    sample_mode : {'random', 'fixed_percentiles'}, optional
+        How samples are drawn when :meth:`iter_varied_profiles` iterates:
+
+        * ``'random'`` *(default)* — each call draws an independent
+          random realisation from the truncated-normal distribution.
+        * ``'fixed_percentiles'`` — each call uses a pre-specified
+          percentile supplied via ``sample_index`` so that the same
+          index always produces an identical realisation.  The percentile
+          is selected as ``percentiles[sample_index % len(percentiles)]``,
+          so the list cycles when *count* is a multiple of its length.
+          The caller must pass the ``sample_index`` keyword argument to
+          :meth:`__call__`, and :func:`iter_varied_profiles` does this
+          automatically.
+    percentiles : list[float] | None, optional
+        Ordered sequence of quantiles in ``(0, 1)`` used in
+        ``'fixed_percentiles'`` mode.  The sequence cycles: iteration *i*
+        draws ``percentiles[i % len(percentiles)]``.  Required (and only
+        used) when *sample_mode* is ``'fixed_percentiles'``.
+    """
+
     def __init__(
         self,
         correlation,
         limits_mod_reduc=[0.05, 1],
         limits_damping=[0, 0.15],
         vary_bedrock=False,
+        sample_mode="random",
+        percentiles=None,
     ):
+        _valid_modes = {"random", "fixed_percentiles"}
+        if sample_mode not in _valid_modes:
+            raise ValueError(
+                f"sample_mode must be one of {_valid_modes!r}, got {sample_mode!r}"
+            )
+        if sample_mode == "fixed_percentiles":
+            if percentiles is None or len(percentiles) == 0:
+                raise ValueError(
+                    "percentiles must be a non-empty sequence when "
+                    "sample_mode='fixed_percentiles'"
+                )
+            percentiles = list(percentiles)
+            if any(not (0.0 < p < 1.0) for p in percentiles):
+                raise ValueError(
+                    "All percentile values must be strictly between 0 and 1"
+                )
         self._vary_bedrock = vary_bedrock
         self._correlation = correlation
         self._limits_mod_reduc = list(limits_mod_reduc)
         self._limits_damping = list(limits_damping)
+        self._sample_mode = sample_mode
+        self._percentiles = percentiles
 
-    def __call__(self, soil_type):
+    def __call__(self, soil_type, sample_index=None):
+        """Return a single varied realisation of *soil_type*.
+
+        Parameters
+        ----------
+        soil_type : site.SoilType
+            The nominal (seed) soil type to vary.
+        sample_index : int | None, optional
+            Index into :attr:`percentiles` used when
+            ``sample_mode='fixed_percentiles'``.  Ignored in
+            ``'random'`` mode.  Must be provided (and within range) in
+            ``'fixed_percentiles'`` mode.
+        """
+
         def get_values(nlp):
             try:
                 return nlp.values
@@ -764,7 +866,15 @@ class SoilTypeVariation:
         damping = get_values(soil_type.damping)
 
         # A pair of correlated random variables
-        randvar = randnorm.correlated(self.correlation)
+        if self._sample_mode == "fixed_percentiles":
+            if sample_index is None:
+                raise ValueError(
+                    "sample_index must be provided when sample_mode='fixed_percentiles'"
+                )
+            percentile = self._percentiles[sample_index]
+            randvar = randnorm.correlated_at_percentile(self.correlation, percentile)
+        else:
+            randvar = randnorm.correlated(self.correlation)
 
         varied_mod_reduc, varied_damping = self._get_varied(randvar, mod_reduc, damping)
 
@@ -805,6 +915,16 @@ class SoilTypeVariation:
     @property
     def vary_bedrock(self):
         return self._vary_bedrock
+
+    @property
+    def sample_mode(self):
+        """Sampling mode: ``'random'`` or ``'fixed_percentiles'``."""
+        return self._sample_mode
+
+    @property
+    def percentiles(self):
+        """Percentile list used in ``'fixed_percentiles'`` mode, or *None*."""
+        return self._percentiles
 
 
 class DarendeliVariation(SoilTypeVariation):
@@ -863,11 +983,9 @@ class DarendeliVariation(SoilTypeVariation):
 
 
 class SpidVariation(SoilTypeVariation):
-    """Variation defined by the EPRI SPID (2013) and documented in
-    PNNL (2014).
+    """Variation defined by the EPRI SPID (2013) and documented in PNNL (2014).
 
     EPRI SPID (2013): https://www.nrc.gov/docs/ML1233/ML12333A170.pdf
-
     """
 
     def __init__(
@@ -877,8 +995,16 @@ class SpidVariation(SoilTypeVariation):
         limits_damping=[0, 0.15],
         std_mod_reduc=0.15,
         std_damping=0.30,
+        sample_mode="random",
+        percentiles=None,
     ):
-        super().__init__(correlation, limits_mod_reduc, limits_damping)
+        super().__init__(
+            correlation,
+            limits_mod_reduc,
+            limits_damping,
+            sample_mode=sample_mode,
+            percentiles=percentiles,
+        )
         self._std_mod_reduc = std_mod_reduc
         self._std_damping = std_damping
 
@@ -921,7 +1047,7 @@ def iter_varied_profiles(
     var_velocity: VelocityVariation | None = None,
     var_soiltypes: SoilTypeVariation | None = None,
 ) -> Generator[site.Profile]:
-    """Iterate over simulated profiles
+    """Iterate over simulated profiles.
 
     Parameters
     ----------
@@ -934,14 +1060,25 @@ def iter_varied_profiles(
     var_velocity : VelocityVariation | None
         model for the velocity variation
     var_soiltypes : SoilTypeVariation | None
-        model for the soil type variation
+        model for the soil type variation.  When ``sample_mode='fixed_percentiles'``
+        *count* must be divisible by the number of configured percentiles; the
+        percentile list cycles so that each percentile is used
+        ``count // len(percentiles)`` times in order.
 
     Returns
     -------
     site.Profile
         varied profile
     """
-    for _ in range(count):
+    if var_soiltypes and var_soiltypes.sample_mode == "fixed_percentiles":
+        n_pct = len(var_soiltypes.percentiles)
+        if count % n_pct != 0:
+            raise ValueError(
+                f"count ({count}) must be divisible by the number of percentiles "
+                f"({n_pct}) when sample_mode='fixed_percentiles'"
+            )
+
+    for i in range(count):
         # Copy the profile to form the realization
         _profile = profile.copy()
 
@@ -952,8 +1089,20 @@ def iter_varied_profiles(
             _profile = var_velocity(_profile)
 
         if var_soiltypes:
+            # Determine the sample_index to forward (None in random mode)
+            n_pct = (
+                len(var_soiltypes.percentiles)
+                if var_soiltypes.sample_mode == "fixed_percentiles"
+                else 0
+            )
+            sample_index = (
+                i % n_pct if var_soiltypes.sample_mode == "fixed_percentiles" else None
+            )
             # Map of varied soil types
-            varied = {str(st): var_soiltypes(st) for st in _profile.iter_soil_types()}
+            varied = {
+                str(st): var_soiltypes(st, sample_index=sample_index)
+                for st in _profile.iter_soil_types()
+            }
             # Create new layers
             end = None if var_soiltypes.vary_bedrock else -1
             layers = [
