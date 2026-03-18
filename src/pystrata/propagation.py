@@ -216,8 +216,7 @@ class QuarterWaveLenCalculator(AbstractCalculator):
         adjust_site_atten=False,
         adjust_source_vel=False,
     ):
-        """
-        Fit to a target crustal amplification or site term.
+        """Fit to a target crustal amplification or site term.
 
         The fitting process adjusts the velocity, site attenuation, and layer
         thickness (if enabled) to fit a target values. The frequency range is
@@ -437,7 +436,6 @@ class LinearElasticCalculator(AbstractCalculator):
         lout : :class:`~site.Location`
             Location of output. Note that this would typically be midheight
             of the layer.
-
         """
         tf = self.wave_at_location(lout) / self.wave_at_location(lin)
         return tf
@@ -452,7 +450,6 @@ class LinearElasticCalculator(AbstractCalculator):
         lout : :class:`~site.Location`
             Location of output. Note that this would typically be midheight
             of the layer.
-
         """
         tf = self.calc_strain_tf(lin, lout)
         if damped:
@@ -465,8 +462,7 @@ class LinearElasticCalculator(AbstractCalculator):
         return tf
 
     def calc_strain_tf(self, lin, lout):
-        """Compute the strain transfer function from `lout` to
-        `location_in`.
+        """Compute the strain transfer function from `lout` to `location_in`.
 
         The strain transfer function from the acceleration at layer `n`
         (outcrop) to the mid-height of layer `m` (within) is defined as
@@ -676,8 +672,8 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
 
 
 class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
-    """Class for performing equivalent-linear elastic site response with
-    frequency-dependent modulii and damping.
+    """Class for performing equivalent-linear elastic site response with frequency-
+    dependent modulii and damping.
 
     Parameters
     ----------
@@ -754,7 +750,7 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
 
         if self._method == "ka02":
             # Equation (8)
-            freq_avg = np.trapz(freqs * strain_fas, x=freqs) / np.trapz(
+            freq_avg = np.trapezoid(freqs * strain_fas, x=freqs) / np.trapezoid(
                 strain_fas, x=freqs
             )
 
@@ -762,7 +758,7 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
             # frequency
             # Equation (8)
             mask = freqs < freq_avg
-            strain_avg = np.trapz(strain_fas[mask], x=freqs[mask]) / freq_avg
+            strain_avg = np.trapezoid(strain_fas[mask], x=freqs[mask]) / freq_avg
 
             # Normalize the frequency and strain by the average values
             freqs /= freq_avg
