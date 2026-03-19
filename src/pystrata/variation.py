@@ -897,6 +897,41 @@ class SoilTypeVariation:
                 setattr(realization, attr_name, values)
         return realization
 
+    def vary_profile(self, profile: site.Profile, sample_index: int | None = None):
+        """Return a profile with varied soil types.
+
+        Parameters
+        ----------
+        profile : site.Profile
+            Input profile to vary.
+        sample_index : int | None, optional
+            Index into :attr:`percentiles` for ``sample_mode='fixed_percentiles'``.
+            Ignored in ``'random'`` mode.
+        """
+        # Map of varied soil types
+        varied = {
+            str(st): self(st, sample_index=sample_index)
+            for st in profile.iter_soil_types()
+        }
+
+        # Create new layers
+        end = None if self.vary_bedrock else -1
+        layers = [
+            site.Layer(
+                varied[str(layer.soil_type)],
+                layer.thickness,
+                layer.initial_shear_vel,
+                layer.damping_min,
+            )
+            for layer in profile[:end]
+        ]
+
+        # Add the unrandomized bedrock
+        if not self.vary_bedrock:
+            layers.append(profile[-1])
+
+        return site.Profile(layers, profile.wt_depth)
+
     def _get_varied(self, randvar, mod_reduc, damping):
         raise NotImplementedError
 
@@ -1098,27 +1133,6 @@ def iter_varied_profiles(
             sample_index = (
                 i % n_pct if var_soiltypes.sample_mode == "fixed_percentiles" else None
             )
-            # Map of varied soil types
-            varied = {
-                str(st): var_soiltypes(st, sample_index=sample_index)
-                for st in _profile.iter_soil_types()
-            }
-            # Create new layers
-            end = None if var_soiltypes.vary_bedrock else -1
-            layers = [
-                site.Layer(
-                    varied[str(layer.soil_type)],
-                    layer.thickness,
-                    layer.initial_shear_vel,
-                    layer.damping_min,
-                )
-                for layer in _profile[:end]
-            ]
-            # Add the unrandomized bedrock
-            if not var_soiltypes.vary_bedrock:
-                layers.append(_profile[-1])
-
-            # Create a new profile
-            _profile = site.Profile(layers, _profile.wt_depth)
+            _profile = var_soiltypes.vary_profile(_profile, sample_index=sample_index)
 
         yield _profile
