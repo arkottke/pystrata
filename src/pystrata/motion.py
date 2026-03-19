@@ -85,7 +85,7 @@ class Motion:
             self._cav = self.calc_cav()
         return self._cav
 
-    def calc_pgv(self, tf=None):
+    def calc_pgv(self, tf: np.typing.ArrayLike | None = None) -> float:
         tf = 1 if tf is None else np.asarray(tf)
         # Compute transfer function from acceleration to velocity
         # only over non-zero frequencies
@@ -96,23 +96,32 @@ class Motion:
         pgv = GRAVITY * 100 * self.calc_peak(tf_av * tf)
         return pgv
 
-    def calc_pga(self, tf=None):
+    def calc_pga(self, tf: np.typing.ArrayLike | None = None) -> float:
         tf = 1 if tf is None else np.asarray(tf)
         return self.calc_peak(tf)
 
-    def calc_arias_intensity(self, tf=None):
+    def calc_arias_intensity(self, tf: np.typing.ArrayLike | None = None) -> float:
         tf = 1 if tf is None else np.asarray(tf)
         fa = np.abs(tf) * self.fourier_amps
         m0 = _trapezoid(fa**2, self.freqs)
         return np.pi * GRAVITY / 2 * m0
 
-    def calc_cav(self, tf=None):
+    def calc_cav(self, tf: np.typing.ArrayLike | None = None) -> float:
+        # CAV via RVT: g * sqrt(2/pi) * sqrt(m0 * T_d)
+        # Derived assuming a stationary Gaussian process where:
+        #   - The expected number of zero crossings per unit time is sqrt(m2/m0)
+        #   - The expected peak between zero crossings is sqrt(2*m0) (Rayleigh)
+        #   - CAV ≈ E[zero crossings] * E[peak] * T_d * g
+        #         = sqrt(m2/m0) * sqrt(2*m0) * T_d * g (cancel and simplify)
+        #         ... but the standard RVT result uses only m0 and T_d:
+        #   - CAV = g * sqrt(2/pi) * sqrt(m0 * T_d)
+        # Equivalent to (2*sqrt(g)/pi) * sqrt(I_a * T_d) since I_a = pi*g/2 * m0
         tf = 1 if tf is None else np.asarray(tf)
         fa = np.abs(tf) * self.fourier_amps
         m0 = _trapezoid(fa**2, self.freqs)
         return GRAVITY * np.sqrt(2 / np.pi) * np.sqrt(m0 * self.duration)
 
-    def calc_peak(self, tf=None, **kwargs):
+    def calc_peak(self, tf: np.typing.ArrayLike | None = None, **kwargs) -> float:
         raise NotImplementedError
 
 
