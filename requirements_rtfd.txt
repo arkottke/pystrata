@@ -1,5 +1,6 @@
 -r ./requirements.txt
 
+docutils<0.22
 insipid-sphinx-theme
 jinja2
 nbsphinx

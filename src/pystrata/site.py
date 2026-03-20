@@ -525,8 +525,7 @@ class TwoParamModifiedHyperbolicSoilType(SoilType):
 
 
 class DarendeliSoilType(ModifiedHyperbolicSoilType):
-    """
-    Darendeli (2001) model for fine grained soils.
+    """Darendeli (2001) model for fine grained soils.
 
     Parameters
     ----------
@@ -575,7 +574,7 @@ class DarendeliSoilType(ModifiedHyperbolicSoilType):
         super().__init__(name, unit_wt, damping_min, strains)
 
     def _calc_damping_min(self):
-        """minimum damping [decimal]"""
+        """Minimum damping [decimal]"""
         return (
             (0.8005 + 0.0129 * self._plas_index * self._ocr**-0.1069)
             * (self._stress_mean * KPA_TO_ATM) ** -0.2889
@@ -589,7 +588,7 @@ class DarendeliSoilType(ModifiedHyperbolicSoilType):
 
     @property
     def strain_ref(self) -> float:
-        """reference strain [decimal]"""
+        """Reference strain [decimal]"""
         return (
             (0.0352 + 0.0010 * self._plas_index * self._ocr**0.3246)
             * (self._stress_mean * KPA_TO_ATM) ** 0.3483
@@ -605,8 +604,7 @@ class DarendeliSoilType(ModifiedHyperbolicSoilType):
 
 
 class MenqSoilType(ModifiedHyperbolicSoilType):
-    """
-    Menq SoilType for gravelly soils.
+    """Menq SoilType for gravelly soils.
 
     Parameters
     ----------
@@ -700,7 +698,6 @@ def to_decimal(*keys):
 class WangSoilType(SoilType):
     """Wang and Stokoe (2022) empirical nonlinear model for soils.
 
-
     The following index properties names are used:
      - coef_unif: uniformity coefficient (Cᵤ)
      - diam_50: median diameter [mm]
@@ -754,7 +751,6 @@ class WangSoilType(SoilType):
         shear strains levels [decimal]
     **kwargs
         index properties
-
     """
 
     FACTORS = {
@@ -953,11 +949,7 @@ class WangSoilType(SoilType):
     @classmethod
     @to_decimal("fines_cont", "plas_index", "water_cont")
     def calc_shear_mod(cls, soil_group, **kwds):
-        """
-
-        Units of MPa
-
-        """
+        """Units of MPa."""
         level = cls.get_level("gmax_model", soil_group, **kwds)
 
         if soil_group == "clean_sand_and_gravel":
@@ -1309,7 +1301,7 @@ class WangSoilType(SoilType):
         return (d * gamma_ratio + 100 * damping_min) / (gamma_ratio + 1) / 100
 
 
-class TransitionalSiltsSoilType(SoilType):
+class AlemuEtAlSoilType(SoilType):
     """Alemu et al. (2025) empirical nonlinear model for transitional silts.
 
     Based on Alemu et al. (2025), "Nonlinear Dynamic Soil Properties for
@@ -1391,7 +1383,7 @@ class TransitionalSiltsSoilType(SoilType):
 
         # G/Gmax backbone (Eqs. 2, 11): γ_mr computed in percent, converted to decimal
         gamma_mr = (
-            self._B1 * ocr ** self._B2 * stress_ratio ** self._B3
+            self._B1 * ocr**self._B2 * stress_ratio**self._B3
             + self._B4 * (plas_index + 1) ** self._B5
         ) / 100
         mod_reduc_vals = 1.0 / (1.0 + (strains / gamma_mr) ** self._A) ** self._B
@@ -1402,9 +1394,10 @@ class TransitionalSiltsSoilType(SoilType):
             self._D1 * ocr * (plas_index + 1) + self._D2 * fines_cont
         ) / stress_ratio
 
-        # Strain-dependent damping (Eq. 17): γ_D computed in percent, converted to decimal
+        # Strain-dependent damping (Eq. 17): γ_D computed in percent, converted to
+        # decimal
         gamma_d = (
-            ocr ** self._E2 * stress_ratio ** self._E3 + self._E4 * plas_index
+            ocr**self._E2 * stress_ratio**self._E3 + self._E4 * plas_index
         ) ** self._E5 / 100
         ratio = strains / gamma_d
         # ε₁ is in percent; divide by 100 to express damping in decimal
@@ -1472,9 +1465,7 @@ class RollinsEtAlSoilType(ModifiedHyperbolicSoilType):
                     f"Cu={coef_unif:.1f}, σ'₀={stress_mean:.0f} kPa"
                 )
             else:
-                name = (
-                    f"Rollins et al. (2020) - σ'₀={stress_mean:.0f} kPa"
-                )
+                name = f"Rollins et al. (2020) - σ'₀={stress_mean:.0f} kPa"
 
         super().__init__(name, unit_wt, damping_min, strains)
 
@@ -1482,33 +1473,37 @@ class RollinsEtAlSoilType(ModifiedHyperbolicSoilType):
     def strain_ref(self) -> float:
         """Reference strain [decimal].
 
-        Uses Eq. 8 (with *Cu*) when available, else Eq. 5.
-        Both equations return γ_ref in percent; divide by 100 for decimal.
+        Uses Eq. 8 (with *Cu*) when available, else Eq. 5. Both equations return γ_ref
+        in percent; divide by 100 for decimal.
         """
         if self._coef_unif is not None:
             # Eq. 8: γ_ref [%] = 0.0046 * Cu^(-0.197) * σ'_0^0.52
             return (
-                0.0046
-                * self._coef_unif ** (-0.197)
-                * self._stress_mean ** 0.52
+                0.0046 * self._coef_unif ** (-0.197) * self._stress_mean**0.52
             ) / 100
         else:
             # Eq. 5: γ_ref [%] = 0.0039 * σ'_0^0.42
-            return 0.0039 * self._stress_mean ** 0.42 / 100
+            return 0.0039 * self._stress_mean**0.42 / 100
 
     @property
     def curvature(self) -> float:
-        """Curvature parameter *a* = 0.84 (mean fitted value, Eq. 1)."""
+        """Curvature parameter *a* = 0.84 (mean fitted value, Eq.
+
+        1).
+        """
         return 0.84
 
     @property
     def masing_scaling(self) -> float:
-        """Masing scaling factor *b* (Eq. 14): b = 0.53 − 0.0057·ln(N)."""
+        """Masing scaling factor *b* (Eq.
+
+        14): b = 0.53 − 0.0057·ln(N).
+        """
         return 0.53 - 0.0057 * np.log(self._num_cycles)
 
 
 class FixedValues:
-    """Utility class to store fixed values"""
+    """Utility class to store fixed values."""
 
     def __init__(self, **kwds):
         self._params = kwds
@@ -1721,7 +1716,7 @@ class IterativeValue:
 
 
 class Layer:
-    """Docstring for Layer"""
+    """Docstring for Layer."""
 
     def __init__(
         self,
@@ -1901,12 +1896,12 @@ class Layer:
 
     @property
     def stress_shear_eff(self):
-        """Effective shear stress at layer midpoint"""
+        """Effective shear stress at layer midpoint."""
         return self.shear_mod * self.strain
 
     @property
     def stress_shear_max(self):
-        """Maximum shear stress at layer midpoint"""
+        """Maximum shear stress at layer midpoint."""
         return self.shear_mod * self.strain_max
 
     @property
@@ -1921,8 +1916,8 @@ class Layer:
     def _compute_damping(self, strain) -> float:
         """Compute layer-adjusted damping at the given strain.
 
-        The soil type's minimum damping is replaced with the layer-specific
-        minimum damping.
+        The soil type's minimum damping is replaced with the layer-specific minimum
+        damping.
         """
         try:
             damping = self.soil_type.damping(strain)
@@ -2006,7 +2001,7 @@ class Layer:
 
 
 class Location:
-    """Location within a profile"""
+    """Location within a profile."""
 
     def __init__(self, index, layer, wave_field, depth_within=0):
         self._index = index

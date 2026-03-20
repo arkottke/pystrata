@@ -21,6 +21,47 @@ where :math:`\gamma_{eff}` is the effective shear strain, typically taken as 65%
 Empirical Models
 ----------------
 
+**Published Models**
+
+These models are published with fixed values:
+   - Vucetic & Dobry (91), PI=0
+   - Vucetic & Dobry (91), PI=15
+   - Vucetic & Dobry (91), PI=30
+   - Vucetic & Dobry (91), PI=50
+   - Vucetic & Dobry (91), PI=100
+   - Vucetic & Dobry (91), PI=200
+   - EPRI (93), PI=10
+   - EPRI (93), PI=30
+   - EPRI (93), PI=50
+   - EPRI (93), PI=70
+   - EPRI (93), 0-20 ft
+   - EPRI (93), 20-50 ft
+   - EPRI (93), 50-120 ft
+   - EPRI (93), 120-250 ft
+   - EPRI (93), 250-500 ft
+   - EPRI (93), 500-1000 ft
+   - GEI (83), 0-50 ft
+   - GEI (83), 50-100 ft
+   - GEI (83), 100-250 ft
+   - GEI (83), 250-500 ft
+   - GEI (83), >500 ft
+   - GeoMatrix (1990), 0-50 ft
+   - GeoMatrix (1990), 50-150 ft
+   - GeoMatrix (1990), >150 ft
+   - GeoMatrix (1990), 150-300 ft
+   - GeoMatrix (1990), >300 ft
+   - Idriss (1990), Clay
+   - Idriss (1990), Sand
+   - Imperial Valley Soils, 0-300 ft
+   - Imperial Valley Soils, >300 ft
+   - Iwasaki, 0.25 atm
+   - Iwasaki, 1.0 atm
+   - Peninsular Range, Cohesionless 0-50 ft
+   - Peninsular Range, Cohesionless 50-500 ft
+   - Seed & Idriss, Sand Mean
+   - Seed & Idriss, Sand Upper
+   - Seed & Idriss, Sand Lower
+
 **Darendeli (2001) Model**
 
 The Darendeli model provides normalized modulus reduction and damping curves:
