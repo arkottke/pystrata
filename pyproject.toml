@@ -47,6 +47,7 @@ style = [
     "ruff",
 ]
 docs = [
+    "docutils<0.22",
     "sphinx>=8.0",
     "sphinx-rtd-theme>=3.0.2",
     "sphinx-autobuild>=2024.9.3",
