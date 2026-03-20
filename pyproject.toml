@@ -76,7 +76,7 @@ quote-style = "double"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "Q", "I"]
-ignore = ["E203"]
+ignore = ["E203", "E501"]
 
 # Coverage configuration
 [tool.coverage.run]
