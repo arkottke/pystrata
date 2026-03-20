@@ -49,6 +49,7 @@ style = [
 docs = [
     "docutils<0.22",
     "sphinx>=8.0",
+    "sphinx-design",
     "sphinx-rtd-theme>=3.0.2",
     "sphinx-autobuild>=2024.9.3",
     "nbsphinx>=0.9.7",
