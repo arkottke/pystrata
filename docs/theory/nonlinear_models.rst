@@ -58,10 +58,6 @@ Parameters depend on:
 - Mean effective stress (:math:`\sigma_m'`)
 - Number of loading cycles
 
-**Zhang et al. (2005) Model**
-
-Alternative formulation with different parameter dependencies and curve shapes.
-
 **Wang and Stokoe (2022) Model**
 
 The Wang and Stokoe model uses a two-parameter modified hyperbolic form with
