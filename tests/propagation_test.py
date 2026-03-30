@@ -13,6 +13,7 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
 # Copyright (C) Albert Kottke, 2013-2022
+import contextlib
 import json
 import string
 
@@ -22,8 +23,30 @@ import openpyxl
 import pytest
 
 import pystrata
+import pystrata.propagation as _prop
 
 from . import FPATH_DATA
+
+
+@contextlib.contextmanager
+def _use_python_dispatch():
+    """Temporarily force pure-Python dispatch (no numba)."""
+    saved = (
+        _prop._calc_waves_dispatch,
+        _prop._wave_at_location_dispatch,
+        _prop._calc_strain_tf_dispatch,
+    )
+    _prop._calc_waves_dispatch = _prop._calc_waves_python
+    _prop._wave_at_location_dispatch = _prop._wave_at_location_python
+    _prop._calc_strain_tf_dispatch = _prop._calc_strain_tf_python
+    try:
+        yield
+    finally:
+        (
+            _prop._calc_waves_dispatch,
+            _prop._wave_at_location_dispatch,
+            _prop._calc_strain_tf_dispatch,
+        ) = saved
 
 
 def read_cluster(ws, cols, names, row_start, row_end):
@@ -82,9 +105,18 @@ class DeepSoilComparison:
     calc = NotImplemented
     profile = NotImplemented
 
+    # Override in subclasses to force pure-Python dispatch
+    _use_python = False
+
     @classmethod
     def setup_class(cls):
         cls.ref = read_deepsoil_results(cls.ref_name)
+        ctx = _use_python_dispatch() if cls._use_python else contextlib.nullcontext()
+        with ctx:
+            cls._run_calc()
+
+    @classmethod
+    def _run_calc(cls):
         # Perform the calculation
         cls.calc(load_ts(), cls.profile, cls.profile.location("outcrop", index=-1))
         cls.outputs = pystrata.output.OutputCollection(
@@ -337,6 +369,24 @@ class TestExample04EL(DeepSoilComparison):
             ),
         ]
     )
+
+
+class TestExample02LEPython(TestExample02LE):
+    """Test linear elastic wave propagation with pure-Python dispatch."""
+
+    _use_python = True
+
+
+class TestExample02ELPython(TestExample02EL):
+    """Test EQL (linear elastic input) with pure-Python dispatch."""
+
+    _use_python = True
+
+
+class TestExample04ELPython(TestExample04EL):
+    """Test EQL with pure-Python dispatch."""
+
+    _use_python = True
 
 
 class QWLComparison:

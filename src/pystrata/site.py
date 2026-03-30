@@ -2425,5 +2425,13 @@ class Profile(collections.abc.Container):
     def unit_wt(self):
         return self._get_values("unit_wt")
 
+    @property
+    def comp_shear_mod(self):
+        return self._get_values("comp_shear_mod")
+
+    @property
+    def comp_shear_vel(self):
+        return self._get_values("comp_shear_vel")
+
     def _get_values(self, attr):
         return np.array([getattr(layer, attr) for layer in self])

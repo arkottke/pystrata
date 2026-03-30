@@ -20,7 +20,12 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import numba
+try:
+    import numba
+
+    HAS_NUMBA = True
+except ImportError:
+    HAS_NUMBA = False
 import numpy as np
 import numpy.typing as npt
 import pykooh
@@ -69,7 +74,7 @@ class AbstractCalculator:
 
 
 @numba.jit(nopython=True)
-def my_trapz(thickness, prop, depth_max):
+def _my_trapz_impl(thickness, prop, depth_max):
     total = 0
     depth = 0
 
@@ -85,6 +90,245 @@ def my_trapz(thickness, prop, depth_max):
         total += (depth_max - depth) * p
 
     return total / depth_max
+
+
+def _my_trapz_python(thickness, prop, depth_max):
+    total = 0
+    depth = 0
+
+    for t, p in zip(thickness, prop):
+        depth += t
+        if depth_max < depth:
+            # Partial layer
+            total += (t - (depth - depth_max)) * p
+            break
+        total += t * p
+    else:
+        # Final infinite layer
+        total += (depth_max - depth) * p
+
+    return total / depth_max
+
+
+my_trapz = _my_trapz_impl if HAS_NUMBA else _my_trapz_python
+
+
+def _calc_waves_python(angular_freqs, comp_shear_vels, comp_shear_mods, thicknesses):
+    """Pure-Python/numpy implementation of wave propagation.
+
+    Parameters
+    ----------
+    angular_freqs : np.ndarray, shape (n_freqs,)
+    comp_shear_vels : np.ndarray, shape (n_layers, n_freqs)
+    comp_shear_mods : np.ndarray, shape (n_layers, n_freqs)
+    thicknesses : np.ndarray, shape (n_layers,)
+    """
+    n_layers = comp_shear_vels.shape[0]
+    n_freqs = len(angular_freqs)
+
+    wave_nums = np.empty((n_layers, n_freqs), dtype=complex)
+    for i in range(n_layers):
+        wave_nums[i, :] = angular_freqs / comp_shear_vels[i, :]
+
+    waves_a = np.ones_like(wave_nums, dtype=complex)
+    waves_b = np.ones_like(wave_nums, dtype=complex)
+    for i in range(n_layers - 1):
+        with np.errstate(invalid="ignore"):
+            cimped = (wave_nums[i] * comp_shear_mods[i, :]) / (
+                wave_nums[i + 1] * comp_shear_mods[i + 1, :]
+            )
+
+        cterm = 1j * wave_nums[i, :] * thicknesses[i]
+
+        waves_a[i + 1, :] = 0.5 * waves_a[i] * (1 + cimped) * np.exp(
+            cterm
+        ) + 0.5 * waves_b[i] * (1 - cimped) * np.exp(-cterm)
+        waves_b[i + 1, :] = 0.5 * waves_a[i] * (1 - cimped) * np.exp(
+            cterm
+        ) + 0.5 * waves_b[i] * (1 + cimped) * np.exp(-cterm)
+
+        mask = ~np.isfinite(cimped)
+        waves_a[i + 1, mask] = 1.0
+        waves_b[i + 1, mask] = 1.0
+
+    mask = np.isclose(angular_freqs, 0)
+    waves_a[-1, mask] = 1.0
+    waves_b[-1, mask] = 1.0
+
+    return waves_a, waves_b, wave_nums
+
+
+def _wave_at_location_python(
+    wave_nums_row, depth_within, waves_a_row, waves_b_row, wave_field_code
+):
+    """Pure-Python/numpy implementation of wave_at_location."""
+    cterm = 1j * wave_nums_row * depth_within
+    exp_pos = np.exp(cterm)
+    if wave_field_code == 1:  # WaveField.within
+        return waves_a_row * exp_pos + waves_b_row * np.exp(-cterm)
+    elif wave_field_code == 0:  # WaveField.outcrop
+        return 2.0 * waves_a_row * exp_pos
+    else:  # WaveField.incoming_only
+        return waves_a_row * exp_pos
+
+
+def _calc_strain_tf_python(
+    wave_nums_out,
+    waves_a_out,
+    waves_b_out,
+    depth_within_out,
+    ang_freqs,
+    wave_nums_in,
+    waves_a_in,
+    waves_b_in,
+    depth_within_in,
+    wave_field_code_in,
+    gravity,
+):
+    """Pure-Python/numpy implementation of calc_strain_tf."""
+    cterm_out = 1j * wave_nums_out * depth_within_out
+    numer = (
+        1j
+        * wave_nums_out
+        * (waves_a_out * np.exp(cterm_out) - waves_b_out * np.exp(-cterm_out))
+    )
+
+    wave_in = _wave_at_location_python(
+        wave_nums_in, depth_within_in, waves_a_in, waves_b_in, wave_field_code_in
+    )
+    denom = -(ang_freqs**2) * wave_in
+
+    mask = ~np.isclose(ang_freqs, 0)
+    tf = np.zeros_like(mask, dtype=complex)
+    tf[mask] = gravity * numer[mask] / denom[mask]
+    return tf
+
+
+if HAS_NUMBA:
+
+    @numba.njit(cache=True)
+    def _calc_waves_numba(angular_freqs, comp_shear_vels, comp_shear_mods, thicknesses):
+        """Numba-accelerated wave propagation computation.
+
+        Parameters
+        ----------
+        angular_freqs : np.ndarray, shape (n_freqs,)
+        comp_shear_vels : np.ndarray, shape (n_layers, n_freqs)
+        comp_shear_mods : np.ndarray, shape (n_layers, n_freqs)
+        thicknesses : np.ndarray, shape (n_layers,)
+        """
+        n_layers = comp_shear_vels.shape[0]
+        n_freqs = len(angular_freqs)
+
+        wave_nums = np.empty((n_layers, n_freqs), dtype=np.complex128)
+        for i in range(n_layers):
+            for j in range(n_freqs):
+                wave_nums[i, j] = angular_freqs[j] / comp_shear_vels[i, j]
+
+        waves_a = np.ones((n_layers, n_freqs), dtype=np.complex128)
+        waves_b = np.ones((n_layers, n_freqs), dtype=np.complex128)
+        for i in range(n_layers - 1):
+            for j in range(n_freqs):
+                denom = wave_nums[i + 1, j] * comp_shear_mods[i + 1, j]
+                if denom == 0:
+                    waves_a[i + 1, j] = 1.0
+                    waves_b[i + 1, j] = 1.0
+                    continue
+
+                cimped = (wave_nums[i, j] * comp_shear_mods[i, j]) / denom
+                cterm = 1j * wave_nums[i, j] * thicknesses[i]
+                exp_pos = np.exp(cterm)
+                exp_neg = np.exp(-cterm)
+
+                if np.isfinite(cimped.real) and np.isfinite(cimped.imag):
+                    waves_a[i + 1, j] = (
+                        0.5 * waves_a[i, j] * (1 + cimped) * exp_pos
+                        + 0.5 * waves_b[i, j] * (1 - cimped) * exp_neg
+                    )
+                    waves_b[i + 1, j] = (
+                        0.5 * waves_a[i, j] * (1 - cimped) * exp_pos
+                        + 0.5 * waves_b[i, j] * (1 + cimped) * exp_neg
+                    )
+                else:
+                    waves_a[i + 1, j] = 1.0
+                    waves_b[i + 1, j] = 1.0
+
+        # Set wave amplitudes to 1 at frequencies near 0
+        for j in range(n_freqs):
+            if abs(angular_freqs[j]) < 1e-8:
+                waves_a[n_layers - 1, j] = 1.0
+                waves_b[n_layers - 1, j] = 1.0
+
+        return waves_a, waves_b, wave_nums
+
+    @numba.njit(cache=True)
+    def _wave_at_location_numba(
+        wave_nums_row, depth_within, waves_a_row, waves_b_row, wave_field_code
+    ):
+        """Numba-accelerated wave_at_location computation."""
+        n = len(wave_nums_row)
+        result = np.empty(n, dtype=np.complex128)
+        for j in range(n):
+            cterm = 1j * wave_nums_row[j] * depth_within
+            exp_pos = np.exp(cterm)
+            if wave_field_code == 1:  # WaveField.within
+                result[j] = waves_a_row[j] * exp_pos + waves_b_row[j] * np.exp(-cterm)
+            elif wave_field_code == 0:  # WaveField.outcrop
+                result[j] = 2.0 * waves_a_row[j] * exp_pos
+            else:  # WaveField.incoming_only
+                result[j] = waves_a_row[j] * exp_pos
+        return result
+
+    @numba.njit(cache=True)
+    def _calc_strain_tf_numba(
+        wave_nums_out,
+        waves_a_out,
+        waves_b_out,
+        depth_within_out,
+        ang_freqs,
+        wave_nums_in,
+        waves_a_in,
+        waves_b_in,
+        depth_within_in,
+        wave_field_code_in,
+        gravity,
+    ):
+        """Numba-accelerated strain transfer function computation."""
+        n = len(ang_freqs)
+        tf = np.zeros(n, dtype=np.complex128)
+        for j in range(n):
+            if abs(ang_freqs[j]) < 1e-8:
+                continue
+            # Numerator: strain at output location (A - B form)
+            cterm_out = 1j * wave_nums_out[j] * depth_within_out
+            exp_pos_out = np.exp(cterm_out)
+            exp_neg_out = np.exp(-cterm_out)
+            numer = (
+                1j
+                * wave_nums_out[j]
+                * (waves_a_out[j] * exp_pos_out - waves_b_out[j] * exp_neg_out)
+            )
+            # Denominator: wave at input location
+            cterm_in = 1j * wave_nums_in[j] * depth_within_in
+            exp_pos_in = np.exp(cterm_in)
+            if wave_field_code_in == 1:  # within
+                wave_in = waves_a_in[j] * exp_pos_in + waves_b_in[j] * np.exp(-cterm_in)
+            elif wave_field_code_in == 0:  # outcrop
+                wave_in = 2.0 * waves_a_in[j] * exp_pos_in
+            else:  # incoming_only
+                wave_in = waves_a_in[j] * exp_pos_in
+
+            denom = -(ang_freqs[j] ** 2) * wave_in
+            tf[j] = gravity * numer / denom
+        return tf
+
+    _calc_waves_dispatch = _calc_waves_numba
+    _wave_at_location_dispatch = _wave_at_location_numba
+    _calc_strain_tf_dispatch = _calc_strain_tf_numba
+else:
+    _calc_waves_dispatch = _calc_waves_python
+    _wave_at_location_dispatch = _wave_at_location_python
+    _calc_strain_tf_dispatch = _calc_strain_tf_python
 
 
 class QuarterWaveLenCalculator(AbstractCalculator):
@@ -356,49 +600,22 @@ class LinearElasticCalculator(AbstractCalculator):
         profile: :class:`~.base.site.Profile`
             Site profile.
         """
+        n_layers = len(profile)
+        n_freqs = len(angular_freqs)
 
-        # Compute the complex wave numbers of the system
-        wave_nums = np.empty((len(profile), len(angular_freqs)), complex)
+        # Extract layer properties into 2D arrays (n_layers × n_freqs).
+        # This handles both scalar (LE/EQL) and vector (FDM) layer properties
+        # via numpy broadcasting.
+        comp_shear_vels = np.empty((n_layers, n_freqs), dtype=complex)
+        comp_shear_mods = np.empty((n_layers, n_freqs), dtype=complex)
         for i, layer in enumerate(profile):
-            wave_nums[i, :] = angular_freqs / layer.comp_shear_vel
+            comp_shear_vels[i, :] = layer.comp_shear_vel
+            comp_shear_mods[i, :] = layer.comp_shear_mod
+        thicknesses = profile.thickness
 
-        # Compute the waves. In the top surface layer, the up-going and
-        # down-going waves have an amplitude of 1 as they are completely
-        # reflected at the surface.
-        waves_a = np.ones_like(wave_nums, complex)
-        waves_b = np.ones_like(wave_nums, complex)
-        for i, layer in enumerate(profile[:-1]):
-            # Complex impedance -- wave number can be zero which causes an
-            # error.
-            with np.errstate(invalid="ignore"):
-                cimped = (wave_nums[i] * layer.comp_shear_mod) / (
-                    wave_nums[i + 1] * profile[i + 1].comp_shear_mod
-                )
-
-            # Complex term to simplify equations -- uses full layer height
-            cterm = 1j * wave_nums[i, :] * layer.thickness
-
-            waves_a[i + 1, :] = 0.5 * waves_a[i] * (1 + cimped) * np.exp(
-                cterm
-            ) + 0.5 * waves_b[i] * (1 - cimped) * np.exp(-cterm)
-            waves_b[i + 1, :] = 0.5 * waves_a[i] * (1 - cimped) * np.exp(
-                cterm
-            ) + 0.5 * waves_b[i] * (1 + cimped) * np.exp(-cterm)
-
-            # Set wave amplitudes with zero frequency to 1
-            mask = ~np.isfinite(cimped)
-            waves_a[i + 1, mask] = 1.0
-            waves_b[i + 1, mask] = 1.0
-
-        # fixme: Better way to handle this?
-        # Set wave amplitudes to 1 at frequencies near 0
-        mask = np.isclose(angular_freqs, 0)
-        waves_a[-1, mask] = 1.0
-        waves_b[-1, mask] = 1.0
-
-        self._waves_a = waves_a
-        self._waves_b = waves_b
-        self._wave_nums = wave_nums
+        self._waves_a, self._waves_b, self._wave_nums = _calc_waves_dispatch(
+            angular_freqs, comp_shear_vels, comp_shear_mods, thicknesses
+        )
 
     def wave_at_location(self, loc: Location) -> np.ndarray:
         """Compute the wave field at specific location.
@@ -413,18 +630,13 @@ class LinearElasticCalculator(AbstractCalculator):
         `np.ndarray`
             Amplitude and phase of waves
         """
-        cterm = 1j * self._wave_nums[loc.index] * loc.depth_within
-
-        if loc.wave_field == WaveField.within:
-            return self._waves_a[loc.index] * np.exp(cterm) + self._waves_b[
-                loc.index
-            ] * np.exp(-cterm)
-        elif loc.wave_field == WaveField.outcrop:
-            return 2 * self._waves_a[loc.index] * np.exp(cterm)
-        elif loc.wave_field == WaveField.incoming_only:
-            return self._waves_a[loc.index] * np.exp(cterm)
-        else:
-            raise NotImplementedError
+        return _wave_at_location_dispatch(
+            self._wave_nums[loc.index],
+            loc.depth_within,
+            self._waves_a[loc.index],
+            self._waves_b[loc.index],
+            loc.wave_field.value,
+        )
 
     def calc_accel_tf(self, lin, lout):
         """Compute the acceleration transfer function.
@@ -492,26 +704,19 @@ class LinearElasticCalculator(AbstractCalculator):
         assert lout.wave_field == WaveField.within
 
         ang_freqs = self.motion.angular_freqs
-        # The numerator cannot be computed using wave_at_location() because
-        # it is A - B.
-        cterm = 1j * self._wave_nums[lout.index, :] * lout.depth_within
-        numer = (
-            1j
-            * self._wave_nums[lout.index, :]
-            * (
-                self._waves_a[lout.index, :] * np.exp(cterm)
-                - self._waves_b[lout.index, :] * np.exp(-cterm)
-            )
+        return _calc_strain_tf_dispatch(
+            self._wave_nums[lout.index, :],
+            self._waves_a[lout.index, :],
+            self._waves_b[lout.index, :],
+            lout.depth_within,
+            ang_freqs,
+            self._wave_nums[lin.index, :],
+            self._waves_a[lin.index, :],
+            self._waves_b[lin.index, :],
+            lin.depth_within,
+            lin.wave_field.value,
+            GRAVITY,
         )
-        denom = -(ang_freqs**2) * self.wave_at_location(lin)
-
-        # Only compute transfer function for non-zero frequencies
-        mask = ~np.isclose(ang_freqs, 0)
-        tf = np.zeros_like(mask, dtype=complex)
-        # Scale into units from gravity
-        tf[mask] = GRAVITY * numer[mask] / denom[mask]
-
-        return tf
 
 
 class EquivalentLinearCalculator(LinearElasticCalculator):

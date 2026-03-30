@@ -12,7 +12,6 @@ license = "MIT"
 requires-python = ">=3.10"
 dependencies = [
     "matplotlib",
-    "numba",
     "numpy>=2.0",
     "pykooh",
     "pyrvt",
@@ -27,6 +26,7 @@ Homepage = "https://github.com/arkottke/pystrata"
 Documentation = "https://pystrata.readthedocs.io"
 
 [project.optional-dependencies]
+numba = ["numba"]
 test = [
     "numpy>=2.0",
     "coverage[toml]",
