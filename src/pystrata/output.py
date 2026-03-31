@@ -34,7 +34,8 @@ except ImportError:
 
 import pykooh
 
-from .motion import GRAVITY, TimeSeriesMotion, WaveField
+from .motion import TimeSeriesMotion, WaveField
+from .units import GRAVITY, convert_units
 
 
 def plot_amplification_evolv(
@@ -313,6 +314,7 @@ class Output:
 
 
 class OutputLocation:
+    @convert_units(depth="meter")
     def __init__(self, wave_field, depth=None, index=None):
         self._depth = depth
         self._index = index
@@ -468,6 +470,7 @@ class FourierAmplitudeSpectrumOutput(LocationBasedOutput):
 
     ref_name = "freq"
 
+    @convert_units(freqs="hertz")
     def __init__(self, freqs, location, ko_bandwidth=30):
         super().__init__(freqs, location)
         self._ko_bandwidth = ko_bandwidth
@@ -508,6 +511,7 @@ class ResponseSpectrumOutput(LocationBasedOutput):
 
     ref_name = "freq"
 
+    @convert_units(freqs="hertz")
     def __init__(self, freqs, location, osc_damping):
         super().__init__(freqs, location)
         self._osc_damping = osc_damping
@@ -566,6 +570,7 @@ class AccelTransferFunctionOutput(RatioBasedOutput):
 
     ref_name = "freq"
 
+    @convert_units(refs="hertz")
     def __init__(
         self, refs, location_in, location_out, ko_bandwidth=None, absolute=True
     ):
@@ -600,6 +605,7 @@ class ResponseSpectrumRatioOutput(RatioBasedOutput):
 
     ref_name = "freq"
 
+    @convert_units(freqs="hertz")
     def __init__(self, freqs, location_in, location_out, osc_damping):
         super().__init__(freqs, location_in, location_out)
         self._osc_damping = osc_damping

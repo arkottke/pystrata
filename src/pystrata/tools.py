@@ -27,9 +27,9 @@ from collections.abc import Callable
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-import scipy.constants as C
 
 from . import motion, propagation, site
+from .units import GRAVITY, convert_units
 
 
 def to_str(s):
@@ -299,7 +299,7 @@ def profile_from_nrattle_ctl(ctl):
     df["damping"] = df["inv_qual"].apply(
         lambda iq: 0 if np.isclose(iq, 0) else 0.5 * 1 / (iq if iq > 1 else 1 / iq)
     )
-    df["unit_wt"] = C.g * df["density"]
+    df["unit_wt"] = GRAVITY * df["density"]
 
     return site.Profile.from_dataframe(df, 0)
 
@@ -532,6 +532,7 @@ def calc_mean_eff_stress(
     return stress_mean
 
 
+@convert_units(shear_vel="meter / second", comp_vel="meter / second")
 def calc_poissons_ratio(
     shear_vel: npt.ArrayLike, comp_vel: npt.ArrayLike
 ) -> np.ndarray:

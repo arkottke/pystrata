@@ -29,6 +29,7 @@ from scipy import stats
 from scipy.sparse import diags
 
 from . import site
+from .units import convert_units
 
 # Used to define the random state. A specific state can be set with:
 # random_state.set_seed(42)
@@ -1114,6 +1115,7 @@ class DispersionCheck:
         ``"phase"`` or ``"group"``.
     """
 
+    @convert_units(freqs="hertz", target="meter / second")
     def __init__(
         self,
         freqs,

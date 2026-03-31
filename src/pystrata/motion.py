@@ -27,8 +27,7 @@ import re
 import numpy as np
 import pyrvt
 
-# Gravity in m/sec²
-from scipy.constants import g as GRAVITY
+from .units import GRAVITY, convert_units
 
 _trapezoid = np.trapezoid
 
@@ -92,8 +91,14 @@ class Motion:
 class TimeSeriesMotion(Motion):
     """Time-series motion for time series based site response analysis."""
 
+    @convert_units(time_step="second", accels="standard_gravity")
     def __init__(
-        self, filename: str, description: str, time_step: float, accels, fa_length=None
+        self,
+        filename: str,
+        description: str,
+        time_step: float,
+        accels: np.typing.ArrayLike,
+        fa_length=None,
     ):
         """Initialize the class from specified acceleration values.
 
@@ -351,6 +356,7 @@ class TimeSeriesMotion(Motion):
 class RvtMotion(pyrvt.motions.RvtMotion, Motion):
     """RVT motion based on user specified Fourier amplitude spectrum and duration."""
 
+    @convert_units(fourier_amps="standard_gravity * second", duration="second")
     def __init__(
         self, freqs, fourier_amps, duration=None, peak_calculator=None, calc_kwds=None
     ):
@@ -369,6 +375,7 @@ class CompatibleRvtMotion(pyrvt.motions.CompatibleRvtMotion, Motion):
     """RVT motion based on user specified acceleration response spectrum and
     duration."""
 
+    @convert_units(osc_accels_target="standard_gravity", duration="second")
     def __init__(
         self,
         osc_freqs,
@@ -398,6 +405,7 @@ class SourceTheoryRvtMotion(pyrvt.motions.SourceTheoryMotion, Motion):
     """RVT motion based on seismological point source model and earthquake scenario
     parameters."""
 
+    @convert_units(distance="kilometer", depth="kilometer")
     def __init__(
         self,
         magnitude,

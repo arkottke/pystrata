@@ -22,8 +22,9 @@
 from importlib.metadata import version
 
 from . import motion, output, propagation, site, tools, variation
+from .units import ureg
 
-__all__ = ["motion", "propagation", "output", "site", "tools", "variation"]
+__all__ = ["motion", "propagation", "output", "site", "tools", "variation", "ureg"]
 
 __author__ = "Albert Kottke"
 __copyright__ = "Copyright 2016-2024 Albert Kottke"

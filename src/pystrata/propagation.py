@@ -31,8 +31,9 @@ import numpy.typing as npt
 import pykooh
 from scipy.optimize import minimize
 
-from .motion import GRAVITY, Motion, WaveField
+from .motion import Motion, WaveField
 from .site import Layer, Location, Profile
+from .units import GRAVITY
 
 
 class AbstractCalculator:

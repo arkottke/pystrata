@@ -32,15 +32,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-import scipy.constants
 import tomli
 from scipy.interpolate import interp1d
 
-from .motion import GRAVITY, WaveField
+from .motion import WaveField
+from .units import GRAVITY, KPA_TO_ATM, convert_kwds_units, convert_units
 
 COMP_MODULUS_MODEL = "dormieux"
-
-KPA_TO_ATM = scipy.constants.kilo / scipy.constants.atm
 
 PUBLISHED_CURVES = dict()
 
@@ -87,6 +85,7 @@ class NonlinearCurve(ABC):
 
     PARAMS = ["mod_reduc", "damping"]
 
+    @convert_units(strains="dimensionless")
     def __init__(self, name="", strains=None, values=None, limits=None):
         self.name = name
         self._strains = np.asarray(strains).astype(float)
@@ -293,6 +292,7 @@ class SoilType:
         damping is used.
     """
 
+    @convert_units(unit_wt="kilonewton / meter ** 3", damping="dimensionless")
     def __init__(
         self,
         name: str = "",
@@ -368,6 +368,7 @@ class SoilType:
 
 
 class ModifiedHyperbolicSoilType(SoilType, ABC):
+    @convert_units(unit_wt="kilonewton / meter ** 3", strains="dimensionless")
     def __init__(self, name, unit_wt, damping_min, strains=None):
         """
 
@@ -468,6 +469,11 @@ class TwoParamModifiedHyperbolicCoeffs:
 
 
 class TwoParamModifiedHyperbolicSoilType(SoilType):
+    @convert_units(
+        unit_wt="kilonewton / meter ** 3",
+        stress_mean="kilopascal",
+        strains="dimensionless",
+    )
     def __init__(
         self,
         name: str = "",
@@ -547,6 +553,12 @@ class DarendeliSoilType(ModifiedHyperbolicSoilType):
         shear strains levels [decimal]
     """
 
+    @convert_units(
+        unit_wt="kilonewton / meter ** 3",
+        stress_mean="kilopascal",
+        freq="hertz",
+        strains="dimensionless",
+    )
     def __init__(
         self,
         unit_wt=0.0,
@@ -622,6 +634,12 @@ class MenqSoilType(ModifiedHyperbolicSoilType):
         shear strains levels [decimal]
     """
 
+    @convert_units(
+        unit_wt="kilonewton / meter ** 3",
+        stress_mean="kilopascal",
+        diam_mean="millimeter",
+        strains="dimensionless",
+    )
     def __init__(
         self,
         name="",
@@ -824,6 +842,8 @@ class WangSoilType(SoilType):
         },
     }
 
+    @convert_units(unit_wt="kilonewton / meter ** 3", strains="dimensionless")
+    @convert_kwds_units(stress_mean="kilopascal")
     def __init__(
         self,
         soil_group: str,
@@ -1353,6 +1373,11 @@ class AlemuEtAlSoilType(SoilType):
     _E5 = 1.249
     _E6 = 0.680
 
+    @convert_units(
+        unit_wt="kilonewton / meter ** 3",
+        stress_mean="kilopascal",
+        strains="dimensionless",
+    )
     def __init__(
         self,
         unit_wt: float = 0.0,
@@ -1441,6 +1466,11 @@ class RollinsEtAlSoilType(ModifiedHyperbolicSoilType):
         ``np.logspace(-6, -1.5, num=20)``.
     """
 
+    @convert_units(
+        unit_wt="kilonewton / meter ** 3",
+        stress_mean="kilopascal",
+        strains="dimensionless",
+    )
     def __init__(
         self,
         unit_wt: float = 0.0,
@@ -1536,6 +1566,11 @@ class KishidaSoilType(SoilType):
         shear modulus reduction is equal to 1. [decimal]
     """
 
+    @convert_units(
+        unit_wt="kilonewton / meter ** 3",
+        stress_vert="kilopascal",
+        strains="dimensionless",
+    )
     def __init__(
         self,
         name="",
@@ -1668,7 +1703,7 @@ class KishidaSoilType(SoilType):
         d = np.r_[-0.112, 0.038, 0.360]
 
         ln_density = d.T @ x
-        unit_wt = np.exp(ln_density) * scipy.constants.g
+        unit_wt = np.exp(ln_density) * GRAVITY
         return unit_wt
 
     def _create_name(self):
@@ -1718,6 +1753,9 @@ class IterativeValue:
 class Layer:
     """Docstring for Layer."""
 
+    @convert_units(
+        thickness="meter", shear_vel="meter / second", damping_min="dimensionless"
+    )
     def __init__(
         self,
         soil_type: SoilType,
@@ -2033,6 +2071,7 @@ class Layer:
 class Location:
     """Location within a profile."""
 
+    @convert_units(depth_within="meter")
     def __init__(self, index, layer, wave_field, depth_within=0):
         self._index = index
         self._layer = layer
@@ -2071,6 +2110,7 @@ class Location:
 class Profile(collections.abc.Container):
     """Soil profile with an infinite halfspace at the base."""
 
+    @convert_units(wt_depth="meter")
     def __init__(self, layers=None, wt_depth=0):
         super().__init__()
         self.layers = layers or []
@@ -2376,6 +2416,7 @@ class Profile(collections.abc.Container):
         rayleigh_vel = 4 * thicks.sum() / period_fun
         return rayleigh_vel
 
+    @convert_units(freqs="hertz")
     def calc_dispersion(
         self,
         freqs,
