@@ -942,7 +942,10 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
 
         This step was recommended in Section 8.3.1 of Zalachoris (2014).
         """
-        eql = EquivalentLinearCalculator()
+        eql = EquivalentLinearCalculator(
+            strain_ratio=self.strain_ratio,
+            strain_limit=self.strain_limit,
+        )
         eql(self._motion, self._profile, self._loc_input)
 
     def _calc_strain(self, loc_input, loc_layer, motion, *args):
