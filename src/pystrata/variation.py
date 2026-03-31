@@ -21,7 +21,7 @@
 # SOFTWARE.
 import copy
 from abc import abstractmethod
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 
 import numpy as np
 import numpy.typing as npt
@@ -268,6 +268,7 @@ class ToroThicknessVariation:
                             thick,
                             layer.initial_shear_vel,
                             layer.damping_min,
+                            layer.poissons_ratio,
                         )
                     )
                     break
@@ -276,7 +277,14 @@ class ToroThicknessVariation:
 
         # Add the half-space
         hsl = profile[-1]
-        layers.append(site.Layer(hsl.soil_type, 0, hsl.initial_shear_vel))
+        layers.append(
+            site.Layer(
+                hsl.soil_type,
+                0,
+                hsl.initial_shear_vel,
+                poissons_ratio=hsl.poissons_ratio,
+            )
+        )
 
         varied = site.Profile(layers, profile.wt_depth)
         return varied
@@ -922,6 +930,7 @@ class SoilTypeVariation:
                 layer.thickness,
                 layer.initial_shear_vel,
                 layer.damping_min,
+                layer.poissons_ratio,
             )
             for layer in profile[:end]
         ]
@@ -1075,12 +1084,74 @@ class SpidVariation(SoilTypeVariation):
         return self._std_mod_reduc
 
 
+class DispersionCheck:
+    """Accept/reject a profile based on its surface-wave dispersion curve.
+
+    The check computes a z-score at each frequency assuming a log-normal
+    distribution:
+
+    .. math::
+
+        z_i = \\frac{\\ln(V_i / V_{\\text{target},i})}{\\sigma_{\\ln,i}}
+
+    A profile is accepted when ``max(|z|) <= max_z_score``.
+
+    Parameters
+    ----------
+    freqs : array_like
+        Frequencies [Hz].
+    target : array_like
+        Target median dispersion velocity [m/s].
+    ln_std : array_like
+        Log-standard deviation of dispersion velocity at each frequency.
+    max_z_score : float
+        Maximum allowable absolute z-score.
+    wave : str, optional
+        Wave type passed to :meth:`~pystrata.site.Profile.calc_dispersion`.
+    mode : int, optional
+        Mode number (0 = fundamental).
+    dc_type : str, optional
+        ``"phase"`` or ``"group"``.
+    """
+
+    def __init__(
+        self,
+        freqs,
+        target,
+        ln_std,
+        max_z_score,
+        wave="rayleigh",
+        mode=0,
+        dc_type="phase",
+    ):
+        self.freqs = np.asarray(freqs, dtype=float)
+        self.target = np.asarray(target, dtype=float)
+        self.ln_std = np.asarray(ln_std, dtype=float)
+        self.max_z_score = max_z_score
+        self.wave = wave
+        self.mode = mode
+        self.dc_type = dc_type
+
+    def __call__(self, profile: site.Profile) -> bool:
+        try:
+            velocity = profile.calc_dispersion(
+                self.freqs, wave=self.wave, mode=self.mode, dc_type=self.dc_type
+            )
+        except Exception:
+            # Reject profiles where dispersion computation fails
+            return False
+        z = np.log(velocity / self.target) / self.ln_std
+        return float(np.max(np.abs(z))) <= self.max_z_score
+
+
 def iter_varied_profiles(
     profile: site.Profile,
     count: int,
     var_thickness: ToroThicknessVariation | None = None,
     var_velocity: VelocityVariation | None = None,
     var_soiltypes: SoilTypeVariation | None = None,
+    check: None | Callable = None,
+    max_attempts: int | None = None,
 ) -> Generator[site.Profile]:
     """Iterate over simulated profiles.
 
@@ -1099,6 +1170,14 @@ def iter_varied_profiles(
         *count* must be divisible by the number of configured percentiles; the
         percentile list cycles so that each percentile is used
         ``count // len(percentiles)`` times in order.
+    check : callable or None
+        Optional callable that receives a :class:`~pystrata.site.Profile` and
+        returns ``True`` if it should be yielded.  When the check returns
+        ``False`` the profile is discarded and a new one is generated.
+    max_attempts : int or None
+        Maximum number of profile generations to attempt.  Defaults to
+        ``count * 100`` when *check* is provided.  Ignored when *check* is
+        ``None``.
 
     Returns
     -------
@@ -1113,7 +1192,19 @@ def iter_varied_profiles(
                 f"({n_pct}) when sample_mode='fixed_percentiles'"
             )
 
-    for i in range(count):
+    if check is not None and max_attempts is None:
+        max_attempts = count * 100
+
+    yielded = 0
+    attempts = 0
+    i = 0
+    while yielded < count:
+        if check is not None and attempts >= max_attempts:
+            raise RuntimeError(
+                f"Exceeded {max_attempts} attempts to generate {count} profiles "
+                f"({yielded} accepted so far). Consider relaxing the check criteria."
+            )
+
         # Copy the profile to form the realization
         _profile = profile.copy()
 
@@ -1135,4 +1226,11 @@ def iter_varied_profiles(
             )
             _profile = var_soiltypes.vary_profile(_profile, sample_index=sample_index)
 
+        i += 1
+        attempts += 1
+
+        if check is not None and not check(_profile):
+            continue
+
+        yielded += 1
         yield _profile

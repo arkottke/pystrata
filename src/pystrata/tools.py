@@ -307,9 +307,7 @@ def profile_from_nrattle_ctl(ctl):
 def calc_atten_scatter(
     profile: site.Profile, freqs: npt.ArrayLike | None = None
 ) -> float:
-    """
-    Compute the attenuation due to impedance (scattering) effects of the
-    profile.
+    """Compute the attenuation due to impedance (scattering) effects of the profile.
 
     This is defined as the difference between the attenuation associated with a
     known damping and the attenuation from the transfer function.
@@ -369,10 +367,9 @@ def adjust_damping_values(
     exclude: None | str | list[str] | Callable = None,
     inplace: bool = False,
 ) -> tuple[site.Profile, float]:
-    """
-    Adjust the minimum damping values of a site profile so that the total site
-    attenuation matches a specified target value. Optionally, certain layers can
-    be excluded from adjustment.
+    """Adjust the minimum damping values of a site profile so that the total site
+    attenuation matches a specified target value. Optionally, certain layers can be
+    excluded from adjustment.
 
     The function computes the attenuation due to impedance (scattering) effects
     and any excluded layers, then distributes the remaining required attenuation
@@ -533,3 +530,26 @@ def calc_mean_eff_stress(
     stress_mean = stress_vert_eff * (1 + 2 * k0) / 3
 
     return stress_mean
+
+
+def calc_poissons_ratio(
+    shear_vel: npt.ArrayLike, comp_vel: npt.ArrayLike
+) -> np.ndarray:
+    """Compute Poisson's ratio from shear- and compression-wave velocities.
+
+    Parameters
+    ----------
+    shear_vel : array_like
+        Shear-wave velocity, Vs [m/s].
+    comp_vel : array_like
+        Compression-wave velocity, Vp [m/s].
+
+    Returns
+    -------
+    np.ndarray
+        Poisson's ratio (dimensionless).
+    """
+    shear_vel = np.asarray(shear_vel, dtype=float)
+    comp_vel = np.asarray(comp_vel, dtype=float)
+    r2 = (comp_vel / shear_vel) ** 2
+    return (r2 - 2) / (2 * (r2 - 1))

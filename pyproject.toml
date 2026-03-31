@@ -27,6 +27,7 @@ Documentation = "https://pystrata.readthedocs.io"
 
 [project.optional-dependencies]
 numba = ["numba"]
+dispersion = ["disba"]
 test = [
     "numpy>=2.0",
     "coverage[toml]",

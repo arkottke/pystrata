@@ -1724,6 +1724,7 @@ class Layer:
         thickness: float,
         shear_vel: float,
         damping_min: None | float = None,
+        poissons_ratio: None | float = None,
     ):
         """@todo: to be defined!"""
         self._profile = None
@@ -1742,6 +1743,8 @@ class Layer:
             self._damping_min = damping_min
         else:
             self._damping_min = soil_type.damping_min
+
+        self._poissons_ratio = poissons_ratio
 
         self.reset()
 
@@ -1772,7 +1775,13 @@ class Layer:
 
     def copy(self) -> Layer:
         """Return a copy of the Layer instance with previously defined SoilType."""
-        return Layer(self.soil_type, self.thickness, self.shear_vel, self.damping_min)
+        return Layer(
+            self.soil_type,
+            self.thickness,
+            self.shear_vel,
+            self.damping_min,
+            self.poissons_ratio,
+        )
 
     @property
     def depth(self) -> float:
@@ -1788,6 +1797,27 @@ class Layer:
     def depth_base(self) -> float:
         """Depth to the base of the layer [m]."""
         return self._depth + self._thickness
+
+    @property
+    def poissons_ratio(self) -> float | None:
+        """Poisson's ratio of the layer."""
+        return self._poissons_ratio
+
+    @poissons_ratio.setter
+    def poissons_ratio(self, value: float | None):
+        self._poissons_ratio = value
+
+    @property
+    def comp_vel(self) -> float | None:
+        """Compression-wave velocity [m/s] derived from shear velocity and Poisson's
+        ratio.
+
+        Returns ``None`` if :attr:`poissons_ratio` is not set.
+        """
+        if self._poissons_ratio is None:
+            return None
+        nu = self._poissons_ratio
+        return self.initial_shear_vel * np.sqrt(2 * (1 - nu) / (1 - 2 * nu))
 
     @property
     def density(self) -> float:
@@ -2346,6 +2376,77 @@ class Profile(collections.abc.Container):
         rayleigh_vel = 4 * thicks.sum() / period_fun
         return rayleigh_vel
 
+    def calc_dispersion(
+        self,
+        freqs,
+        wave="rayleigh",
+        mode=0,
+        dc_type="phase",
+    ):
+        """Compute surface-wave dispersion curve via *disba*.
+
+        Parameters
+        ----------
+        freqs : array_like
+            Frequencies [Hz] at which to evaluate the dispersion curve.
+        wave : str, optional
+            Wave type: ``"rayleigh"`` (default) or ``"love"``.
+        mode : int, optional
+            Mode number (0 = fundamental, default).
+        dc_type : str, optional
+            ``"phase"`` (default) or ``"group"``.
+
+        Returns
+        -------
+        np.ndarray
+            Phase or group velocity [m/s] at each frequency.
+
+        Raises
+        ------
+        ValueError
+            If any layer is missing :attr:`Layer.poissons_ratio`.
+        ImportError
+            If *disba* is not installed.
+        """
+        try:
+            from disba import GroupDispersion, PhaseDispersion
+        except ImportError:
+            raise ImportError(
+                "The 'disba' package is required for dispersion calculations. "
+                "Install it with: pip install disba"
+            )
+
+        if any(layer.poissons_ratio is None for layer in self):
+            raise ValueError(
+                "All layers must have poissons_ratio set to compute dispersion."
+            )
+
+        freqs = np.asarray(freqs, dtype=float)
+        # disba expects periods sorted in ascending order
+        periods = 1.0 / freqs
+        sort_idx = np.argsort(periods)
+        periods_sorted = periods[sort_idx]
+
+        # Build velocity model: (thickness [km], Vp [km/s], Vs [km/s], density [g/cm³])
+        thickness = self.thickness / 1e3
+        comp_vel = self.comp_vel / 1e3
+        shear_vel = self.initial_shear_vel / 1e3
+        density = self.density / 1e3
+
+        if dc_type == "phase":
+            dc = PhaseDispersion(thickness, comp_vel, shear_vel, density)
+        elif dc_type == "group":
+            dc = GroupDispersion(thickness, comp_vel, shear_vel, density)
+        else:
+            raise ValueError(f"dc_type must be 'phase' or 'group', got {dc_type!r}")
+
+        result = dc(periods_sorted, mode=mode, wave=wave)
+        # result.velocity is in km/s; convert back to m/s and restore
+        # original frequency ordering
+        velocity = np.empty_like(result.velocity)
+        velocity[sort_idx] = result.velocity
+        return velocity * 1e3
+
     def plot(self, prop, ax=None, plot_kwds=None, axis_kwds=None):
         # Defaults
         xlabels = {
@@ -2416,6 +2517,14 @@ class Profile(collections.abc.Container):
     @property
     def shear_vel(self):
         return self._get_values("shear_vel")
+
+    @property
+    def comp_vel(self):
+        return self._get_values("comp_vel")
+
+    @property
+    def poissons_ratio(self):
+        return self._get_values("poissons_ratio")
 
     @property
     def strain(self):
