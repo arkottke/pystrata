@@ -19,10 +19,14 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+
+from __future__ import annotations
+
 import collections
 
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import scipy.integrate
 from matplotlib.colors import LogNorm, TwoSlopeNorm
 from scipy.interpolate import interp1d
@@ -40,13 +44,13 @@ from .units import GRAVITY, convert_units
 
 def plot_amplification_evolv(
     calc,
-    metric="accel_tf",
-    depths=None,
-    freqs=None,
-    normalized=False,
-    wave_field_out="within",
-    diverging_cmap=True,
-    include_vs_profile=False,
+    metric: str = "accel_tf",
+    depths: npt.ArrayLike | None = None,
+    freqs: npt.ArrayLike | None = None,
+    normalized: bool = False,
+    wave_field_out: str = "within",
+    diverging_cmap: bool = True,
+    include_vs_profile: bool = False,
     ax=None,
     **kwds,
 ):
@@ -114,33 +118,33 @@ def plot_amplification_evolv(
 
 
 class OutputCollection(collections.abc.Collection):
-    def __init__(self, outputs):
+    def __init__(self, outputs: list[Output]) -> None:
         super().__init__()
         self.outputs = outputs
 
     def __iter__(self):
         return iter(self.outputs)
 
-    def __contains__(self, value):
+    def __contains__(self, value) -> bool:
         return value in self.outputs
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.outputs)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key) -> Output:
         return self.outputs[key]
 
-    def __call__(self, calc, name=None):
+    def __call__(self, calc, name: str | None = None) -> None:
         # Save results
         for o in self:
             o(calc, name=name)
 
-    def reset(self):
+    def reset(self) -> None:
         for o in self:
             o.reset()
 
 
-def append_arrays(many, single):
+def append_arrays(many: np.ndarray, single: npt.ArrayLike) -> np.ndarray:
     """Append an array to another padding with NaNs for constant length.
 
     Parameters
@@ -180,12 +184,12 @@ class Output:
     yscale = "log"
     drawstyle = "default"
 
-    def __init__(self, refs=None):
+    def __init__(self, refs: npt.ArrayLike | None = None) -> None:
         self._refs = np.asarray([] if refs is None else refs)
-        self._values = None
-        self._names = []
+        self._values: np.ndarray | None = None
+        self._names: list[str] = []
 
-    def __call__(self, calc, name=None):
+    def __call__(self, calc, name: str | None = None) -> None:
         if name is None:
             if self.values is None:
                 i = 1
@@ -197,18 +201,18 @@ class Output:
         self._names.append(name)
 
     @property
-    def refs(self):
+    def refs(self) -> np.ndarray:
         return self._refs
 
     @property
-    def values(self):
+    def values(self) -> np.ndarray | None:
         return self._values
 
     @property
-    def names(self):
+    def names(self) -> list[str]:
         return self._names
 
-    def reset(self):
+    def reset(self) -> None:
         self._values = None
         self._names = []
         if not self._const_ref:
@@ -221,21 +225,21 @@ class Output:
             values = self.values if len(self.values.shape) == 1 else self.values[:, i]
             yield name, refs, values
 
-    def _add_refs(self, refs):
+    def _add_refs(self, refs: npt.ArrayLike) -> None:
         refs = np.asarray(refs)
         if len(self._refs) == 0:
             self._refs = np.array(refs)
         else:
             self._refs = append_arrays(self._refs, refs)
 
-    def _add_values(self, values):
+    def _add_values(self, values: npt.ArrayLike) -> None:
         values = np.asarray(values)
         if self._values is None:
             self._values = values
         else:
             self._values = append_arrays(self._values, values)
 
-    def calc_stats(self, as_dataframe=False):
+    def calc_stats(self, as_dataframe: bool = False):
         ln_values = np.log(self.values)
         median = np.exp(np.nanmean(ln_values, axis=1))
         ln_std = np.nanstd(ln_values, axis=1)
@@ -264,7 +268,7 @@ class Output:
     def _get_xy(refs, values):
         return refs, values
 
-    def plot(self, ax=None, style="indiv"):
+    def plot(self, ax=None, style: str = "indiv"):
         assert style in ["stats", "indiv"]
 
         if ax is None:
@@ -315,7 +319,12 @@ class Output:
 
 class OutputLocation:
     @convert_units(depth="meter")
-    def __init__(self, wave_field, depth=None, index=None):
+    def __init__(
+        self,
+        wave_field: str | WaveField,
+        depth: float | None = None,
+        index: int | None = None,
+    ) -> None:
         self._depth = depth
         self._index = index
         if not isinstance(wave_field, WaveField):
@@ -323,15 +332,15 @@ class OutputLocation:
         self._wave_field = wave_field
 
     @property
-    def depth(self):
+    def depth(self) -> float | None:
         return self._depth
 
     @property
-    def index(self):
+    def index(self) -> int | None:
         return self._index
 
     @property
-    def wave_field(self):
+    def wave_field(self) -> WaveField:
         return self._wave_field
 
     def __call__(self, profile):
@@ -340,12 +349,12 @@ class OutputLocation:
 
 
 class LocationBasedOutput(Output):
-    def __init__(self, ref, location):
+    def __init__(self, ref: npt.ArrayLike | None, location: OutputLocation) -> None:
         super().__init__(ref)
         self._location = location
 
     @property
-    def location(self):
+    def location(self) -> OutputLocation:
         return self._location
 
     def __call__(self, calc, name=None):
@@ -364,14 +373,14 @@ class TimeSeriesOutput(LocationBasedOutput):
 
     ref_name = "time"
 
-    def __init__(self, location):
+    def __init__(self, location: OutputLocation) -> None:
         super().__init__(None, location)
 
     @property
-    def times(self):
+    def times(self) -> np.ndarray:
         return self.refs
 
-    def __call__(self, calc, name=None):
+    def __call__(self, calc, name: str | None = None) -> None:
         if not isinstance(calc.motion, TimeSeriesMotion):
             raise NotImplementedError
         Output.__call__(self, calc, name)
@@ -388,7 +397,7 @@ class TimeSeriesOutput(LocationBasedOutput):
     def _get_trans_func(self, calc, location):
         raise NotImplementedError
 
-    def _modify_values(self, calc, location, values):
+    def _modify_values(self, calc, location, values: np.ndarray) -> np.ndarray:
         return values
 
     def to_dataframe(self):
@@ -398,14 +407,14 @@ class TimeSeriesOutput(LocationBasedOutput):
 class AccelerationTSOutput(TimeSeriesOutput):
     ylabel = "Acceleration (g)"
 
-    def _get_trans_func(self, calc, location):
+    def _get_trans_func(self, calc, location) -> np.ndarray:
         return calc.calc_accel_tf(calc.loc_input, location)
 
 
 class AriasIntensityTSOutput(AccelerationTSOutput):
     ylabel = "Arias Intensity (m/s)"
 
-    def _modify_values(self, calc, location, values):
+    def _modify_values(self, calc, location, values: np.ndarray) -> np.ndarray:
         time_step = calc.motion.time_step
         values = scipy.integrate.cumulative_trapezoid(values**2, dx=time_step)
         values *= GRAVITY * np.pi / 2
@@ -413,7 +422,7 @@ class AriasIntensityTSOutput(AccelerationTSOutput):
 
 
 class StrainTSOutput(TimeSeriesOutput):
-    def __init__(self, location, in_percent=False):
+    def __init__(self, location: OutputLocation, in_percent: bool = False) -> None:
         super().__init__(location)
         self._in_percent = in_percent
         assert self.location.wave_field == WaveField.within
@@ -434,18 +443,23 @@ class StrainTSOutput(TimeSeriesOutput):
 
 
 class StressTSOutput(TimeSeriesOutput):
-    def __init__(self, location, damped=False, normalized=False):
+    def __init__(
+        self,
+        location: OutputLocation,
+        damped: bool = False,
+        normalized: bool = False,
+    ) -> None:
         super().__init__(location)
         self._damped = damped
         self._normalized = normalized
         assert self.location.wave_field == WaveField.within
 
     @property
-    def damped(self):
+    def damped(self) -> bool:
         return self._damped
 
     @property
-    def ylabel(self):
+    def ylabel(self) -> str:
         if self._normalized:
             ylabel = "Stress Ratio (τ/σ`ᵥ)"
         else:
@@ -471,19 +485,24 @@ class FourierAmplitudeSpectrumOutput(LocationBasedOutput):
     ref_name = "freq"
 
     @convert_units(freqs="hertz")
-    def __init__(self, freqs, location, ko_bandwidth=30):
+    def __init__(
+        self,
+        freqs: npt.ArrayLike,
+        location: OutputLocation,
+        ko_bandwidth: float = 30,
+    ) -> None:
         super().__init__(freqs, location)
         self._ko_bandwidth = ko_bandwidth
 
     @property
-    def freqs(self):
+    def freqs(self) -> np.ndarray:
         return self._refs
 
     @property
-    def ko_bandwidth(self):
+    def ko_bandwidth(self) -> float:
         return self._ko_bandwidth
 
-    def __call__(self, calc, name=None):
+    def __call__(self, calc, name: str | None = None) -> None:
         Output.__call__(self, calc, name)
         loc = self._get_location(calc)
         tf = calc.calc_accel_tf(calc.loc_input, loc)
@@ -512,27 +531,32 @@ class ResponseSpectrumOutput(LocationBasedOutput):
     ref_name = "freq"
 
     @convert_units(freqs="hertz")
-    def __init__(self, freqs, location, osc_damping):
+    def __init__(
+        self,
+        freqs: npt.ArrayLike,
+        location: OutputLocation,
+        osc_damping: float,
+    ) -> None:
         super().__init__(freqs, location)
         self._osc_damping = osc_damping
 
     @property
-    def freqs(self):
+    def freqs(self) -> np.ndarray:
         return self._refs
 
     @property
-    def periods(self):
+    def periods(self) -> np.ndarray:
         return 1.0 / np.asarray(self._refs)
 
     @property
-    def osc_damping(self):
+    def osc_damping(self) -> float:
         return self._osc_damping
 
     @property
-    def ylabel(self):
+    def ylabel(self) -> str:
         return f"{100 * self.osc_damping:g}%-Damped, Spec. Accel. (g)"
 
-    def __call__(self, calc, name=None):
+    def __call__(self, calc, name: str | None = None) -> None:
         Output.__call__(self, calc, name)
         loc = self._get_location(calc)
         tf = calc.calc_accel_tf(calc.loc_input, loc)
@@ -543,17 +567,22 @@ class ResponseSpectrumOutput(LocationBasedOutput):
 class RatioBasedOutput(Output):
     _const_ref = True
 
-    def __init__(self, refs, location_in, location_out):
+    def __init__(
+        self,
+        refs: npt.ArrayLike,
+        location_in: OutputLocation,
+        location_out: OutputLocation,
+    ) -> None:
         super().__init__(refs)
         self._location_in = location_in
         self._location_out = location_out
 
     @property
-    def location_in(self):
+    def location_in(self) -> OutputLocation:
         return self._location_in
 
     @property
-    def location_out(self):
+    def location_out(self) -> OutputLocation:
         return self._location_out
 
     def __call__(self, calc, name=None):
@@ -572,13 +601,18 @@ class AccelTransferFunctionOutput(RatioBasedOutput):
 
     @convert_units(refs="hertz")
     def __init__(
-        self, refs, location_in, location_out, ko_bandwidth=None, absolute=True
-    ):
+        self,
+        refs: npt.ArrayLike,
+        location_in: OutputLocation,
+        location_out: OutputLocation,
+        ko_bandwidth: float | None = None,
+        absolute: bool = True,
+    ) -> None:
         super().__init__(refs, location_in, location_out)
         self._ko_bandwidth = ko_bandwidth
         self._absolute = absolute
 
-    def __call__(self, calc, name=None):
+    def __call__(self, calc, name: str | None = None) -> None:
         Output.__call__(self, calc, name)
         # Locate position within the profile
         loc_in, loc_out = self._get_locations(calc)
@@ -596,7 +630,7 @@ class AccelTransferFunctionOutput(RatioBasedOutput):
         self._add_values(tf)
 
     @property
-    def freqs(self):
+    def freqs(self) -> np.ndarray:
         return self._refs
 
 
@@ -606,27 +640,33 @@ class ResponseSpectrumRatioOutput(RatioBasedOutput):
     ref_name = "freq"
 
     @convert_units(freqs="hertz")
-    def __init__(self, freqs, location_in, location_out, osc_damping):
+    def __init__(
+        self,
+        freqs: npt.ArrayLike,
+        location_in: OutputLocation,
+        location_out: OutputLocation,
+        osc_damping: float,
+    ) -> None:
         super().__init__(freqs, location_in, location_out)
         self._osc_damping = osc_damping
 
     @property
-    def freqs(self):
+    def freqs(self) -> np.ndarray:
         return self._refs
 
     @property
-    def periods(self):
+    def periods(self) -> np.ndarray:
         return 1.0 / np.asarray(self._refs)
 
     @property
-    def osc_damping(self):
+    def osc_damping(self) -> float:
         return self._osc_damping
 
     @property
-    def ylabel(self):
+    def ylabel(self) -> str:
         return f"{100 * self.osc_damping:g}%-Damped, Resp. Spectral Ratio"
 
-    def __call__(self, calc, name=None):
+    def __call__(self, calc, name: str | None = None) -> None:
         Output.__call__(self, calc, name)
         loc_in, loc_out = self._get_locations(calc)
         in_ars = calc.motion.calc_osc_accels(
@@ -646,15 +686,15 @@ class ProfileBasedOutput(Output):
 
     ref_name = "depth"
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
-    def __call__(self, calc, name=None):
+    def __call__(self, calc, name: str | None = None) -> None:
         Output.__call__(self, calc, name)
         depths = np.r_[0, calc.profile.depth_mid[:-1]]
         self._add_refs(depths)
 
-    def calc_stats(self, as_dataframe=False, ref=None):
+    def calc_stats(self, as_dataframe: bool = False, ref: npt.ArrayLike | None = None):
         if ref is None:
             ref = np.linspace(0, np.nanmax(self.refs) * 1.05, num=512)
 
@@ -676,12 +716,12 @@ class ProfileBasedOutput(Output):
     def _get_xy(refs, values):
         return values, refs
 
-    def plot(self, ax=None, style="stats"):
+    def plot(self, ax=None, style: str = "stats"):
         ax = Output.plot(self, ax, style)
         ax.invert_yaxis()
         return ax
 
-    def _ln_interp(self, i, ref):
+    def _ln_interp(self, i: int, ref: npt.ArrayLike) -> np.ndarray:
         """Interpolate the values in log-y space."""
 
         _ref = self.refs[:, i]
@@ -706,7 +746,7 @@ class ProfileBasedOutput(Output):
 
         return _ln_interped
 
-    def to_dataframe(self, ref=None):
+    def to_dataframe(self, ref: npt.ArrayLike | None = None):
         if not pd:
             raise RuntimeError("Install `pandas` library.")
 

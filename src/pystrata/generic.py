@@ -1,5 +1,7 @@
 """Generic velocity profiles."""
 
+from __future__ import annotations
+
 import gzip as _gzip
 import json
 import os
@@ -7,16 +9,16 @@ import urllib.request
 import warnings
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 
 from .tools import calc_mean_eff_stress
 
 
-def kea16_profile(depth: float, vs30: float, region: str) -> pd.DataFrame:
-    """
-    Calculate the median shear-wave velocity profile and its standard deviation
-    at a given depth, based on the VS30 value and region, using the model from
-    Kamai et al. (2016).
+def kea16_profile(depth: npt.ArrayLike, vs30: float, region: str) -> pd.DataFrame:
+    """Calculate the median shear-wave velocity profile and its standard deviation at a
+    given depth, based on the VS30 value and region, using the model from Kamai et al.
+    (2016).
 
     Parameters
     ----------

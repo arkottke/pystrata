@@ -21,10 +21,13 @@
 # SOFTWARE.
 """Classes used to define input motions."""
 
+from __future__ import annotations
+
 import enum
 import re
 
 import numpy as np
+import numpy.typing as npt
 import pyrvt
 
 from .units import GRAVITY, convert_units
@@ -39,52 +42,52 @@ class WaveField(enum.Enum):
 
 
 class Motion:
-    def __init__(self, freqs=None):
+    def __init__(self, freqs: npt.ArrayLike | None = None) -> None:
         object.__init__(self)
 
         self._freqs = np.array([] if freqs is None else freqs)
-        self._pga = None
-        self._pgv = None
-        self._arias_intensity = None
-        self._cav = None
+        self._pga: float | None = None
+        self._pgv: float | None = None
+        self._arias_intensity: float | None = None
+        self._cav: float | None = None
 
     @property
-    def freqs(self):
+    def freqs(self) -> np.ndarray:
         return self._freqs
 
     @property
-    def angular_freqs(self):
+    def angular_freqs(self) -> np.ndarray:
         return 2 * np.pi * self.freqs
 
     @property
-    def pgv(self):
+    def pgv(self) -> float:
         """Peak ground velocity [cm/sec]."""
         if self._pgv is None:
             self._pgv = self.calc_pgv()
         return self._pgv
 
     @property
-    def pga(self):
+    def pga(self) -> float:
         """Peak ground acceleration [g]"""
         if self._pga is None:
             self._pga = self.calc_pga()
         return self._pga
 
     @property
-    def arias_intensity(self):
+    def arias_intensity(self) -> float:
         """Arias intensity [m/s]."""
         if self._arias_intensity is None:
             self._arias_intensity = self.calc_arias_intensity()
         return self._arias_intensity
 
     @property
-    def cav(self):
+    def cav(self) -> float:
         """Cumulative absolute velocity [m/s]."""
         if self._cav is None:
             self._cav = self.calc_cav()
         return self._cav
 
-    def calc_peak(self, tf: np.typing.ArrayLike | None = None, **kwargs) -> float:
+    def calc_peak(self, tf: npt.ArrayLike | None = None, **kwargs) -> float:
         raise NotImplementedError
 
 
@@ -97,9 +100,9 @@ class TimeSeriesMotion(Motion):
         filename: str,
         description: str,
         time_step: float,
-        accels: np.typing.ArrayLike,
-        fa_length=None,
-    ):
+        accels: npt.ArrayLike,
+        fa_length: int | None = None,
+    ) -> None:
         """Initialize the class from specified acceleration values.
 
         The *filename* and *description* parameters are only used to help track the
@@ -129,27 +132,27 @@ class TimeSeriesMotion(Motion):
         self._calc_fourier_spectrum(fa_length)
 
     @property
-    def accels(self):
+    def accels(self) -> np.ndarray:
         return self._accels
 
     @property
-    def filename(self):
+    def filename(self) -> str:
         return self._filename
 
     @property
-    def description(self):
+    def description(self) -> str:
         return self._description
 
     @property
-    def time_step(self):
+    def time_step(self) -> float:
         return self._time_step
 
     @property
-    def times(self):
+    def times(self) -> np.ndarray:
         return self._time_step * np.arange(self._accels.size)
 
     @property
-    def freqs(self):
+    def freqs(self) -> np.ndarray:
         """Return the frequencies."""
         if self._freqs is None:
             self._calc_fourier_spectrum()
@@ -157,7 +160,7 @@ class TimeSeriesMotion(Motion):
         return self._freqs
 
     @property
-    def fourier_amps(self):
+    def fourier_amps(self) -> np.ndarray:
         """Return the frequencies."""
         if self._fourier_amps is None:
             self._calc_fourier_spectrum()
@@ -165,14 +168,14 @@ class TimeSeriesMotion(Motion):
         # Normalize the Fourier amplitude by the time step
         return self.time_step * self._fourier_amps
 
-    def calc_time_series(self, tf=None):
+    def calc_time_series(self, tf: npt.ArrayLike | None = None) -> np.ndarray:
         if tf is None:
             ts = np.fft.irfft(self.fourier_amps / self.time_step)
         else:
             ts = np.fft.irfft(tf * self.fourier_amps / self.time_step)
         return ts
 
-    def calc_pgv(self, tf=None):
+    def calc_pgv(self, tf: npt.ArrayLike | None = None) -> float:
         tf = 1 if tf is None else np.asarray(tf)
         # Compute transfer function from acceleration to velocity
         # only over non-zero frequencies
@@ -181,24 +184,29 @@ class TimeSeriesMotion(Motion):
         tf_av[mask] = 1 / (self.angular_freqs[mask] * 1j)
         return GRAVITY * 100 * self.calc_peak(tf_av * tf)
 
-    def calc_pga(self, tf=None):
+    def calc_pga(self, tf: npt.ArrayLike | None = None) -> float:
         return self.calc_peak(tf)
 
-    def calc_peak(self, tf=None, **kwargs):
+    def calc_peak(self, tf: npt.ArrayLike | None = None, **kwargs) -> float:
         ts = self.calc_time_series(tf)
         return np.abs(ts).max()
 
-    def calc_arias_intensity(self, tf=None):
+    def calc_arias_intensity(self, tf: npt.ArrayLike | None = None) -> float:
         tf = 1 if tf is None else np.asarray(tf)
         ts = self.calc_time_series(tf)
         return np.pi * GRAVITY / 2 * _trapezoid(ts**2, dx=self.time_step)
 
-    def calc_cav(self, tf=None):
+    def calc_cav(self, tf: npt.ArrayLike | None = None) -> float:
         tf = 1 if tf is None else np.asarray(tf)
         ts = self.calc_time_series(tf)
         return GRAVITY * _trapezoid(np.abs(ts), dx=self.time_step)
 
-    def calc_osc_accels(self, osc_freqs, osc_damping=0.05, tf=None):
+    def calc_osc_accels(
+        self,
+        osc_freqs: npt.ArrayLike,
+        osc_damping: float = 0.05,
+        tf: npt.ArrayLike | None = None,
+    ) -> np.ndarray:
         """Compute the pseudo-acceleration spectral response of an oscillator with a
         specific frequency and damping.
 
@@ -231,7 +239,7 @@ class TimeSeriesMotion(Motion):
         )
         return resp
 
-    def _calc_fourier_spectrum(self, fa_length=None):
+    def _calc_fourier_spectrum(self, fa_length: int | None = None) -> None:
         """Compute the Fourier Amplitude Spectrum of the time series."""
 
         if fa_length is None:
@@ -247,7 +255,7 @@ class TimeSeriesMotion(Motion):
         freq_step = 1.0 / (2 * self._time_step * (n / 2))
         self._freqs = freq_step * np.arange(1 + n / 2)
 
-    def _calc_sdof_tf(self, osc_freq, damping=0.05):
+    def _calc_sdof_tf(self, osc_freq: float, damping: float = 0.05) -> np.ndarray:
         """Compute the transfer function for a single-degree-of-freedom oscillator.
 
         The transfer function computes the pseudo-spectral acceleration.
@@ -272,7 +280,7 @@ class TimeSeriesMotion(Motion):
         )
 
     @classmethod
-    def load_at2_file(cls, filename, scale=1.0):
+    def load_at2_file(cls, filename: str, scale: float = 1.0) -> TimeSeriesMotion:
         """Read an AT2 formatted time series.
 
         Parameters
@@ -295,7 +303,7 @@ class TimeSeriesMotion(Motion):
         return cls(filename, description, time_step, accels)
 
     @classmethod
-    def load_smc_file(cls, filename, scale=1.0):
+    def load_smc_file(cls, filename: str, scale: float = 1.0) -> TimeSeriesMotion:
         """Read an SMC formatted time series.
 
         Format of the time series is provided by:
@@ -358,8 +366,13 @@ class RvtMotion(pyrvt.motions.RvtMotion, Motion):
 
     @convert_units(fourier_amps="standard_gravity * second", duration="second")
     def __init__(
-        self, freqs, fourier_amps, duration=None, peak_calculator=None, calc_kwds=None
-    ):
+        self,
+        freqs: npt.ArrayLike,
+        fourier_amps: npt.ArrayLike,
+        duration: float | None = None,
+        peak_calculator=None,
+        calc_kwds: dict | None = None,
+    ) -> None:
         Motion.__init__(self)
         pyrvt.motions.RvtMotion.__init__(
             self,
@@ -378,15 +391,15 @@ class CompatibleRvtMotion(pyrvt.motions.CompatibleRvtMotion, Motion):
     @convert_units(osc_accels_target="standard_gravity", duration="second")
     def __init__(
         self,
-        osc_freqs,
-        osc_accels_target,
-        duration=None,
-        osc_damping=0.05,
-        event_kwds=None,
-        window_len=None,
+        osc_freqs: npt.ArrayLike,
+        osc_accels_target: npt.ArrayLike,
+        duration: float | None = None,
+        osc_damping: float = 0.05,
+        event_kwds: dict | None = None,
+        window_len: int | None = None,
         peak_calculator=None,
-        calc_kwds=None,
-    ):
+        calc_kwds: dict | None = None,
+    ) -> None:
         Motion.__init__(self)
         pyrvt.motions.CompatibleRvtMotion.__init__(
             self,
@@ -408,14 +421,14 @@ class SourceTheoryRvtMotion(pyrvt.motions.SourceTheoryMotion, Motion):
     @convert_units(distance="kilometer", depth="kilometer")
     def __init__(
         self,
-        magnitude,
-        distance,
-        region,
-        stress_drop=None,
-        depth=8,
+        magnitude: float,
+        distance: float,
+        region: str,
+        stress_drop: float | None = None,
+        depth: float = 8,
         peak_calculator=None,
-        calc_kwds=None,
-    ):
+        calc_kwds: dict | None = None,
+    ) -> None:
         Motion.__init__(self)
         pyrvt.motions.SourceTheoryMotion.__init__(
             self,
