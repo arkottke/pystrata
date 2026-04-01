@@ -32,8 +32,6 @@ import pyrvt
 
 from .units import GRAVITY, convert_units
 
-_trapezoid = np.trapezoid
-
 
 class WaveField(enum.Enum):
     outcrop = 0
@@ -194,12 +192,12 @@ class TimeSeriesMotion(Motion):
     def calc_arias_intensity(self, tf: npt.ArrayLike | None = None) -> float:
         tf = 1 if tf is None else np.asarray(tf)
         ts = self.calc_time_series(tf)
-        return np.pi * GRAVITY / 2 * _trapezoid(ts**2, dx=self.time_step)
+        return np.pi * GRAVITY / 2 * np.trapezoid(ts**2, dx=self.time_step)
 
     def calc_cav(self, tf: npt.ArrayLike | None = None) -> float:
         tf = 1 if tf is None else np.asarray(tf)
         ts = self.calc_time_series(tf)
-        return GRAVITY * _trapezoid(np.abs(ts), dx=self.time_step)
+        return GRAVITY * np.trapezoid(np.abs(ts), dx=self.time_step)
 
     def calc_osc_accels(
         self,
