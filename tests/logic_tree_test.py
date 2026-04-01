@@ -63,13 +63,12 @@ def test_valid_branches(my_tree):
 
 
 def test_multiple_alternatives_same_value_different_requires():
-    """
-    Test that multiple alternatives with the same value but different 'requires'
+    """Test that multiple alternatives with the same value but different 'requires'
     conditions are both included in the logic tree branches.
 
-    This test addresses a bug where only the first alternative with a given value
-    was being used in branch validation, causing branches with later alternatives
-    to be incorrectly marked as invalid.
+    This test addresses a bug where only the first alternative with a given value was
+    being used in branch validation, causing branches with later alternatives to be
+    incorrectly marked as invalid.
     """
     # Create a logic tree with the problematic pattern:
     # - Two alternatives with same value (0.05) but different requirements
@@ -127,10 +126,8 @@ def test_multiple_alternatives_same_value_different_requires():
 
 
 def test_complex_conditional_logic_tree():
-    """
-    Test a more complex case similar to the original bug report with multiple
-    sites, kappa values, and methods.
-    """
+    """Test a more complex case similar to the original bug report with multiple sites,
+    kappa values, and methods."""
     # This reproduces the original bug scenario
     logic_tree_definition = [
         {

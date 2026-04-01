@@ -11,8 +11,7 @@ Use this prompt to replicate the documentation system used in this project for o
 **Requirements:**
 
 1.  **Dependencies:**
-
-    -   Add a `docs` dependency group in `pyproject.toml` (or `requirements-docs.txt`) with the following packages:
+    - Add a `docs` dependency group in `pyproject.toml` (or `requirements-docs.txt`) with the following packages:
         ```python
         sphinx>=8.0
         nbsphinx>=0.9.7
@@ -24,9 +23,8 @@ Use this prompt to replicate the documentation system used in this project for o
         ```
 
 2.  **Configuration (`conf.py`):**
-
-    -   Set `html_theme = "furo"`.
-    -   enable extensions:
+    - Set `html_theme = "furo"`.
+    - enable extensions:
         ```python
         extensions = [
             "nbsphinx",
@@ -40,34 +38,32 @@ Use this prompt to replicate the documentation system used in this project for o
             "sphinxcontrib.bibtex",
         ]
         ```
-    -   Configure `nbsphinx` to not execute notebooks during build (unless desired):
+    - Configure `nbsphinx` to not execute notebooks during build (unless desired):
         ```python
         nbsphinx_execute = 'never'
         nbsphinx_allow_errors = True
         ```
-    -   Configure `bibtex` if references are needed.
+    - Configure `bibtex` if references are needed.
 
 3.  **Folder Structure:**
-
-    -   `docs/`: Root documentation folder.
-    -   `docs/examples/`: Place `.nblink` files here to link to notebooks in the project root or examples directory.
-    -   `docs/_static/`: Custom CSS/JS.
-    -   `docs/api/`: API reference stubs.
-    -   `docs/user_guide/`: Narrative documentation.
+    - `docs/`: Root documentation folder.
+    - `docs/examples/`: Place `.nblink` files here to link to notebooks in the project root or examples directory.
+    - `docs/_static/`: Custom CSS/JS.
+    - `docs/api/`: API reference stubs.
+    - `docs/user_guide/`: Narrative documentation.
 
 4.  **Notebook Integration:**
-
-    -   Use `nbsphinx-link` to include notebooks from outside the `docs` directory without copying them. Create `.nblink` files in `docs/examples/` like:
+    - Use `nbsphinx-link` to include notebooks from outside the `docs` directory without copying them. Create `.nblink` files in `docs/examples/` like:
         ```json
         { "path": "../../examples/my_notebook.ipynb" }
         ```
 
 5.  **Build Automation:**
-    -   Ensure `make html` (via Makefile) works effectively.
-    -   Use `uv`, run with `uv run --group docs make -C docs html`.
+    - Ensure `make html` (via Makefile) works effectively.
+    - Use `uv`, run with `uv run --group docs make -C docs html`.
 
 **Output:**
 
--   A fully functional `docs/` directory with configured `conf.py`.
--   Updated `pyproject.toml` with necessary dependencies.
--   Successful build of HTML documentation.
+- A fully functional `docs/` directory with configured `conf.py`.
+- Updated `pyproject.toml` with necessary dependencies.
+- Successful build of HTML documentation.
