@@ -400,22 +400,26 @@ class SourceTheoryRvtMotion(pyrvt.motions.SourceTheoryMotion, Motion):
 
     def __init__(
         self,
-        magnitude,
-        distance,
-        region,
-        stress_drop=None,
-        depth=8,
-        peak_calculator=None,
-        calc_kwds=None,
+        magnitude: float,
+        distance: float,
+        region: str | None = None,
+        depth: float | None = 8,
+        peak_calculator: str | pyrvt.peak_calculators.Calculator | None = None,
+        calc_kwds: dict | None = None,
+        freqs: np.ndarray | None = None,
+        disable_site_amp: bool = False,
+        **kwargs
     ):
         Motion.__init__(self)
         pyrvt.motions.SourceTheoryMotion.__init__(
             self,
-            magnitude,
-            distance,
-            region,
-            stress_drop,
-            depth,
+            magnitude=magnitude,
+            distance=distance,
+            region=region,
+            depth=depth,
             peak_calculator=peak_calculator,
             calc_kwds=calc_kwds,
+            freqs=freqs,
+            disable_site_amp=disable_site_amp,
+            **kwargs
         )
