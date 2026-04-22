@@ -24,6 +24,7 @@
 from __future__ import annotations
 
 import enum
+import logging
 import re
 
 import numpy as np
@@ -31,6 +32,8 @@ import numpy.typing as npt
 import pyrvt
 
 from .units import GRAVITY, convert_units
+
+logger = logging.getLogger(__name__)
 
 
 class WaveField(enum.Enum):
@@ -128,6 +131,13 @@ class TimeSeriesMotion(Motion):
         self._accels = np.asarray(accels)
 
         self._calc_fourier_spectrum(fa_length)
+
+        logger.debug(
+            "TimeSeriesMotion: %d samples, dt=%.4fs, PGA=%.3fg",
+            len(self._accels),
+            self._time_step,
+            self.pga,
+        )
 
     @property
     def accels(self) -> np.ndarray:

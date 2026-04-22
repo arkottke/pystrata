@@ -20,6 +20,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import logging
+import time
+from typing import TYPE_CHECKING, Literal
+
 try:
     import numba
 
@@ -31,9 +35,15 @@ import numpy.typing as npt
 import pykooh
 from scipy.optimize import minimize
 
-from .motion import Motion, WaveField
+from .motion import Motion, TimeSeriesMotion, WaveField
 from .site import Layer, Location, Profile
 from .units import GRAVITY
+
+logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from .constitutive import MultiLayerParams
+    from .time_integration import TimeDomainResults
 
 
 class AbstractCalculator:
@@ -41,6 +51,7 @@ class AbstractCalculator:
         self._loc_input: None | Location = None
         self._motion: None | Motion = None
         self._profile: None | Profile = None
+        self._start_time: float | None = None
 
     def __call__(
         self,
@@ -50,9 +61,23 @@ class AbstractCalculator:
         reset_layers=True,
         **kwds,
     ):
+        self._start_time = time.perf_counter()
         self._motion = motion
         self._profile = profile
         self._loc_input = loc_input
+
+        if logger.isEnabledFor(logging.DEBUG):
+            n_layers = len(profile)
+            max_depth = (
+                sum(layer.thickness for layer in profile[:-1]) if n_layers > 1 else 0
+            )
+            logger.debug(
+                "%s: %d layers, max_depth=%.1fm, motion=%s",
+                getattr(self, "name", self.__class__.__name__),
+                n_layers,
+                max_depth,
+                type(motion).__name__,
+            )
 
         if reset_layers:
             # Set initial properties
@@ -590,6 +615,13 @@ class LinearElasticCalculator(AbstractCalculator):
 
         self._calc_waves(motion.angular_freqs, profile)
 
+        elapsed = time.perf_counter() - self._start_time
+        logger.debug(
+            "LE: computed %d frequencies in %.3fs",
+            len(motion.angular_freqs),
+            elapsed,
+        )
+
     def _calc_waves(self, angular_freqs, profile):
         """Compute the wave numbers and amplitudes (up- and down-going).
 
@@ -726,7 +758,7 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
     name = "EQL"
 
     def __init__(
-        self, strain_ratio=0.65, tolerance=0.01, max_iterations=15, strain_limit=0.05
+        self, strain_ratio=0.65, tolerance=0.025, max_iterations=15, strain_limit=0.05
     ):
         """Initialize the class.
 
@@ -736,7 +768,7 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
             Ratio between the maximum strain and effective strain used to
             compute strain compatible properties.
 
-        tolerance: float, default=0.01
+        tolerance: float, default=0.025
             Tolerance in the iterative properties, which would cause the
             iterative process to terminate.
 
@@ -784,6 +816,7 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
         # The iteration at which strains were last limited
         limited_iter = -2
         limited_strains = False
+        converged = False
 
         while iteration < self.max_iterations:
             limited_strains = False
@@ -803,16 +836,41 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
             # Maximum error (damping and shear modulus) over all layers
             max_error = max(profile.max_error)
             if max_error < self.tolerance:
+                converged = True
                 break
 
             # Break, if the strains were limited the last two iterations.
             if limited_strains:
                 if limited_iter == (iteration - 1):
+                    logger.warning(
+                        "EQL: strain limit (%.3f) exceeded after %d iterations",
+                        self._strain_limit,
+                        iteration + 1,
+                    )
                     raise RuntimeError("Strain limit exceeded.")
                 else:
                     limited_iter = iteration
 
             iteration += 1
+
+        # Log convergence status
+        elapsed = time.perf_counter() - self._start_time
+        if converged:
+            logger.info(
+                "%s: converged in %d iterations (max_error=%.4f) in %.3fs",
+                self.name,
+                iteration + 1,
+                max_error,
+                elapsed,
+            )
+        else:
+            logger.warning(
+                "%s: did not converge after %d iterations (max_error=%.4f, tol=%.4f)",
+                self.name,
+                self.max_iterations,
+                max_error,
+                self.tolerance,
+            )
 
         # Compute the maximum strain within the profile.
         for index, layer in enumerate(profile[:-1]):
@@ -899,12 +957,13 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         the effective strain ratio. For the `ka02` the recommended value is
         0.65 -- or consistent with an EQL approach. For `zr15` and `ko:##`, there is no
         clear guidance but a value of 1.0 might make sense.
-    tolerance: float, default=0.01
+    tolerance: float, default=0.025
         tolerance in the iterative properties, which would cause the iterative
         process to terminate.
-    max_iterations: int, default=15
-        maximum number of iterations to perform.
-
+    max_iterations: int, default=50
+        maximum number of iterations to perform. Because of the
+        frequency-dependent properties, more iterations might be needed for
+        convergence.
     strain_limit: float, default=0.05
         Limit of strain in calculations. If this strain is exceed, the
         iterative calculation is ended.
@@ -920,8 +979,8 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         self,
         method: str = "ka02",
         strain_ratio: float = 0.65,
-        tolerance: float = 0.01,
-        max_iterations: int = 15,
+        tolerance: float = 0.025,
+        max_iterations: int = 50,
         strain_limit: float = 0.05,
     ):
         """Initialize the class."""
@@ -943,7 +1002,9 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
 
         This step was recommended in Section 8.3.1 of Zalachoris (2014).
         """
-        eql = EquivalentLinearCalculator()
+        eql = EquivalentLinearCalculator(
+            strain_limit=self._strain_limit, tolerance=self._tolerance
+        )
         eql(self._motion, self._profile, self._loc_input)
 
     def _calc_strain(self, loc_input, loc_layer, motion, *args):
@@ -997,3 +1058,391 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
             strains = strain_eff * strain_fas / np.max(strain_fas)
 
         return strains
+
+
+class TimeDomainCalculator(AbstractCalculator):
+    """Time-domain nonlinear site response calculator.
+
+    This calculator performs true nonlinear time-domain wave propagation
+    using explicit central difference integration. It supports both MKZ
+    and HH constitutive models.
+
+    The profile should be discretized by the user before calling the
+    calculator (see :meth:`~pystrata.site.Profile.auto_discretize`).
+
+    Nonlinear constitutive model parameters can be pre-computed with
+    :meth:`prepare` for inspection before running the analysis, or they
+    will be fitted automatically when :meth:`__call__` is invoked.
+
+    Parameters
+    ----------
+    model : str
+        Constitutive model type: 'mkz' or 'hh'.
+    boundary : str
+        Boundary condition: 'elastic' (transmitting) or 'rigid'.
+    subcycles : int, optional
+        Number of integration subcycles per input time step.
+        Auto-calculated from CFL condition if None.
+
+    Examples
+    --------
+    >>> calc = TimeDomainCalculator(model='hh', boundary='elastic')
+    >>> profile_disc = profile.auto_discretize(max_freq=50)
+    >>> params = calc.prepare(profile_disc)  # optional: inspect params
+    >>> calc(motion, profile_disc, profile_disc.location('outcrop', index=-1))
+    >>> surface_accel = calc.accel_ts(profile_disc.location('outcrop', index=0))
+    """
+
+    name = "TD"
+
+    def __init__(
+        self,
+        model: Literal["mkz", "hh"] = "hh",
+        boundary: Literal["elastic", "rigid"] = "elastic",
+        subcycles: int | None = None,
+    ):
+        super().__init__()
+        self._model = model
+        self._boundary = boundary
+        self._subcycles = subcycles
+
+        # Results storage
+        self._results: TimeDomainResults | None = None
+        self._params: MultiLayerParams | None = None
+
+    @property
+    def model(self) -> str:
+        """Constitutive model type."""
+        return self._model
+
+    @property
+    def boundary(self) -> str:
+        """Boundary condition."""
+        return self._boundary
+
+    @property
+    def results(self) -> "TimeDomainResults | None":
+        """Time-domain integration results."""
+        return self._results
+
+    @property
+    def params(self) -> "MultiLayerParams | None":
+        """Fitted constitutive model parameters."""
+        return self._params
+
+    def prepare(
+        self,
+        profile: Profile,
+        verbose: bool = False,
+    ) -> "MultiLayerParams":
+        """Fit constitutive model parameters for a profile.
+
+        This fits MKZ or HH parameters to each nonlinear layer's modulus
+        reduction and damping curves. The result can be inspected (e.g.,
+        with :func:`~pystrata.curve_fitting.plot_fit`) before running
+        the analysis.
+
+        Parameters
+        ----------
+        profile : Profile
+            Site profile (should already be discretized if needed).
+        verbose : bool
+            Print progress information.
+
+        Returns
+        -------
+        params : MultiLayerParams
+            Fitted constitutive model parameters for each layer.
+        """
+        from .curve_fitting import fit_profile
+
+        n_layers = len(profile) - 1
+        logger.debug(
+            "TD: fitting %s parameters for %d layers",
+            self._model.upper(),
+            n_layers,
+        )
+        if verbose:
+            print(f"Fitting {self._model.upper()} parameters...")
+
+        self._params = fit_profile(profile, model=self._model, verbose=verbose)
+        return self._params
+
+    def __call__(
+        self,
+        motion: Motion,
+        profile: Profile,
+        loc_input: Location,
+        reset_layers: bool = True,
+        verbose: bool = False,
+        params: "MultiLayerParams | None" = None,
+        **kwds,
+    ):
+        """Perform time-domain wave propagation.
+
+        Parameters
+        ----------
+        motion : TimeSeriesMotion
+            Input motion (must be TimeSeriesMotion, not RVT).
+        profile : Profile
+            Site profile (should already be discretized if needed).
+        loc_input : Location
+            Location of the input motion.
+        reset_layers : bool
+            Whether to reset layer properties.
+        verbose : bool
+            Print progress information.
+        params : MultiLayerParams, optional
+            Pre-computed constitutive model parameters (from :meth:`prepare`).
+            If not provided and the profile has nonlinear layers, parameters
+            are fitted automatically.
+        **kwds
+            Additional keyword arguments.
+
+        Raises
+        ------
+        TypeError
+            If motion is not a TimeSeriesMotion.
+        """
+        # Validate motion type
+        if not isinstance(motion, TimeSeriesMotion):
+            raise TypeError(
+                f"TimeDomainCalculator requires TimeSeriesMotion, "
+                f"got {type(motion).__name__}. RVT methods are frequency-domain "
+                f"only and cannot be used with time-domain analysis."
+            )
+
+        super().__call__(motion, profile, loc_input, reset_layers=reset_layers, **kwds)
+
+        logger.info(
+            "TD: %d time steps, dt=%.4fs, model=%s, boundary=%s",
+            len(motion.times),
+            motion.time_step,
+            self._model,
+            self._boundary,
+        )
+
+        from .time_integration import propagate_nonlinear, propagate_time_domain
+
+        # Extract layer properties from the profile
+        n_layers = len(profile) - 1  # Exclude halfspace
+        thicknesses = np.array([layer.thickness for layer in profile[:-1]])
+        densities = np.array([layer.density for layer in profile[:-1]])
+        shear_mods = np.array([layer.initial_shear_mod for layer in profile[:-1]])
+        damping_min = np.array([layer.damping_min or 0.01 for layer in profile[:-1]])
+
+        # Base layer properties
+        base_layer = profile[-1]
+        rho_base = base_layer.density
+        vs_base = base_layer.initial_shear_vel
+
+        # Get input motion
+        times = motion.times
+        input_accel = motion.accels * GRAVITY  # Convert from g to m/s²
+
+        # Adjust for input location (outcrop vs within)
+        if loc_input.wave_field == WaveField.outcrop:
+            # Outcrop motion: divide by 2 for elastic base
+            if self._boundary == "elastic":
+                input_accel = input_accel / 2
+
+        # Check if profile has nonlinear layers
+        has_nonlinear = any(layer.soil_type.is_nonlinear for layer in profile[:-1])
+
+        if has_nonlinear and self._model in ("mkz", "hh"):
+            # Use provided params, previously prepared params, or fit now
+            if params is not None:
+                self._params = params
+            elif self._params is None:
+                self.prepare(profile, verbose=verbose)
+
+            # Run nonlinear propagation
+            if verbose:
+                print("Running nonlinear time-domain propagation...")
+
+            self._results = propagate_nonlinear(
+                times=times,
+                input_accel=input_accel,
+                thicknesses=thicknesses,
+                densities=densities,
+                params=self._params,
+                damping_min=damping_min,
+                boundary=self._boundary,
+                rho_base=rho_base,
+                vs_base=vs_base,
+                subcycles=self._subcycles,
+            )
+        else:
+            # Run linear elastic propagation
+            logger.debug(
+                "TD: running linear elastic propagation for %d layers", n_layers
+            )
+            if verbose:
+                print("Running linear elastic time-domain propagation...")
+
+            self._results = propagate_time_domain(
+                times=times,
+                input_accel=input_accel,
+                thicknesses=thicknesses,
+                densities=densities,
+                shear_mods=shear_mods,
+                damping_ratios=damping_min,
+                boundary=self._boundary,
+                rho_base=rho_base,
+                vs_base=vs_base,
+                subcycles=self._subcycles,
+            )
+
+        # Update layer strains from results
+        if self._results is not None:
+            max_strains = self._results.max_strain()
+            for i, layer in enumerate(profile[:-1]):
+                if i < len(max_strains):
+                    layer.strain = max_strains[i]
+                    layer.strain_max = max_strains[i]
+
+        elapsed = time.perf_counter() - self._start_time
+        logger.info("TD: completed in %.3fs", elapsed)
+
+    def accel_ts(self, loc: Location) -> npt.NDArray[np.floating]:
+        """Get acceleration time series at a location.
+
+        Parameters
+        ----------
+        loc : Location
+            Output location.
+
+        Returns
+        -------
+        accel : np.ndarray
+            Acceleration time series [g].
+        """
+        if self._results is None:
+            raise RuntimeError("Must call calculator first.")
+
+        # Find closest depth index
+        target_depth = (
+            sum(layer.thickness for layer in self._profile[: loc.index])
+            + loc.depth_within
+        )
+
+        idx = np.argmin(np.abs(self._results.depths - target_depth))
+        return self._results.accel[:, idx] / GRAVITY
+
+    def veloc_ts(self, loc: Location) -> npt.NDArray[np.floating]:
+        """Get velocity time series at a location [m/s]."""
+        if self._results is None:
+            raise RuntimeError("Must call calculator first.")
+
+        target_depth = (
+            sum(layer.thickness for layer in self._profile[: loc.index])
+            + loc.depth_within
+        )
+
+        idx = np.argmin(np.abs(self._results.depths - target_depth))
+        return self._results.veloc[:, idx]
+
+    def strain_ts(self, loc: Location) -> npt.NDArray[np.floating]:
+        """Get strain time series at a location."""
+        if self._results is None:
+            raise RuntimeError("Must call calculator first.")
+
+        # Strain is at layer midpoints
+        idx = min(loc.index, self._results.n_layers - 1)
+        return self._results.strain[:, idx]
+
+    def stress_ts(self, loc: Location) -> npt.NDArray[np.floating]:
+        """Get stress time series at a location [Pa]."""
+        if self._results is None:
+            raise RuntimeError("Must call calculator first.")
+
+        idx = min(loc.index, self._results.n_layers - 1)
+        return self._results.stress[:, idx]
+
+    def calc_accel_tf(
+        self, lin: Location, lout: Location
+    ) -> npt.NDArray[np.complexfloating]:
+        """Compute acceleration transfer function from time histories.
+
+        Parameters
+        ----------
+        lin : Location
+            Input location.
+        lout : Location
+            Output location.
+
+        Returns
+        -------
+        tf : np.ndarray
+            Complex transfer function.
+        """
+        if self._results is None:
+            raise RuntimeError("Must call calculator first.")
+
+        accel_in = self.accel_ts(lin)
+        accel_out = self.accel_ts(lout)
+
+        # Match the motion's FFT length (next power of 2)
+        n_fft = 1
+        while n_fft < len(accel_in):
+            n_fft <<= 1
+
+        fft_in = np.fft.rfft(accel_in, n_fft)
+        fft_out = np.fft.rfft(accel_out, n_fft)
+
+        # Avoid division by zero
+        with np.errstate(divide="ignore", invalid="ignore"):
+            tf = fft_out / fft_in
+            tf = np.where(np.abs(fft_in) < 1e-10, 0, tf)
+
+        return tf
+
+    def calc_strain_tf(
+        self, lin: Location, lout: Location
+    ) -> npt.NDArray[np.complexfloating]:
+        """Compute strain transfer function from time histories.
+
+        Parameters
+        ----------
+        lin : Location
+            Input location.
+        lout : Location
+            Output location.
+
+        Returns
+        -------
+        tf : np.ndarray
+            Complex transfer function.
+        """
+        if self._results is None:
+            raise RuntimeError("Must call calculator first.")
+
+        accel_in = self.accel_ts(lin)
+        strain_out = self.strain_ts(lout)
+
+        n_fft = 1
+        while n_fft < len(accel_in):
+            n_fft <<= 1
+
+        fft_in = np.fft.rfft(accel_in, n_fft)
+        fft_out = np.fft.rfft(strain_out, n_fft)
+
+        with np.errstate(divide="ignore", invalid="ignore"):
+            tf = fft_out / fft_in
+            tf = np.where(np.abs(fft_in) < 1e-10, 0, tf)
+
+        return tf
+
+    @property
+    def times(self) -> npt.NDArray[np.floating] | None:
+        """Time array from results."""
+        return self._results.times if self._results else None
+
+    @property
+    def freqs(self) -> npt.NDArray[np.floating] | None:
+        """Frequency array from results."""
+        if self._results is None or self._motion is None:
+            return None
+        n = len(self._results.times)
+        dt = self._results.times[1] - self._results.times[0] if n > 1 else 0.01
+        return np.fft.rfftfreq(n, dt)

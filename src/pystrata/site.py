@@ -22,6 +22,7 @@
 from __future__ import annotations
 
 import collections
+import logging
 import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -37,6 +38,8 @@ from scipy.interpolate import interp1d
 
 from .motion import WaveField
 from .units import GRAVITY, KPA_TO_ATM, convert_kwds_units, convert_units
+
+logger = logging.getLogger(__name__)
 
 COMP_MODULUS_MODEL = "dormieux"
 
@@ -1735,9 +1738,9 @@ class IterativeValue:
 
     @property
     def relative_error(self) -> float:
-        """The relative error, in percent, between the two iterations."""
+        """The relative error, in decimal, between the two iterations."""
         if np.all(self.value > 0):
-            err = 100.0 * np.max((self.previous - self.value) / self.value)
+            err = np.max((self.previous - self.value) / self.value)
         elif np.isclose(self.value, self.previous).all():
             # When value is zero and close to previous
             err = 0
@@ -2117,6 +2120,18 @@ class Profile(collections.abc.Container):
         self.wt_depth = wt_depth
         if layers:
             self.update_layers()
+            if logger.isEnabledFor(logging.DEBUG):
+                max_depth = (
+                    sum(layer.thickness for layer in self.layers[:-1])
+                    if len(self.layers) > 1
+                    else 0
+                )
+                logger.debug(
+                    "Profile created: %d layers, max_depth=%.1fm, wt_depth=%.1fm",
+                    len(self.layers),
+                    max_depth,
+                    self.wt_depth,
+                )
 
     @classmethod
     def from_dataframe(cls, df, wt_depth=0):
