@@ -977,7 +977,7 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
 
     def __init__(
         self,
-        method: str = "ka02",
+        method: str = "ko:20",
         strain_ratio: float = 0.65,
         tolerance: float = 0.025,
         max_iterations: int = 50,
@@ -1379,12 +1379,26 @@ class TimeDomainCalculator(AbstractCalculator):
         if self._results is None:
             raise RuntimeError("Must call calculator first.")
 
-        accel_in = self.accel_ts(lin)
+        # For an outcrop input location, use the original input motion rather
+        # than the base node's total response.  The total response at the base
+        # node includes reflected (downgoing) waves and does not correspond to
+        # the outcrop definition (2 × upgoing).  The output system multiplies
+        # the TF by the *original* motion FAS, so the denominator must match.
+        if (
+            lin.wave_field == WaveField.outcrop
+            and self._loc_input is not None
+            and lin.index == self._loc_input.index
+        ):
+            accel_in = self._motion.accels
+        else:
+            accel_in = self.accel_ts(lin)
+
         accel_out = self.accel_ts(lout)
 
         # Match the motion's FFT length (next power of 2)
         n_fft = 1
-        while n_fft < len(accel_in):
+        n_max = max(len(accel_in), len(accel_out))
+        while n_fft < n_max:
             n_fft <<= 1
 
         fft_in = np.fft.rfft(accel_in, n_fft)
@@ -1417,7 +1431,15 @@ class TimeDomainCalculator(AbstractCalculator):
         if self._results is None:
             raise RuntimeError("Must call calculator first.")
 
-        accel_in = self.accel_ts(lin)
+        if (
+            lin.wave_field == WaveField.outcrop
+            and self._loc_input is not None
+            and lin.index == self._loc_input.index
+        ):
+            accel_in = self._motion.accels
+        else:
+            accel_in = self.accel_ts(lin)
+
         strain_out = self.strain_ts(lout)
 
         n_fft = 1
