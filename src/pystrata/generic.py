@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import gzip as _gzip
+import gzip
 import json
 import os
 import urllib.request
 import warnings
+from pathlib import Path
 
 import numpy as np
 import numpy.typing as npt
@@ -105,6 +106,74 @@ def kea16_profile(depth: npt.ArrayLike, vs30: float, region: str) -> pd.DataFram
     return df
 
 
+def aaa21_profile(
+    model: str,
+    v_s30: int,
+    simplify: bool = True,
+    simplify_tol: float = 0.02,
+) -> pd.DataFrame:
+    """Load a generic shear-wave velocity profile from Ahdi, Ancheta & Abrahamson
+    (2021).
+
+    Parameters
+    ----------
+    model : str
+        Ground-motion model identifier.  One of ``'ASK14'``, ``'BSSA14'``,
+        ``'CB14'``, or ``'CY14'``.
+    v_s30 : int
+        Reference VS30 value in m/s.  One of ``620``, ``760``, or ``1100``.
+    simplify : bool, optional
+        If True (default), merge adjacent layers whose shear-wave velocities
+        differ by less than *simplify_tol*.
+    simplify_tol : float, optional
+        Relative tolerance on velocity for merging adjacent layers
+        (default 0.02, i.e. 2 %).
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with columns ``depth`` [m] and ``vel_shear`` [m/s].
+
+    Raises
+    ------
+    KeyError
+        If *model* or *v_s30* is not found in the data file.
+
+    References
+    ----------
+    Al Atik, L., & Abrahamson, N. (2021). "A methodology for the development
+    of 1D reference VS profiles compatible with ground-motion prediction
+    equations: Application to NGA-West2 GMPEs." *Bulletin of the Seismological
+    Society of America*, 111(4), 1765–1783.
+    https://doi.org/10.1785/0120200312
+    """
+    fpath = Path(__file__).parent / "data" / "aa21-profiles.json.gz"
+    with gzip.open(fpath, "rt") as f:
+        data = json.load(f)
+
+    model = model.upper()
+    if model not in data:
+        raise KeyError(f"Unknown model '{model}'. Choose from: {list(data.keys())}")
+
+    vs30_key = f"vs30_{v_s30}_mps"
+    if vs30_key not in data[model]:
+        raise KeyError(
+            f"Unknown v_s30={v_s30}. Choose from: "
+            f"{[k.split('_')[1] for k in data[model]]}"
+        )
+
+    profile = data[model][vs30_key]
+    depth_m = np.array(profile["depth_km"]) * 1000
+    vs_mps = np.array(profile["vs_km_per_sec"]) * 1000
+
+    df = pd.DataFrame({"depth": depth_m, "vel_shear": vs_mps})
+
+    if simplify:
+        df = _simplify_profile(df, simplify_tol)
+
+    return df
+
+
 NCM_BASE_URL = "https://earthquake.usgs.gov/ws/nshmp/ncm/geophysical"
 
 
@@ -159,7 +228,7 @@ def fetch_ncm_profile(
 
     fpath = os.fspath(fpath)
     if gzip_output:
-        with _gzip.open(fpath, "wt") as f:
+        with gzip.open(fpath, "wt") as f:
             json.dump(data, f)
     else:
         with open(fpath, "w") as f:
@@ -201,9 +270,9 @@ def load_ncm_profile(
 
     # Try gzip first, fall back to plain JSON
     try:
-        with _gzip.open(fpath, "rt") as f:
+        with gzip.open(fpath, "rt") as f:
             data = json.load(f)
-    except _gzip.BadGzipFile:
+    except gzip.BadGzipFile:
         with open(fpath) as f:
             data = json.load(f)
 
@@ -246,7 +315,8 @@ def _simplify_profile(
     Parameters
     ----------
     df : pandas.DataFrame
-        Must contain ``depth``, ``vel_shear``, and ``unit_wt`` columns.
+        Must contain ``depth`` and ``vel_shear`` columns.  If ``unit_wt`` is
+        present it will also be averaged.
     tol : float
         Relative tolerance for grouping (e.g. 0.02 = 2 %).
 
@@ -257,7 +327,9 @@ def _simplify_profile(
     """
     depths = df["depth"].values
     vs = df["vel_shear"].values
-    unit_wt = df["unit_wt"].values
+    has_unit_wt = "unit_wt" in df.columns
+    if has_unit_wt:
+        unit_wt = df["unit_wt"].values
 
     # Compute layer thicknesses (last layer gets 0)
     thicknesses = np.diff(depths, append=depths[-1])
@@ -287,7 +359,11 @@ def _simplify_profile(
             # Halfspace (last layer)
             vs_avg = vs[group[0]]
 
-        unit_wt_avg = np.average(unit_wt[group], weights=np.maximum(thick, 1e-10))
-        rows.append({"depth": depth_top, "vel_shear": vs_avg, "unit_wt": unit_wt_avg})
+        row = {"depth": depth_top, "vel_shear": vs_avg}
+        if has_unit_wt:
+            row["unit_wt"] = np.average(
+                unit_wt[group], weights=np.maximum(thick, 1e-10)
+            )
+        rows.append(row)
 
     return pd.DataFrame(rows)
