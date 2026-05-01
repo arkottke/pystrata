@@ -411,11 +411,11 @@ class SourceTheoryRvtMotion(pyrvt.motions.SourceTheoryMotion, Motion):
         Motion.__init__(self)
         pyrvt.motions.SourceTheoryMotion.__init__(
             self,
-            magnitude,
-            distance,
-            region,
-            stress_drop,
-            depth,
+            magnitude=magnitude,
+            distance=distance,
+            region=region,
+            stress_drop=stress_drop,
+            depth=depth,
             peak_calculator=peak_calculator,
             calc_kwds=calc_kwds,
         )
