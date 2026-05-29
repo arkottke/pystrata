@@ -550,43 +550,286 @@ def test_linear_elastic_nrattle():
     )
 
 
-#
-# def compare_ts_results(calc, name):
-#     ref_soil, ref_inp = (name)
-#
-#     # Compare the time series
-#     # Only compare the number of values in the DeepSoil results,
-#     # which doesn't include the zero padding added by the FFT.
-#     n = len(ref_soil['time_series']['accel'])
-#     loc_surface = pystrata.output.OutputLocation('outcrop', index=0)
-#     loc_midheight = pystrata.output.OutputLocation(
-#         'within', depth=(calc.profile[0].thickness / 2))
-#     for key, output in [
-#         ('accel',),
-#         ('arias_int',
-#          pystrata.output.AriasIntensityTSOutput(loc_surface)),
-#         ('strain', pystrata.output.StrainTSOutput(loc_midheight)),
-#         ('stress', pystrata.output.StressTSOutput(loc_midheight, damped=False)),
-#     ]:
-#         output(calc)
-#         import matplotlib.pyplot as plt
-#         fig, ax = plt.subplots()
-#         ax.plot(
-#             ref_soil['time_series']['time'],
-#             ref_soil['time_series'][key], 'b-'
-#         )
-#         ax.plot(output.refs, output.values, 'r--')
-#         ax.set_xlim(10, 40)
-#         fig.tight_layout()
-#         fig.savefig('test')
-#
-#
-#
-# def test_linear(ts):
-#     calc =
-#     calc(ts, profile, profile.location('outcrop', index=-1))
-#     compare_ts_results(calc, '')
-#
-#
-# def test_equiv_linear():
-#     pass
+class TestTDvsEQLMetrics:
+    """Cross-method validation of response spectra, spectral ratios, and transfer
+    functions between EQL and TD (MKZ / HH) at 0.01 g.
+
+    At this low loading level the soil is quasi-linear, so both the frequency-domain EQL
+    and the time-domain nonlinear methods should produce very similar computed metrics.
+    Known divergence occurs at the site's resonance frequencies due to different damping
+    formulations (EQL: frequency-dependent complex modulus; TD: Liu-Archuleta frequency-
+    independent).  The tests therefore use multi-criteria spectral agreement checks
+    rather than point-by-point tolerance.
+    """
+
+    # Broadband tolerances (median relative difference)
+    MED_RTOL_SA = 0.05  # 5 % median — response spectra (Sa)
+    MED_RTOL_RATIO = 0.08  # 8 % median — spectral ratios
+    MED_RTOL_TF = 0.08  # 8 % median — transfer functions
+
+    # Envelope tolerances (max relative difference)
+    MAX_RTOL_SA = 0.75  # 75 % max — resonance peak divergence
+    MAX_RTOL_SA_TD = 0.20  # 20 % max — MKZ vs HH (same family)
+    MAX_RTOL_RATIO = 1.10  # 110 % max
+    MAX_RTOL_TF = 1.50  # 150 % max — TD peaks are sharper at higher modes
+
+    # Shape correlation
+    MIN_CORR_SA = 0.98
+    MIN_CORR_RATIO = 0.90
+    MIN_CORR_TF = 0.50  # TF shapes diverge at higher modes due to damping
+
+    @classmethod
+    def setup_class(cls):
+        # -- Motion: ChiChi scaled to 0.01 g -----------------------------------
+        ts_motion = load_ts()
+        scale = 0.01 / np.max(np.abs(ts_motion.accels))
+        scaled = np.asarray(ts_motion.accels) * scale
+        cls.motion = pystrata.motion.TimeSeriesMotion(
+            ts_motion.filename,
+            f"{ts_motion.description} scaled to 0.01g",
+            ts_motion.time_step,
+            scaled.tolist(),
+        )
+
+        # -- Profile: 3-layer Darendeli ----------------------------------------
+        cls.profile = pystrata.site.Profile(
+            [
+                pystrata.site.Layer(
+                    pystrata.site.DarendeliSoilType(
+                        unit_wt=18.0,
+                        name="Sand",
+                        plas_index=0,
+                        ocr=1,
+                        stress_mean=50,
+                    ),
+                    10,
+                    200,
+                ),
+                pystrata.site.Layer(
+                    pystrata.site.DarendeliSoilType(
+                        unit_wt=19.0,
+                        name="Clay",
+                        plas_index=30,
+                        ocr=1.5,
+                        stress_mean=100,
+                    ),
+                    15,
+                    300,
+                ),
+                pystrata.site.Layer(
+                    pystrata.site.SoilType("Rock", 22.0, mod_reduc=None, damping=0.01),
+                    0,
+                    800,
+                ),
+            ]
+        )
+
+        # -- Shared output parameters ------------------------------------------
+        cls.freqs = np.logspace(np.log10(0.1), np.log10(30), 200)
+        loc_in_ol = pystrata.output.OutputLocation("outcrop", index=-1)
+        loc_surf = pystrata.output.OutputLocation("outcrop", index=0)
+
+        def _make_outputs():
+            return pystrata.output.OutputCollection(
+                [
+                    pystrata.output.ResponseSpectrumOutput(
+                        cls.freqs,
+                        loc_surf,
+                        0.05,
+                    ),
+                    pystrata.output.ResponseSpectrumRatioOutput(
+                        cls.freqs,
+                        loc_in_ol,
+                        loc_surf,
+                        0.05,
+                    ),
+                    pystrata.output.AccelTransferFunctionOutput(
+                        cls.freqs,
+                        loc_in_ol,
+                        loc_surf,
+                        ko_bandwidth=30,
+                    ),
+                ]
+            )
+
+        loc_input = cls.profile.location("outcrop", index=-1)
+
+        # -- EQL ---------------------------------------------------------------
+        cls.calc_eql = pystrata.propagation.EquivalentLinearCalculator(
+            strain_ratio=0.65,
+        )
+        cls.calc_eql(cls.motion, cls.profile.copy(), loc_input)
+        cls.out_eql = _make_outputs()
+        cls.out_eql(cls.calc_eql)
+
+        # -- TD-MKZ ------------------------------------------------------------
+        cls.calc_td_mkz = pystrata.propagation.TimeDomainCalculator(
+            model="mkz",
+            boundary="elastic",
+        )
+        cls.calc_td_mkz(cls.motion, cls.profile.copy(), loc_input)
+        cls.out_td_mkz = _make_outputs()
+        cls.out_td_mkz(cls.calc_td_mkz)
+
+        # -- TD-HH -------------------------------------------------------------
+        cls.calc_td_hh = pystrata.propagation.TimeDomainCalculator(
+            model="hh",
+            boundary="elastic",
+        )
+        cls.calc_td_hh(cls.motion, cls.profile.copy(), loc_input)
+        cls.out_td_hh = _make_outputs()
+        cls.out_td_hh(cls.calc_td_hh)
+
+    # -- helpers ---------------------------------------------------------------
+
+    @staticmethod
+    def _sa(outputs):
+        """Extract Sa array from the first (ResponseSpectrumOutput) output."""
+        for _name, _refs, vals in outputs[0].iter_results():
+            return vals
+
+    @staticmethod
+    def _ratio(outputs):
+        """Extract spectral-ratio array from the second output."""
+        for _name, _refs, vals in outputs[1].iter_results():
+            return vals
+
+    @staticmethod
+    def _tf(outputs):
+        """Extract transfer-function array from the third output."""
+        for _name, _refs, vals in outputs[2].iter_results():
+            return vals
+
+    @staticmethod
+    def _check_spectral_agreement(
+        actual,
+        desired,
+        *,
+        med_rtol,
+        max_rtol,
+        min_corr,
+        label="",
+    ):
+        """Multi-criteria spectral agreement check.
+
+        Parameters
+        ----------
+        actual, desired : array_like
+        med_rtol : float
+            Median relative difference must be below this (broadband check).
+        max_rtol : float
+            Maximum relative difference must be below this (envelope bound).
+        min_corr : float
+            Pearson correlation coefficient must exceed this (shape check).
+        label : str
+            Human-readable label for assertion messages.
+        """
+        rel_diff = np.abs(actual - desired) / np.maximum(np.abs(desired), 1e-30)
+        med_rd = float(np.median(rel_diff))
+        max_rd = float(np.max(rel_diff))
+        corr = float(np.corrcoef(actual, desired)[0, 1])
+
+        assert corr > min_corr, f"{label}: correlation {corr:.4f} below {min_corr}"
+        assert med_rd < med_rtol, (
+            f"{label}: median relative diff {med_rd:.4f} exceeds {med_rtol}"
+        )
+        assert max_rd < max_rtol, (
+            f"{label}: max relative diff {max_rd:.4f} exceeds {max_rtol}"
+        )
+
+    # -- Phase 2: response spectra ---------------------------------------------
+
+    def test_response_spectra_td_mkz_vs_eql(self):
+        self._check_spectral_agreement(
+            self._sa(self.out_td_mkz),
+            self._sa(self.out_eql),
+            med_rtol=self.MED_RTOL_SA,
+            max_rtol=self.MAX_RTOL_SA,
+            min_corr=self.MIN_CORR_SA,
+            label="Sa MKZ vs EQL",
+        )
+
+    def test_response_spectra_td_hh_vs_eql(self):
+        self._check_spectral_agreement(
+            self._sa(self.out_td_hh),
+            self._sa(self.out_eql),
+            med_rtol=self.MED_RTOL_SA,
+            max_rtol=self.MAX_RTOL_SA,
+            min_corr=self.MIN_CORR_SA,
+            label="Sa HH vs EQL",
+        )
+
+    def test_response_spectra_td_mkz_vs_td_hh(self):
+        np.testing.assert_allclose(
+            self._sa(self.out_td_mkz),
+            self._sa(self.out_td_hh),
+            rtol=self.MAX_RTOL_SA_TD,
+        )
+
+    # -- Phase 3: spectral ratios ----------------------------------------------
+
+    def test_spectral_ratio_td_mkz_vs_eql(self):
+        self._check_spectral_agreement(
+            self._ratio(self.out_td_mkz),
+            self._ratio(self.out_eql),
+            med_rtol=self.MED_RTOL_RATIO,
+            max_rtol=self.MAX_RTOL_RATIO,
+            min_corr=self.MIN_CORR_RATIO,
+            label="Ratio MKZ vs EQL",
+        )
+
+    def test_spectral_ratio_td_hh_vs_eql(self):
+        self._check_spectral_agreement(
+            self._ratio(self.out_td_hh),
+            self._ratio(self.out_eql),
+            med_rtol=self.MED_RTOL_RATIO,
+            max_rtol=self.MAX_RTOL_RATIO,
+            min_corr=self.MIN_CORR_RATIO,
+            label="Ratio HH vs EQL",
+        )
+
+    def test_spectral_ratio_peak_frequency_agreement(self):
+        """Peak amplification frequency should agree within 10 %."""
+        for label, out_td in [("MKZ", self.out_td_mkz), ("HH", self.out_td_hh)]:
+            ratio_eql = self._ratio(self.out_eql)
+            ratio_td = self._ratio(out_td)
+            f_eql = self.freqs[np.argmax(ratio_eql)]
+            f_td = self.freqs[np.argmax(ratio_td)]
+            rel = abs(f_eql - f_td) / f_eql
+            assert rel < 0.10, (
+                f"Peak freq mismatch ({label}): EQL @ {f_eql:.2f} Hz "
+                f"vs TD @ {f_td:.2f} Hz (rel diff {rel:.2%})"
+            )
+
+    # -- Phase 4: transfer functions -------------------------------------------
+
+    def test_transfer_function_td_mkz_vs_eql(self):
+        self._check_spectral_agreement(
+            self._tf(self.out_td_mkz),
+            self._tf(self.out_eql),
+            med_rtol=self.MED_RTOL_TF,
+            max_rtol=self.MAX_RTOL_TF,
+            min_corr=self.MIN_CORR_TF,
+            label="TF MKZ vs EQL",
+        )
+
+    def test_transfer_function_td_hh_vs_eql(self):
+        self._check_spectral_agreement(
+            self._tf(self.out_td_hh),
+            self._tf(self.out_eql),
+            med_rtol=self.MED_RTOL_TF,
+            max_rtol=self.MAX_RTOL_TF,
+            min_corr=self.MIN_CORR_TF,
+            label="TF HH vs EQL",
+        )
+
+    # -- Phase 5: diagnostics --------------------------------------------------
+
+    def test_strain_is_quasi_linear(self):
+        """Max shear strain should be < 0.1 % for all TD runs."""
+        for calc in (self.calc_td_mkz, self.calc_td_hh):
+            for i, strain in enumerate(calc.results.max_strain()):
+                strain_pct = strain * 100
+                assert strain_pct < 0.1, (
+                    f"Layer {i} strain {strain_pct:.4f}% exceeds 0.1% threshold"
+                )

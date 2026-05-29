@@ -24,6 +24,28 @@
 This module implements the MKZ (Matasovic-Vucetic) and HH (Hybrid Hyperbolic)
 constitutive models for computing stress-strain relationships in soils.
 
+Damping Approach
+----------------
+The time-domain formulation does **not** rely on Masing rules for hysteretic
+damping. Pure Masing hysteresis produces unrealistic damping: it overpredicts
+at small strains and asymptotes to approximately 2/pi (~63.7 %) at large
+strains. Instead, the backbone curve (stiffness) and damping are controlled
+independently through separate parameter sets (``G_param`` / ``xi_param``).
+
+Hysteretic damping can be computed from the backbone curve for reference (see
+:func:`calc_damping_from_stress_strain`), but the nonlinear solver supplements
+or replaces it with one of the following approaches:
+
+* **Liu & Archuleta (2006)** nearly frequency-independent Q model — viscous
+  damping via relaxation mechanism coefficients, providing velocity-proportional
+  dissipation that is approximately frequency-independent.
+* **Darendeli (2001) Modified Masing damping** — a polynomial correction
+  (coefficients c1, c2, c3) applied to the raw Masing damping, with a scaling
+  factor *b* that depends on the number of loading cycles *N*.
+* **Direct backbone-derived damping** — trapezoidal integration of the
+  stress-strain loop area, used primarily during curve fitting to evaluate what
+  Masing hysteresis would produce for a given backbone shape.
+
 References
 ----------
 .. [1] Matasovic, N., & Vucetic, M. (1993). Cyclic characterization of
@@ -32,6 +54,14 @@ References
 .. [2] Shi, J., & Asimaki, D. (2017). From stiffness to strength: Formulation
    and validation of a hybrid hyperbolic nonlinear soil model for site-response
    analyses. Bulletin of the Seismological Society of America, 107(3), 1336-1355.
+
+.. [3] Liu, P., & Archuleta, R. J. (2006). Efficient modeling of Q for 3D
+   numerical simulation of wave propagation. Bulletin of the Seismological
+   Society of America, 96(4A), 1352-1358.
+
+.. [4] Darendeli, M. B. (2001). Development of a new family of normalized
+   modulus reduction and material damping curves. Ph.D. thesis, University of
+   Texas at Austin.
 """
 
 from __future__ import annotations
@@ -842,6 +872,90 @@ def _mkz_damping_misfit_python(
     return err
 
 
+def _hh_damping_only_misfit_python(
+    strain: npt.NDArray[np.floating],
+    damping_target: npt.NDArray[np.floating],
+    gamma_t: float,
+    a: float,
+    gamma_ref: float,
+    beta: float,
+    s: float,
+    shear_mod: float,
+    mu: float,
+    shear_strength: float,
+    d: float,
+    trans_c1: float,
+    trans_c2: float,
+) -> float:
+    """Compute damping-only MSE for HH model (pure Python)."""
+    stress = _tau_hh_python(
+        strain,
+        gamma_t,
+        a,
+        gamma_ref,
+        beta,
+        s,
+        shear_mod,
+        mu,
+        shear_strength,
+        d,
+        trans_c1,
+        trans_c2,
+    )
+    damping = _calc_damping_from_stress_strain_python(strain, stress, shear_mod)
+
+    n = len(strain)
+    err = 0.0
+    for i in range(1, n):
+        err += (damping[i] - damping_target[i]) ** 2
+
+    if n > 1:
+        err /= n - 1
+    return err
+
+
+def _hh_modreduc_only_misfit_python(
+    strain: npt.NDArray[np.floating],
+    mod_reduc_target: npt.NDArray[np.floating],
+    gamma_t: float,
+    a: float,
+    gamma_ref: float,
+    beta: float,
+    s: float,
+    shear_mod: float,
+    mu: float,
+    shear_strength: float,
+    d: float,
+    trans_c1: float,
+    trans_c2: float,
+) -> float:
+    """Compute modulus-reduction-only MSE for HH model (pure Python)."""
+    stress = _tau_hh_python(
+        strain,
+        gamma_t,
+        a,
+        gamma_ref,
+        beta,
+        s,
+        shear_mod,
+        mu,
+        shear_strength,
+        d,
+        trans_c1,
+        trans_c2,
+    )
+    n = len(strain)
+    err = 0.0
+    for i in range(n):
+        if strain[i] > 0:
+            mr = (stress[i] / strain[i]) / shear_mod
+        else:
+            mr = 1.0
+        err += (mr - mod_reduc_target[i]) ** 2
+    err /= n
+    return err
+
+
 if HAS_NUMBA:
 
     @numba.njit(cache=True)
@@ -974,11 +1088,141 @@ if HAS_NUMBA:
             err /= n - 1
         return err
 
+    @numba.njit(cache=True)
+    def _hh_damping_only_misfit_numba(
+        strain: npt.NDArray[np.floating],
+        damping_target: npt.NDArray[np.floating],
+        gamma_t: float,
+        a: float,
+        gamma_ref: float,
+        beta: float,
+        s: float,
+        shear_mod: float,
+        mu: float,
+        shear_strength: float,
+        d: float,
+        trans_c1: float,
+        trans_c2: float,
+    ) -> float:
+        """Compute damping-only MSE for HH model (Numba)."""
+        n = len(strain)
+
+        # --- compute stress and G/Gmax in one pass ---
+        ggmax = np.ones(n)
+        for i in range(n):
+            g = abs(strain[i])
+            tau_mkz = shear_mod * strain[i] / (1 + beta * (g / gamma_ref) ** s)
+            gamma_d = g**d
+            sign = 1.0 if strain[i] >= 0 else -1.0
+            tau_fkz = (
+                mu
+                * shear_mod
+                * sign
+                * gamma_d
+                / (1 + shear_mod / shear_strength * mu * gamma_d)
+            )
+            if g <= 0:
+                w = 1.0
+            else:
+                intermediate = np.log10(g / gamma_t) - trans_c1 * a ** (-trans_c2)
+                exponent = -a * intermediate
+                if exponent > 305:
+                    w = 1.0
+                elif exponent < -305:
+                    w = 0.0
+                else:
+                    w = 1 - 1.0 / (1 + 10**exponent)
+            stress_i = w * tau_mkz + (1 - w) * tau_fkz
+            if strain[i] > 0:
+                ggmax[i] = (stress_i / strain[i]) / shear_mod
+
+        # --- Masing damping (cumulative area) ---
+        area = np.zeros(n)
+        damping = np.zeros(n)
+        area[0] = 0.5 * strain[0] * ggmax[0] * strain[0]
+        if ggmax[0] > 0 and strain[0] > 0:
+            damping[0] = (2.0 / np.pi) * (
+                2.0 * area[0] / (ggmax[0] * strain[0] ** 2) - 1
+            )
+        for i in range(1, n):
+            area[i] = area[i - 1] + 0.5 * (
+                strain[i - 1] * ggmax[i - 1] + strain[i] * ggmax[i]
+            ) * (strain[i] - strain[i - 1])
+            if ggmax[i] > 0 and strain[i] > 0:
+                damping[i] = (
+                    2.0 / np.pi * (2.0 * area[i] / (ggmax[i] * strain[i] ** 2) - 1)
+                )
+            if damping[i] < 0.0:
+                damping[i] = 0.0
+
+        # --- MSE (damping only, skip first point) ---
+        err = 0.0
+        for i in range(1, n):
+            err += (damping[i] - damping_target[i]) ** 2
+        if n > 1:
+            err /= n - 1
+        return err
+
+    @numba.njit(cache=True)
+    def _hh_modreduc_only_misfit_numba(
+        strain: npt.NDArray[np.floating],
+        mod_reduc_target: npt.NDArray[np.floating],
+        gamma_t: float,
+        a: float,
+        gamma_ref: float,
+        beta: float,
+        s: float,
+        shear_mod: float,
+        mu: float,
+        shear_strength: float,
+        d: float,
+        trans_c1: float,
+        trans_c2: float,
+    ) -> float:
+        """Compute modulus-reduction-only MSE for HH model (Numba)."""
+        n = len(strain)
+        err = 0.0
+        for i in range(n):
+            g = abs(strain[i])
+            tau_mkz = shear_mod * strain[i] / (1 + beta * (g / gamma_ref) ** s)
+            gamma_d = g**d
+            sign = 1.0 if strain[i] >= 0 else -1.0
+            tau_fkz = (
+                mu
+                * shear_mod
+                * sign
+                * gamma_d
+                / (1 + shear_mod / shear_strength * mu * gamma_d)
+            )
+            if g <= 0:
+                w = 1.0
+            else:
+                intermediate = np.log10(g / gamma_t) - trans_c1 * a ** (-trans_c2)
+                exponent = -a * intermediate
+                if exponent > 305:
+                    w = 1.0
+                elif exponent < -305:
+                    w = 0.0
+                else:
+                    w = 1 - 1.0 / (1 + 10**exponent)
+            stress_i = w * tau_mkz + (1 - w) * tau_fkz
+            if strain[i] > 0:
+                mr = (stress_i / strain[i]) / shear_mod
+            else:
+                mr = 1.0
+            err += (mr - mod_reduc_target[i]) ** 2
+        err /= n
+        return err
+
     hh_misfit = _hh_misfit_numba
     mkz_damping_misfit = _mkz_damping_misfit_numba
+    hh_damping_only_misfit = _hh_damping_only_misfit_numba
+    hh_modreduc_only_misfit = _hh_modreduc_only_misfit_numba
 else:
     hh_misfit = _hh_misfit_python
     mkz_damping_misfit = _mkz_damping_misfit_python
+    hh_damping_only_misfit = _hh_damping_only_misfit_python
+    hh_modreduc_only_misfit = _hh_modreduc_only_misfit_python
 
 
 # -----------------------------------------------------------------------------

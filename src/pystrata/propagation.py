@@ -1083,6 +1083,17 @@ class TimeDomainCalculator(AbstractCalculator):
     subcycles : int, optional
         Number of integration subcycles per input time step.
         Auto-calculated from CFL condition if None.
+    fit_mode : str
+        Fitting mode: 'single' fits one set of parameters to both
+        modulus reduction and damping curves simultaneously;
+        'double' fits separate parameter sets — ``mod_params`` to
+        modulus reduction and ``damp_params`` to damping — for use
+        with the Li & Assimaki (2010) non-Masing hysteresis rule.
+        Only supported with model='hh'.
+    damp_form : str
+        Small-strain damping formulation: 'rayleigh' for classic Rayleigh
+        viscous damping, 'liu_archuleta' for the Liu & Archuleta
+        (2006) frequency-independent damping model.
 
     Examples
     --------
@@ -1100,15 +1111,26 @@ class TimeDomainCalculator(AbstractCalculator):
         model: Literal["mkz", "hh"] = "hh",
         boundary: Literal["elastic", "rigid"] = "elastic",
         subcycles: int | None = None,
+        fit_mode: Literal["single", "double"] | None = None,
+        damp_form: Literal["rayleigh", "liu_archuleta"] = "liu_archuleta",
     ):
         super().__init__()
         self._model = model
         self._boundary = boundary
         self._subcycles = subcycles
+        self._damp_form = damp_form
+
+        if fit_mode is None:
+            fit_mode = "double" if model == "hh" else "single"
+        elif fit_mode == "double" and model != "hh":
+            raise ValueError("fit_mode='double' is only supported with model='hh'.")
+        self._fit_mode = fit_mode
 
         # Results storage
         self._results: TimeDomainResults | None = None
         self._params: MultiLayerParams | None = None
+        self._mod_params: MultiLayerParams | None = None
+        self._damp_params: MultiLayerParams | None = None
 
     @property
     def model(self) -> str:
@@ -1126,21 +1148,45 @@ class TimeDomainCalculator(AbstractCalculator):
         return self._results
 
     @property
+    def fit_mode(self) -> str:
+        """Fitting mode: 'single' or 'double'."""
+        return self._fit_mode
+
+    @property
+    def damp_form(self) -> str:
+        """Small-strain damping formulation: 'rayleigh' or 'liu_archuleta'."""
+        return self._damp_form
+
+    @property
     def params(self) -> "MultiLayerParams | None":
-        """Fitted constitutive model parameters."""
+        """Fitted constitutive model parameters (single-set mode)."""
         return self._params
+
+    @property
+    def mod_params(self) -> "MultiLayerParams | None":
+        """Modulus-reduction parameters (two-set mode)."""
+        return self._mod_params
+
+    @property
+    def damp_params(self) -> "MultiLayerParams | None":
+        """Damping parameters (two-set mode)."""
+        return self._damp_params
 
     def prepare(
         self,
         profile: Profile,
         verbose: bool = False,
-    ) -> "MultiLayerParams":
+    ) -> "MultiLayerParams | tuple[MultiLayerParams, MultiLayerParams]":
         """Fit constitutive model parameters for a profile.
 
         This fits MKZ or HH parameters to each nonlinear layer's modulus
         reduction and damping curves. The result can be inspected (e.g.,
         with :func:`~pystrata.curve_fitting.plot_fit`) before running
         the analysis.
+
+        In ``fit_mode='double'``, two independent HH parameter sets are
+        returned: one matched to modulus reduction (loading backbone) and
+        one matched to damping (unloading backbone).
 
         Parameters
         ----------
@@ -1151,22 +1197,133 @@ class TimeDomainCalculator(AbstractCalculator):
 
         Returns
         -------
-        params : MultiLayerParams
-            Fitted constitutive model parameters for each layer.
+        params : MultiLayerParams or tuple[MultiLayerParams, MultiLayerParams]
+            Single-set mode returns one MultiLayerParams.  Two-set mode
+            returns ``(mod_params, damp_params)``.
         """
-        from .curve_fitting import fit_profile
+        from .curve_fitting import fit_profile, fit_profile_two_set
 
         n_layers = len(profile) - 1
-        logger.debug(
-            "TD: fitting %s parameters for %d layers",
-            self._model.upper(),
-            n_layers,
-        )
-        if verbose:
-            print(f"Fitting {self._model.upper()} parameters...")
 
-        self._params = fit_profile(profile, model=self._model, verbose=verbose)
-        return self._params
+        if self._fit_mode == "double":
+            logger.debug("TD: fitting HH double parameters for %d layers", n_layers)
+            if verbose:
+                print("Fitting HH double parameters...")
+            self._mod_params, self._damp_params = fit_profile_two_set(
+                profile,
+                verbose=verbose,
+            )
+            # Also store mod_params as primary params for backward compat
+            self._params = self._mod_params
+            return self._mod_params, self._damp_params
+        else:
+            logger.debug(
+                "TD: fitting %s parameters for %d layers",
+                self._model.upper(),
+                n_layers,
+            )
+            if verbose:
+                print(f"Fitting {self._model.upper()} parameters...")
+            self._params = fit_profile(profile, model=self._model, verbose=verbose)
+            return self._params
+
+    def check_frequencies(
+        self,
+        profile: Profile,
+        motion: TimeSeriesMotion | None = None,
+        wave_frac: float = 0.2,
+        verbose: bool = True,
+    ) -> dict:
+        """Check maximum usable frequency for the profile and motion.
+
+        The maximum frequency that a layer can transmit is limited by
+        the layer thickness and shear-wave velocity:
+
+        .. math::
+
+            f_{\\max,\\,layer} = \\frac{V_s \\times \\text{wave\\_frac}}{h}
+
+        where *h* is the layer thickness and *wave_frac* is the fraction
+        of the wavelength to resolve (typically 1/5).
+
+        The time series imposes a Nyquist limit:
+
+        .. math::
+
+            f_{\\text{Nyquist}} = \\frac{1}{2\\,\\Delta t}
+
+        Parameters
+        ----------
+        profile : Profile
+            Site profile.
+        motion : TimeSeriesMotion, optional
+            Input motion (used for Nyquist frequency). If ``None``,
+            only the profile-based limit is reported.
+        wave_frac : float
+            Fraction of wavelength required (default 0.2, i.e. 1/5).
+        verbose : bool
+            If ``True``, print the results.
+
+        Returns
+        -------
+        dict
+            Dictionary with keys:
+
+            - ``'layer_max_freqs'``: array of max frequency per layer [Hz]
+            - ``'profile_freq'``: controlling (minimum) layer frequency [Hz]
+            - ``'profile_layer_index'``: index of the controlling layer
+            - ``'nyquist_freq'``: Nyquist frequency [Hz] (``None`` if no motion)
+            - ``'max_usable_freq'``: overall max usable frequency [Hz]
+        """
+        layer_max_freqs = np.array(
+            [
+                layer.initial_shear_vel * wave_frac / layer.thickness
+                for layer in profile[:-1]
+            ]
+        )
+
+        controlling_idx = int(np.argmin(layer_max_freqs))
+        profile_freq = layer_max_freqs[controlling_idx]
+
+        nyquist_freq = None
+        if motion is not None:
+            nyquist_freq = 1.0 / (2.0 * motion.time_step)
+
+        if nyquist_freq is not None:
+            max_usable_freq = min(profile_freq, nyquist_freq)
+        else:
+            max_usable_freq = profile_freq
+
+        result = {
+            "layer_max_freqs": layer_max_freqs,
+            "profile_freq": profile_freq,
+            "profile_layer_index": controlling_idx,
+            "nyquist_freq": nyquist_freq,
+            "max_usable_freq": max_usable_freq,
+        }
+
+        controlling_layer = profile[controlling_idx]
+        if verbose:
+            print(
+                f"Max frequency from profile: {profile_freq:.1f} Hz "
+                f"(layer {controlling_idx}: "
+                f"Vs={controlling_layer.initial_shear_vel:.0f} m/s, "
+                f"h={controlling_layer.thickness:.2f} m)"
+            )
+            if nyquist_freq is not None:
+                print(f"Nyquist frequency from time step: {nyquist_freq:.1f} Hz")
+            print(f"Max usable frequency: {max_usable_freq:.1f} Hz")
+
+        logger.info(
+            "TD check: max usable freq=%.1f Hz "
+            "(profile=%.1f Hz @ layer %d, nyquist=%s)",
+            max_usable_freq,
+            profile_freq,
+            controlling_idx,
+            f"{nyquist_freq:.1f} Hz" if nyquist_freq is not None else "N/A",
+        )
+
+        return result
 
     def __call__(
         self,
@@ -1176,6 +1333,8 @@ class TimeDomainCalculator(AbstractCalculator):
         reset_layers: bool = True,
         verbose: bool = False,
         params: "MultiLayerParams | None" = None,
+        mod_params: "MultiLayerParams | None" = None,
+        damp_params: "MultiLayerParams | None" = None,
         **kwds,
     ):
         """Perform time-domain wave propagation.
@@ -1196,6 +1355,10 @@ class TimeDomainCalculator(AbstractCalculator):
             Pre-computed constitutive model parameters (from :meth:`prepare`).
             If not provided and the profile has nonlinear layers, parameters
             are fitted automatically.
+        mod_params : MultiLayerParams, optional
+            Pre-computed modulus-reduction parameters (two-set mode).
+        damp_params : MultiLayerParams, optional
+            Pre-computed damping parameters (two-set mode).
         **kwds
             Additional keyword arguments.
 
@@ -1213,6 +1376,9 @@ class TimeDomainCalculator(AbstractCalculator):
             )
 
         super().__call__(motion, profile, loc_input, reset_layers=reset_layers, **kwds)
+
+        # Default frequency check
+        self.check_frequencies(profile, motion, verbose=verbose)
 
         logger.info(
             "TD: %d time steps, dt=%.4fs, model=%s, boundary=%s",
@@ -1251,10 +1417,18 @@ class TimeDomainCalculator(AbstractCalculator):
 
         if has_nonlinear and self._model in ("mkz", "hh"):
             # Use provided params, previously prepared params, or fit now
-            if params is not None:
-                self._params = params
-            elif self._params is None:
-                self.prepare(profile, verbose=verbose)
+            if self._fit_mode == "double":
+                if mod_params is not None and damp_params is not None:
+                    self._mod_params = mod_params
+                    self._damp_params = damp_params
+                    self._params = mod_params
+                elif self._mod_params is None or self._damp_params is None:
+                    self.prepare(profile, verbose=verbose)
+            else:
+                if params is not None:
+                    self._params = params
+                elif self._params is None:
+                    self.prepare(profile, verbose=verbose)
 
             # Run nonlinear propagation
             if verbose:
@@ -1271,6 +1445,8 @@ class TimeDomainCalculator(AbstractCalculator):
                 rho_base=rho_base,
                 vs_base=vs_base,
                 subcycles=self._subcycles,
+                damp_params=self._damp_params,
+                damp_form=self._damp_form,
             )
         else:
             # Run linear elastic propagation
@@ -1404,12 +1580,70 @@ class TimeDomainCalculator(AbstractCalculator):
         fft_in = np.fft.rfft(accel_in, n_fft)
         fft_out = np.fft.rfft(accel_out, n_fft)
 
-        # Avoid division by zero
-        with np.errstate(divide="ignore", invalid="ignore"):
-            tf = fft_out / fft_in
-            tf = np.where(np.abs(fft_in) < 1e-10, 0, tf)
+        # Water-level regularisation: replace near-zero denominators with a
+        # fraction of the peak input amplitude to avoid inf/NaN from spectral
+        # division at frequencies where the input has negligible energy.
+        water_level = 1e-6 * np.max(np.abs(fft_in))
+        denom = np.where(np.abs(fft_in) < water_level, water_level, fft_in)
+        tf = fft_out / denom
 
         return tf
+
+    def _motion_at(self, loc: Location) -> "TimeSeriesMotion":
+        """Create a :class:`~pystrata.motion.TimeSeriesMotion` for the acceleration at
+        *loc*, reusing the existing spectral-response machinery and avoiding the
+        numerically unstable FFT-division path."""
+        from .motion import TimeSeriesMotion
+
+        return TimeSeriesMotion(
+            filename="",
+            description=f"TD output at {loc}",
+            time_step=self._motion.time_step,
+            accels=self.accel_ts(loc),
+        )
+
+    def calc_osc_accels(
+        self,
+        loc: Location,
+        osc_freqs: npt.ArrayLike,
+        osc_damping: float = 0.05,
+    ) -> npt.NDArray[np.floating]:
+        """Compute pseudo-spectral accelerations directly from the time series.
+
+        This avoids the numerically unstable FFT-division approach used by
+        ``calc_accel_tf``, which can produce NaN when the input motion has
+        near-zero energy at certain frequencies.
+
+        Parameters
+        ----------
+        loc : Location
+            Output location.
+        osc_freqs : array_like
+            Oscillator frequencies [Hz].
+        osc_damping : float
+            Oscillator damping ratio (decimal).
+
+        Returns
+        -------
+        spec_accels : np.ndarray
+            Peak pseudo-spectral accelerations [g].
+        """
+        return self._motion_at(loc).calc_osc_accels(osc_freqs, osc_damping)
+
+    def calc_peak_accel(self, loc: Location) -> float:
+        """Compute peak acceleration directly from the time series.
+
+        Parameters
+        ----------
+        loc : Location
+            Output location.
+
+        Returns
+        -------
+        pga : float
+            Peak ground acceleration [g].
+        """
+        return self._motion_at(loc).calc_peak()
 
     def calc_strain_tf(
         self, lin: Location, lout: Location
@@ -1449,9 +1683,9 @@ class TimeDomainCalculator(AbstractCalculator):
         fft_in = np.fft.rfft(accel_in, n_fft)
         fft_out = np.fft.rfft(strain_out, n_fft)
 
-        with np.errstate(divide="ignore", invalid="ignore"):
-            tf = fft_out / fft_in
-            tf = np.where(np.abs(fft_in) < 1e-10, 0, tf)
+        water_level = 1e-6 * np.max(np.abs(fft_in))
+        denom = np.where(np.abs(fft_in) < water_level, water_level, fft_in)
+        tf = fft_out / denom
 
         return tf
 

@@ -40,7 +40,9 @@ from .constitutive import (
     MultiLayerParams,
     calc_damping,
     calc_mod_reduc,
+    hh_damping_only_misfit,
     hh_misfit,
+    hh_modreduc_only_misfit,
     mkz_damping_misfit,
 )
 
@@ -105,7 +107,7 @@ def fit_mkz_to_mod_reduc(
     }
     default_kwargs.update(kwargs)
 
-    result = differential_evolution(misfit, bounds, seed=seed, **default_kwargs)
+    result = differential_evolution(misfit, bounds, **default_kwargs)
 
     fitted = MKZParams(
         gamma_ref=10 ** result.x[0],
@@ -186,7 +188,7 @@ def fit_mkz_to_damping(
     }
     default_kwargs.update(kwargs)
 
-    result = differential_evolution(misfit, bounds, seed=seed, **default_kwargs)
+    result = differential_evolution(misfit, bounds, **default_kwargs)
 
     return MKZParams(
         gamma_ref=10 ** result.x[0],
@@ -294,7 +296,190 @@ def fit_hh(
     }
     default_kwargs.update(kwargs)
 
-    result = differential_evolution(misfit, bounds, seed=seed, **default_kwargs)
+    result = differential_evolution(misfit, bounds, **default_kwargs)
+
+    return HHParams(
+        gamma_t=10 ** result.x[0],
+        a=10 ** result.x[1],
+        gamma_ref=10 ** result.x[2],
+        beta=10 ** result.x[3],
+        s=10 ** result.x[4],
+        shear_mod=shear_mod,
+        mu=10 ** result.x[5],
+        shear_strength=10 ** result.x[6],
+        d=10 ** result.x[7],
+    )
+
+
+def fit_hh_modreduc_only(
+    strains: np.ndarray,
+    mod_reduc: np.ndarray,
+    shear_mod: float,
+    shear_strength: float | None = None,
+    seed: int | None = None,
+    **kwargs,
+) -> HHParams:
+    """Fit HH model parameters to modulus reduction curve only.
+
+    The resulting parameters define the *loading* backbone whose G/Gmax
+    matches the target modulus reduction. This is one half of the
+    two-set fitting procedure used with the Li & Assimaki (2010) non-Masing
+    hysteresis rule.
+
+    Parameters
+    ----------
+    strains : np.ndarray
+        Strain values (unit: 1, not %).
+    mod_reduc : np.ndarray
+        G/Gmax values corresponding to strains.
+    shear_mod : float
+        Initial shear modulus [Pa].
+    shear_strength : float, optional
+        Shear strength (Tmax) [Pa]. If None, estimated as 0.001 * shear_mod.
+    seed : int, optional
+        Random seed for reproducibility.
+    **kwargs
+        Additional arguments passed to scipy.optimize.differential_evolution.
+
+    Returns
+    -------
+    params : HHParams
+        Fitted HH model parameters (loading backbone).
+    """
+    strains = np.asarray(strains, dtype=np.float64)
+    mod_reduc = np.asarray(mod_reduc, dtype=np.float64)
+
+    if shear_strength is None:
+        shear_strength = 0.001 * shear_mod
+
+    # Initial MKZ fit for starting bounds
+    mkz_params = fit_mkz_to_mod_reduc(
+        strains, mod_reduc, shear_mod=shear_mod, seed=seed
+    )
+
+    bounds = [
+        (-6, -1),  # gamma_t
+        (-1, 1),  # a
+        (np.log10(mkz_params.gamma_ref) - 1, np.log10(mkz_params.gamma_ref) + 1),
+        (np.log10(mkz_params.beta) - 1, np.log10(mkz_params.beta) + 1),
+        (np.log10(mkz_params.s) - 0.5, np.log10(mkz_params.s) + 0.5),
+        (-1, 2),  # mu
+        (np.log10(shear_strength) - 2, np.log10(shear_strength) + 2),
+        (-0.5, 0.5),  # d
+    ]
+
+    def misfit(x):
+        return hh_modreduc_only_misfit(
+            strains,
+            mod_reduc,
+            10 ** x[0],
+            10 ** x[1],
+            10 ** x[2],
+            10 ** x[3],
+            10 ** x[4],
+            shear_mod,
+            10 ** x[5],
+            10 ** x[6],
+            10 ** x[7],
+            4.039,
+            1.036,
+        )
+
+    default_kwargs = {"maxiter": 1000, "tol": 1e-8, "polish": True, "workers": 1}
+    default_kwargs.update(kwargs)
+
+    result = differential_evolution(misfit, bounds, **default_kwargs)
+
+    return HHParams(
+        gamma_t=10 ** result.x[0],
+        a=10 ** result.x[1],
+        gamma_ref=10 ** result.x[2],
+        beta=10 ** result.x[3],
+        s=10 ** result.x[4],
+        shear_mod=shear_mod,
+        mu=10 ** result.x[5],
+        shear_strength=10 ** result.x[6],
+        d=10 ** result.x[7],
+    )
+
+
+def fit_hh_damping_only(
+    strains: np.ndarray,
+    damping: np.ndarray,
+    shear_mod: float,
+    shear_strength: float | None = None,
+    seed: int | None = None,
+    **kwargs,
+) -> HHParams:
+    """Fit HH model parameters to damping curve only.
+
+    The resulting parameters define the *unloading* backbone whose
+    Masing-derived damping matches the target damping curve. This is
+    one half of the two-set fitting procedure used with the Li & Assimaki
+    (2010) non-Masing hysteresis rule.
+
+    Parameters
+    ----------
+    strains : np.ndarray
+        Strain values (unit: 1, not %).
+    damping : np.ndarray
+        Damping ratio values (unit: 1, not %).
+    shear_mod : float
+        Initial shear modulus [Pa].
+    shear_strength : float, optional
+        Shear strength (Tmax) [Pa]. If None, estimated as 0.001 * shear_mod.
+    seed : int, optional
+        Random seed for reproducibility.
+    **kwargs
+        Additional arguments passed to scipy.optimize.differential_evolution.
+
+    Returns
+    -------
+    params : HHParams
+        Fitted HH model parameters (unloading backbone).
+    """
+    strains = np.asarray(strains, dtype=np.float64)
+    damping = np.asarray(damping, dtype=np.float64)
+
+    if shear_strength is None:
+        shear_strength = 0.001 * shear_mod
+
+    # Remove small-strain damping offset
+    damping_offset = damping[0] if len(damping) > 0 else 0
+    damping_adjusted = damping - damping_offset
+
+    bounds = [
+        (-6, -1),  # gamma_t
+        (-1, 1),  # a
+        (-6, -1),  # gamma_ref
+        (-1, 1),  # beta
+        (-0.3, 0.3),  # s
+        (-1, 2),  # mu
+        (np.log10(shear_strength) - 2, np.log10(shear_strength) + 2),
+        (-0.5, 0.5),  # d
+    ]
+
+    def misfit(x):
+        return hh_damping_only_misfit(
+            strains,
+            damping_adjusted,
+            10 ** x[0],
+            10 ** x[1],
+            10 ** x[2],
+            10 ** x[3],
+            10 ** x[4],
+            shear_mod,
+            10 ** x[5],
+            10 ** x[6],
+            10 ** x[7],
+            4.039,
+            1.036,
+        )
+
+    default_kwargs = {"maxiter": 1000, "tol": 1e-8, "polish": True, "workers": 1}
+    default_kwargs.update(kwargs)
+
+    result = differential_evolution(misfit, bounds, **default_kwargs)
 
     return HHParams(
         gamma_t=10 ** result.x[0],
@@ -488,11 +673,182 @@ def fit_profile(
     return multi_params
 
 
+def _get_layer_curves(layer: Layer) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Extract strains, modulus reduction and damping arrays from a layer."""
+    soil_type = layer.soil_type
+    mod_reduc_curve = soil_type.mod_reduc
+    strains = mod_reduc_curve.strains
+    mod_reduc = mod_reduc_curve.values
+
+    damping_curve = soil_type.damping
+    if callable(damping_curve):
+        damping = damping_curve(strains)
+    else:
+        damping = np.full_like(strains, damping_curve)
+
+    return strains, mod_reduc, damping
+
+
+def _estimate_shear_strength(layer: Layer, depth: float | None) -> float:
+    """Estimate shear strength for a layer at a given depth."""
+    shear_mod = layer.initial_shear_mod
+    if depth is not None:
+        stress_vert = 1800 * 9.81 * depth
+        return 0.22 * stress_vert
+    return 0.001 * shear_mod
+
+
+def _default_hh_params(shear_mod: float, shear_strength: float) -> HHParams:
+    """Return default HH parameters for a linear layer."""
+    return HHParams(
+        gamma_t=0.001,
+        a=1.0,
+        gamma_ref=0.01,
+        beta=1.0,
+        s=1.0,
+        shear_mod=shear_mod,
+        mu=1.0,
+        shear_strength=shear_strength,
+        d=1.0,
+    )
+
+
+def fit_layer_hh_two_set(
+    layer: Layer,
+    depth: float | None = None,
+    seed: int | None = None,
+    **kwargs,
+) -> tuple[HHParams, HHParams]:
+    """Fit separate modulus-reduction and damping HH parameters for one layer.
+
+    Returns two parameter sets: ``mod_params`` controls the loading backbone
+    (fitted to G/Gmax) and ``damp_params`` controls the unloading backbone
+    (fitted to damping). Together they are used by the Li & Assimaki (2010)
+    non-Masing hysteresis rule.
+
+    Parameters
+    ----------
+    layer : Layer
+        pystrata Layer with nonlinear soil type.
+    depth : float, optional
+        Depth to layer midpoint [m].
+    seed : int, optional
+        Random seed for reproducibility.
+    **kwargs
+        Additional arguments passed to scipy.optimize.differential_evolution.
+
+    Returns
+    -------
+    mod_params : HHParams
+        Parameters fitted to modulus reduction (loading backbone).
+    damp_params : HHParams
+        Parameters fitted to damping (unloading backbone).
+    """
+    soil_type = layer.soil_type
+    shear_mod = layer.initial_shear_mod
+    shear_strength = _estimate_shear_strength(layer, depth)
+
+    if not soil_type.is_nonlinear:
+        default = _default_hh_params(shear_mod, shear_strength)
+        return default, default
+
+    strains, mod_reduc, damping = _get_layer_curves(layer)
+
+    mod_params = fit_hh_modreduc_only(
+        strains,
+        mod_reduc,
+        shear_mod=shear_mod,
+        shear_strength=shear_strength,
+        seed=seed,
+        **kwargs,
+    )
+    damp_params = fit_hh_damping_only(
+        strains,
+        damping,
+        shear_mod=shear_mod,
+        shear_strength=shear_strength,
+        seed=seed,
+        **kwargs,
+    )
+    return mod_params, damp_params
+
+
+def fit_profile_two_set(
+    profile: Profile,
+    seed: int | None = None,
+    verbose: bool = False,
+    **kwargs,
+) -> tuple[MultiLayerParams, MultiLayerParams]:
+    """Fit separate modulus-reduction and damping parameters for a profile.
+
+    For each nonlinear layer, fits two independent HH parameter sets:
+
+    - ``mod_params`` — loading backbone matched to G/Gmax curves
+    - ``damp_params`` — unloading backbone whose Masing-derived damping
+      matches the target damping curves
+
+    These two sets are used together by the Li & Assimaki (2010)
+    non-Masing hysteresis rule to independently control stiffness and
+    energy dissipation.
+
+    Parameters
+    ----------
+    profile : Profile
+        pystrata Profile with layers.
+    seed : int, optional
+        Random seed for reproducibility.
+    verbose : bool
+        Print progress information.
+    **kwargs
+        Additional arguments passed to fitting functions.
+
+    Returns
+    -------
+    mod_params : MultiLayerParams
+        Container with modulus-reduction parameters for each layer.
+    damp_params : MultiLayerParams
+        Container with damping parameters for each layer.
+    """
+    start_time = time.perf_counter()
+    mod_multi = MultiLayerParams()
+    damp_multi = MultiLayerParams()
+    n_layers = len(profile) - 1
+
+    logger.debug(
+        "fit_profile_two_set: fitting HH two-set parameters for %d layers", n_layers
+    )
+
+    depth = 0.0
+    for i, layer in enumerate(profile[:-1]):
+        layer_depth = depth + layer.thickness / 2
+
+        if verbose:
+            print(
+                f"Fitting layer {i + 1}/{n_layers}: depth={layer_depth:.2f}m (two-set)"
+            )
+
+        mod_p, damp_p = fit_layer_hh_two_set(
+            layer,
+            depth=layer_depth,
+            seed=seed,
+            **kwargs,
+        )
+        mod_multi.append(mod_p)
+        damp_multi.append(damp_p)
+        depth += layer.thickness
+
+    elapsed = time.perf_counter() - start_time
+    logger.info("fit_profile_two_set: fitted %d layers in %.3fs", n_layers, elapsed)
+
+    return mod_multi, damp_multi
+
+
 def plot_layer_fit(
     layer: Layer,
     params: MKZParams | HHParams,
     strains: np.ndarray | None = None,
     axes: np.ndarray | None = None,
+    damp_params: HHParams | None = None,
 ) -> np.ndarray:
     """Plot target nonlinear curves vs constitutive model fit for one layer.
 
@@ -501,11 +857,16 @@ def plot_layer_fit(
     layer : Layer
         Layer with a nonlinear soil type providing target curves.
     params : MKZParams or HHParams
-        Fitted constitutive model parameters for this layer.
+        Fitted constitutive model parameters for this layer.  In two-set
+        mode this is the *modulus-reduction* parameter set.
     strains : np.ndarray, optional
         Strain array [decimal] for evaluation. Defaults to logspace(-6, -1.5).
     axes : np.ndarray of Axes, optional
         Two matplotlib Axes (G/Gmax, Damping). Created if not provided.
+    damp_params : HHParams, optional
+        Separate damping parameter set (two-set mode).  When provided, the
+        damping panel shows the Masing-derived damping from this set instead
+        of the primary *params*.
 
     Returns
     -------
@@ -534,11 +895,19 @@ def plot_layer_fit(
 
     # Fitted model predictions
     pred_mr = calc_mod_reduc(strains, params)
-    pred_d = calc_damping(strains, params)
     label = "MKZ" if isinstance(params, MKZParams) else "HH"
 
     ax_mr.semilogx(strains_pct, pred_mr, "--", lw=1.5, label=f"{label} fit")
-    ax_d.semilogx(strains_pct, pred_d * 100, "--", lw=1.5, label=f"{label} fit")
+
+    # Damping: use damp_params if provided (two-set mode), otherwise params
+    damp_p = damp_params if damp_params is not None else params
+    pred_d = calc_damping(strains, damp_p)
+    # Add back small-strain damping offset (D_min) that was subtracted during fitting
+    if callable(getattr(st, "damping", None)):
+        d_min = st.damping(strains[:1])[0]
+        pred_d = pred_d + d_min
+    damp_label = f"{label} damp fit" if damp_params is not None else f"{label} fit"
+    ax_d.semilogx(strains_pct, pred_d * 100, "--", lw=1.5, label=damp_label)
 
     ax_mr.set(xlabel="Shear strain (%)", ylabel="G/Gmax", ylim=(0, 1.05))
     ax_d.set(xlabel="Shear strain (%)", ylabel="Damping ratio (%)")
@@ -556,6 +925,7 @@ def plot_fit(
     step: int | None = None,
     strains: np.ndarray | None = None,
     axes: np.ndarray | None = None,
+    damp_params: MultiLayerParams | None = None,
 ) -> np.ndarray:
     """Plot target nonlinear curves vs constitutive model fit for a profile.
 
@@ -565,6 +935,7 @@ def plot_fit(
         Site profile with nonlinear soil types.
     params : MultiLayerParams
         Fitted constitutive model parameters (from :func:`fit_profile`).
+        In two-set mode this is the modulus-reduction parameter set.
     indices : list of int, optional
         Layer indices to plot. If None, selects nonlinear layers filtered
         by *step*.
@@ -576,6 +947,9 @@ def plot_fit(
         Strain array [decimal] for evaluation. Defaults to logspace(-6, -1.5).
     axes : np.ndarray, optional
         Array of shape (n_layers, 2) of Axes. Created if not provided.
+    damp_params : MultiLayerParams, optional
+        Separate damping parameters (two-set mode).  When provided,
+        damping panels show predictions from this set.
 
     Returns
     -------
@@ -613,7 +987,10 @@ def plot_fit(
     for row, idx in enumerate(sel):
         layer = profile[idx]
         ax_pair = axes[row]
-        plot_layer_fit(layer, params[idx], strains=strains, axes=ax_pair)
+        dp = damp_params[idx] if damp_params is not None else None
+        plot_layer_fit(
+            layer, params[idx], strains=strains, axes=ax_pair, damp_params=dp
+        )
 
         name = layer.soil_type.name or ""
         label = (

@@ -48,6 +48,70 @@ from .constitutive import HHParams, MKZParams, MultiLayerParams
 
 logger = logging.getLogger(__name__)
 
+# Liu & Archuleta (2006) Table 1: relaxation times (tau_k), interpolation
+# coefficients (alpha_k, beta_k) for 8 mechanisms spanning ~0.01–50 Hz.
+# Weight coefficients w_k for a target Q are computed via equation (6):
+#   w_k^Q = chi * (chi * alpha_k + beta_k)
+# where chi depends on Q (equation 6b).
+LIU_ARCHULETA_COEFFS = np.array(
+    [
+        [1.72333e-03, 1.66958e-02, 8.98758e-02],
+        [1.80701e-03, 3.81644e-02, 6.84635e-02],
+        [5.38887e-03, 9.84666e-03, 9.67052e-02],
+        [1.99322e-02, -1.36803e-02, 1.20172e-01],
+        [8.49833e-02, -2.85125e-02, 1.30728e-01],
+        [4.09335e-01, -5.37309e-02, 1.38746e-01],
+        [2.05951e00, -6.65035e-02, 1.40705e-01],
+        [1.32629e01, -1.33696e-01, 2.14647e-01],
+    ],
+    dtype=np.float64,
+)
+N_RELAX_MECHANISMS = LIU_ARCHULETA_COEFFS.shape[0]
+# Backward compatibility aliases
+TABK = LIU_ARCHULETA_COEFFS
+N_MECH = N_RELAX_MECHANISMS
+
+
+def _compute_la_weights(
+    damping_min: npt.NDArray[np.floating],
+    alpha_k: npt.NDArray[np.floating],
+    beta_k: npt.NDArray[np.floating],
+    n_mech: int,
+) -> npt.NDArray[np.floating]:
+    """Compute Liu & Archuleta (2006) weight coefficients w_k per layer.
+
+    Uses equations (6a) and (6b) from Liu & Archuleta (2006) to compute
+    the weight coefficients for a target Q = 1 / (2 * damping_min).
+
+    Parameters
+    ----------
+    damping_min : np.ndarray, shape (n_layers,)
+        Small-strain damping ratio for each layer.
+    alpha_k : np.ndarray, shape (n_mech,)
+        Alpha coefficients from Table 1.
+    beta_k : np.ndarray, shape (n_mech,)
+        Beta coefficients from Table 1.
+    n_mech : int
+        Number of relaxation mechanisms.
+
+    Returns
+    -------
+    wk : np.ndarray, shape (n_layers, n_mech)
+        Weight coefficients for each layer and mechanism.
+    """
+    n_layers = len(damping_min)
+    wk = np.zeros((n_layers, n_mech), dtype=np.float64)
+    for i in range(n_layers):
+        d = damping_min[i]
+        Q = 1.0 / (2.0 * d) if d > 0 else 5000.0
+        Q = np.clip(Q, 5.0, 5000.0)
+        # Equation (6b)
+        chi = (3.071 + 1.433 * Q ** (-1.158) * np.log(Q / 5.0)) / (1.0 + 0.415 * Q)
+        for k in range(n_mech):
+            wk[i, k] = chi * (chi * alpha_k[k] + beta_k[k])
+    return wk
+
+
 if TYPE_CHECKING:
     pass
 
@@ -497,7 +561,7 @@ def _integrate_nonlinear_python(
 
             # Add viscous damping contribution
             strain_rate = (strain_mid[i] - strain[n - 1, i] if n > 0 else 0) / dt
-            stress_mid[i] += visc_coeff[i] * strain_rate * dz[i]
+            stress_mid[i] += visc_coeff[i] * strain_rate
 
         # Update interior nodes
         for i in range(1, n_nodes - 1):
@@ -548,6 +612,212 @@ def _integrate_nonlinear_python(
         stress[n, :] = stress_mid
 
         # Advance time step
+        u_prev[:] = u_curr
+        u_curr[:] = u_next
+
+    return displ, veloc, accel, strain, stress
+
+
+def _integrate_hysteretic_python(
+    n_times: int,
+    n_nodes: int,
+    n_layers: int,
+    dt: float,
+    dz: npt.NDArray[np.floating],
+    rho: npt.NDArray[np.floating],
+    mod_params_list: list[MKZParams | HHParams],
+    damp_params_list: list[MKZParams | HHParams],
+    damping_min: npt.NDArray[np.floating],
+    input_accel: npt.NDArray[np.floating],
+    boundary: str,
+    rho_base: float,
+    vs_base: float,
+    damp_form: str = "liu_archuleta",
+) -> tuple[
+    npt.NDArray[np.floating],
+    npt.NDArray[np.floating],
+    npt.NDArray[np.floating],
+    npt.NDArray[np.floating],
+    npt.NDArray[np.floating],
+]:
+    """Perform non-Masing hysteretic time integration (pure Python).
+
+    Uses the Li & Assimaki (2010) non-Masing rule: loading follows the
+    ``mod_params`` backbone and unloading follows the ``damp_params``
+    backbone with extended Masing mapping from the last reversal point.
+
+    Small-strain damping is handled by either the Liu & Archuleta (2006)
+    memory-variable Q model or classic Rayleigh viscous damping.
+
+    Parameters
+    ----------
+    mod_params_list : list
+        Loading backbone parameters (fitted to modulus reduction).
+    damp_params_list : list
+        Unloading backbone parameters (fitted to damping).
+    damp_form : str
+        'liu_archuleta' or 'rayleigh'.
+    """
+    from .constitutive import calc_stress
+
+    # Initialize arrays
+    displ = np.zeros((n_times, n_nodes))
+    veloc = np.zeros((n_times, n_nodes))
+    accel = np.zeros((n_times, n_nodes))
+    strain = np.zeros((n_times, n_layers))
+    stress = np.zeros((n_times, n_layers))
+
+    u_prev = np.zeros(n_nodes)
+    u_curr = np.zeros(n_nodes)
+    u_next = np.zeros(n_nodes)
+
+    shear_mod = np.array([p.shear_mod for p in mod_params_list])
+
+    # Per-layer hysteresis state
+    prev_strain_val = np.zeros(n_layers)
+    rev_strain = np.zeros(n_layers)  # strain at last reversal
+    rev_stress = np.zeros(n_layers)  # stress at last reversal
+    loading_dir = np.ones(n_layers)  # +1 = loading, -1 = unloading
+    has_reversed = np.zeros(n_layers, dtype=np.int32)  # 0=virgin, 1=reversed
+    prev_backbone_stress = np.zeros(n_layers)  # backbone-only (no viscous)
+
+    # Damping setup
+    if damp_form == "liu_archuleta":
+        # Liu & Archuleta (2006) anelastic strain variables (varsigma_k)
+        # shape (n_layers, N_RELAX_MECHANISMS).  Driven by total strain
+        # (eq. 4); at equilibrium varsigma_k → w_k * eps.
+        anelastic_strain = np.zeros((n_layers, N_RELAX_MECHANISMS))
+        relax_times = LIU_ARCHULETA_COEFFS[:, 0]
+        relax_weights = _compute_la_weights(
+            damping_min,
+            LIU_ARCHULETA_COEFFS[:, 1],
+            LIU_ARCHULETA_COEFFS[:, 2],
+            N_RELAX_MECHANISMS,
+        )
+    else:
+        visc_coeff = 2 * damping_min * np.sqrt(rho * shear_mod)
+
+    # Pre-integrate input acceleration for boundary conditions
+    impedance_base = rho_base * vs_base
+    base_veloc = np.cumsum(input_accel) * dt
+    base_displ = np.cumsum(base_veloc) * dt
+    mass_base = rho[-1] * dz[-1] / 2
+
+    for n in range(n_times):
+        # Compute strain at each layer midpoint
+        strain_mid = np.zeros(n_layers)
+        for i in range(n_layers):
+            strain_mid[i] = (u_curr[i + 1] - u_curr[i]) / dz[i]
+
+        # Compute stress with non-Masing hysteresis rule
+        stress_mid = np.zeros(n_layers)
+        for i in range(n_layers):
+            gamma = strain_mid[i]
+            d_strain = gamma - prev_strain_val[i]
+
+            # Detect reversal
+            if n > 0 and d_strain != 0:
+                new_dir = 1.0 if d_strain > 0 else -1.0
+                if new_dir != loading_dir[i]:
+                    # Reversal occurred — record reversal point
+                    # Use backbone-only stress (no viscous) for reversal memory
+                    rev_strain[i] = prev_strain_val[i]
+                    rev_stress[i] = prev_backbone_stress[i]
+                    loading_dir[i] = new_dir
+                    has_reversed[i] = 1
+
+            if has_reversed[i] == 0:
+                # Virgin loading: use backbone directly (not Masing-mapped)
+                strain_arr = np.array([gamma])
+                stress_mid[i] = calc_stress(strain_arr, mod_params_list[i])[0]
+            else:
+                # Post-reversal: extended Masing mapping
+                delta_gamma = gamma - rev_strain[i]
+
+                # Select backbone based on loading direction
+                if loading_dir[i] > 0:
+                    params_i = mod_params_list[i]
+                else:
+                    params_i = damp_params_list[i]
+
+                # Extended Masing: tau = tau_rev + 2 * F(delta_gamma / 2)
+                half_delta = np.array([delta_gamma / 2.0])
+                backbone_val = calc_stress(half_delta, params_i)[0]
+                stress_mid[i] = rev_stress[i] + 2.0 * backbone_val
+
+            # Store backbone-only stress for reversal memory
+            # (must be saved BEFORE adding viscous/L&A damping)
+            prev_backbone_stress[i] = stress_mid[i]
+
+            # Add small-strain viscous damping
+            if damp_form == "liu_archuleta":
+                # Liu & Archuleta (2006) frequency-independent Q model.
+                # The deficit (w_k*eps - varsigma_k) provides velocity-
+                # proportional dissipation during dynamics and vanishes at
+                # static equilibrium.  Scale by G_max to maintain correct
+                # small-strain damping level.
+                sum_wk = 0.0
+                sum_varsigma = 0.0
+                for k in range(N_RELAX_MECHANISMS):
+                    sum_wk += relax_weights[i, k]
+                    exp_term = np.exp(-dt / relax_times[k])
+                    # Update memory variable (eq. 4)
+                    anelastic_strain[i, k] = (
+                        exp_term * anelastic_strain[i, k]
+                        + relax_weights[i, k] * (1.0 - exp_term) * gamma
+                    )
+                    sum_varsigma += anelastic_strain[i, k]
+
+                deficit = sum_wk * gamma - sum_varsigma
+                stress_mid[i] += shear_mod[i] * deficit
+            else:
+                strain_rate = d_strain / dt if (n > 0 and dt > 0) else 0.0
+                stress_mid[i] += visc_coeff[i] * dz[i] * strain_rate
+
+        # Update interior nodes
+        for i in range(1, n_nodes - 1):
+            if i < n_layers:
+                rho_node = 0.5 * (rho[i - 1] + rho[i])
+                stress_above = stress_mid[i - 1]
+                stress_below = stress_mid[i]
+                dz_avg = 0.5 * (dz[i - 1] + dz[i])
+            else:
+                rho_node = rho[n_layers - 1]
+                stress_above = stress_mid[n_layers - 1]
+                stress_below = stress_mid[n_layers - 1]
+                dz_avg = dz[n_layers - 1]
+
+            force = (stress_below - stress_above) / dz_avg
+            u_next[i] = 2 * u_curr[i] - u_prev[i] + dt**2 / rho_node * force
+
+        # Surface boundary (free surface)
+        u_next[0] = (
+            2 * u_curr[0] - u_prev[0] + dt**2 / rho[0] * stress_mid[0] / (dz[0] / 2)
+        )
+
+        # Base boundary
+        if boundary == "rigid":
+            u_next[-1] = base_displ[n]
+        else:
+            v_in = base_veloc[n]
+            f_above = -stress_mid[-1]
+            f_incoming = 2.0 * impedance_base * v_in
+            alpha = impedance_base * dt / (2.0 * mass_base)
+            u_next[-1] = (
+                2 * u_curr[-1]
+                - (1 - alpha) * u_prev[-1]
+                + dt**2 / mass_base * (f_above + f_incoming)
+            ) / (1 + alpha)
+
+        # Store results
+        displ[n, :] = u_next
+        veloc[n, :] = (u_next - u_prev) / (2 * dt)
+        accel[n, :] = (u_next - 2 * u_curr + u_prev) / dt**2
+        strain[n, :] = strain_mid
+        stress[n, :] = stress_mid
+
+        # Advance time step
+        prev_strain_val[:] = strain_mid
         u_prev[:] = u_curr
         u_curr[:] = u_next
 
@@ -830,7 +1100,7 @@ if HAS_NUMBA:
                     strain_rate = (strain_mid[i] - prev_strain_mid[i]) / dt
                 else:
                     strain_rate = 0.0
-                stress_mid[i] += visc_coeff[i] * strain_rate * dz[i]
+                stress_mid[i] += visc_coeff[i] * strain_rate
 
             # Update interior nodes
             for i in range(1, n_nodes - 1):
@@ -887,8 +1157,285 @@ if HAS_NUMBA:
 
         return displ, veloc, accel, strain, stress
 
-    # For now, always use Python version until Numba version is updated
-    # _integrate_linear_dispatch = _integrate_linear_numba
+    @numba.njit(cache=True)
+    def _integrate_hysteretic_numba(
+        n_times: int,
+        n_nodes: int,
+        n_layers: int,
+        dt: float,
+        dz: npt.NDArray[np.floating],
+        rho: npt.NDArray[np.floating],
+        # Loading backbone (mod_params)
+        mod_model_type: npt.NDArray[np.int32],
+        mod_gamma_ref: npt.NDArray[np.floating],
+        mod_beta: npt.NDArray[np.floating],
+        mod_s: npt.NDArray[np.floating],
+        mod_shear_mod: npt.NDArray[np.floating],
+        mod_gamma_t: npt.NDArray[np.floating],
+        mod_a: npt.NDArray[np.floating],
+        mod_mu: npt.NDArray[np.floating],
+        mod_shear_strength: npt.NDArray[np.floating],
+        mod_d: npt.NDArray[np.floating],
+        mod_trans_c1: npt.NDArray[np.floating],
+        mod_trans_c2: npt.NDArray[np.floating],
+        # Unloading backbone (damp_params)
+        damp_model_type: npt.NDArray[np.int32],
+        damp_gamma_ref: npt.NDArray[np.floating],
+        damp_beta: npt.NDArray[np.floating],
+        damp_s: npt.NDArray[np.floating],
+        damp_shear_mod: npt.NDArray[np.floating],
+        damp_gamma_t: npt.NDArray[np.floating],
+        damp_a: npt.NDArray[np.floating],
+        damp_mu: npt.NDArray[np.floating],
+        damp_shear_strength: npt.NDArray[np.floating],
+        damp_d: npt.NDArray[np.floating],
+        damp_trans_c1: npt.NDArray[np.floating],
+        damp_trans_c2: npt.NDArray[np.floating],
+        # Damping
+        damping_min: npt.NDArray[np.floating],
+        input_accel: npt.NDArray[np.floating],
+        boundary_code: int,
+        rho_base: float,
+        vs_base: float,
+        damp_form_code: int,  # 0 = rayleigh, 1 = liu_archuleta
+        relax_times: npt.NDArray[np.floating],
+        relax_weights: npt.NDArray[np.floating],  # (n_layers, n_mech)
+        n_mech: int,
+    ) -> tuple[
+        npt.NDArray[np.floating],
+        npt.NDArray[np.floating],
+        npt.NDArray[np.floating],
+        npt.NDArray[np.floating],
+        npt.NDArray[np.floating],
+    ]:
+        """Numba-accelerated non-Masing hysteretic time integration."""
+        displ = np.zeros((n_times, n_nodes))
+        veloc = np.zeros((n_times, n_nodes))
+        accel = np.zeros((n_times, n_nodes))
+        strain = np.zeros((n_times, n_layers))
+        stress = np.zeros((n_times, n_layers))
+
+        u_prev = np.zeros(n_nodes)
+        u_curr = np.zeros(n_nodes)
+        u_next = np.zeros(n_nodes)
+
+        # Per-layer hysteresis state
+        prev_strain_val = np.zeros(n_layers)
+        rev_strain = np.zeros(n_layers)
+        rev_stress = np.zeros(n_layers)
+        loading_dir = np.ones(n_layers)  # +1 = loading
+        has_reversed = np.zeros(n_layers, dtype=np.int32)  # 0=virgin, 1=reversed
+        prev_backbone_stress = np.zeros(n_layers)  # backbone-only (no viscous)
+
+        # Damping setup
+        if damp_form_code == 1:
+            # Liu & Archuleta anelastic strain variables
+            anelastic_strain = np.zeros((n_layers, n_mech))
+        else:
+            visc_coeff = np.empty(n_layers)
+            for i in range(n_layers):
+                visc_coeff[i] = 2 * damping_min[i] * np.sqrt(rho[i] * mod_shear_mod[i])
+
+        # Pre-integrate input acceleration for boundary conditions
+        impedance_base = rho_base * vs_base
+        base_veloc = np.empty(n_times)
+        base_displ = np.empty(n_times)
+        base_veloc[0] = input_accel[0] * dt
+        base_displ[0] = base_veloc[0] * dt
+        for n in range(1, n_times):
+            base_veloc[n] = base_veloc[n - 1] + input_accel[n] * dt
+            base_displ[n] = base_displ[n - 1] + base_veloc[n] * dt
+
+        mass_base = rho[n_layers - 1] * dz[n_layers - 1] / 2
+
+        for n in range(n_times):
+            # Compute strain at each layer midpoint
+            strain_mid = np.empty(n_layers)
+            for i in range(n_layers):
+                strain_mid[i] = (u_curr[i + 1] - u_curr[i]) / dz[i]
+
+            # Compute stress with non-Masing hysteresis
+            stress_mid = np.empty(n_layers)
+            for i in range(n_layers):
+                gamma = strain_mid[i]
+                d_strain = gamma - prev_strain_val[i]
+
+                # Detect reversal
+                if n > 0 and d_strain != 0.0:
+                    new_dir = 1.0 if d_strain > 0.0 else -1.0
+                    if new_dir != loading_dir[i]:
+                        rev_strain[i] = prev_strain_val[i]
+                        rev_stress[i] = prev_backbone_stress[i]
+                        loading_dir[i] = new_dir
+                        has_reversed[i] = 1
+
+                if has_reversed[i] == 0:
+                    # Virgin loading: use backbone directly (not Masing-mapped)
+                    if mod_model_type[i] == 0:
+                        stress_mid[i] = _calc_stress_mkz_scalar(
+                            gamma,
+                            mod_gamma_ref[i],
+                            mod_beta[i],
+                            mod_s[i],
+                            mod_shear_mod[i],
+                        )
+                    else:
+                        stress_mid[i] = _calc_stress_hh_scalar(
+                            gamma,
+                            mod_gamma_ref[i],
+                            mod_beta[i],
+                            mod_s[i],
+                            mod_shear_mod[i],
+                            mod_gamma_t[i],
+                            mod_a[i],
+                            mod_mu[i],
+                            mod_shear_strength[i],
+                            mod_d[i],
+                            mod_trans_c1[i],
+                            mod_trans_c2[i],
+                        )
+                else:
+                    # Post-reversal: extended Masing mapping
+                    delta_gamma = gamma - rev_strain[i]
+                    half_delta = delta_gamma / 2.0
+
+                    # Select backbone based on loading direction
+                    if loading_dir[i] > 0.0:
+                        # Loading: use mod_params
+                        if mod_model_type[i] == 0:
+                            backbone = _calc_stress_mkz_scalar(
+                                half_delta,
+                                mod_gamma_ref[i],
+                                mod_beta[i],
+                                mod_s[i],
+                                mod_shear_mod[i],
+                            )
+                        else:
+                            backbone = _calc_stress_hh_scalar(
+                                half_delta,
+                                mod_gamma_ref[i],
+                                mod_beta[i],
+                                mod_s[i],
+                                mod_shear_mod[i],
+                                mod_gamma_t[i],
+                                mod_a[i],
+                                mod_mu[i],
+                                mod_shear_strength[i],
+                                mod_d[i],
+                                mod_trans_c1[i],
+                                mod_trans_c2[i],
+                            )
+                    else:
+                        # Unloading: use damp_params
+                        if damp_model_type[i] == 0:
+                            backbone = _calc_stress_mkz_scalar(
+                                half_delta,
+                                damp_gamma_ref[i],
+                                damp_beta[i],
+                                damp_s[i],
+                                damp_shear_mod[i],
+                            )
+                        else:
+                            backbone = _calc_stress_hh_scalar(
+                                half_delta,
+                                damp_gamma_ref[i],
+                                damp_beta[i],
+                                damp_s[i],
+                                damp_shear_mod[i],
+                                damp_gamma_t[i],
+                                damp_a[i],
+                                damp_mu[i],
+                                damp_shear_strength[i],
+                                damp_d[i],
+                                damp_trans_c1[i],
+                                damp_trans_c2[i],
+                            )
+
+                    stress_mid[i] = rev_stress[i] + 2.0 * backbone
+
+                # Store backbone stress before adding viscous damping
+                prev_backbone_stress[i] = stress_mid[i]
+
+                # Add small-strain viscous damping
+                if damp_form_code == 1:
+                    # Liu & Archuleta (2006) strain-driven memory variables.
+                    # Scale deficit by G_max for correct small-strain damping.
+                    sum_wk = 0.0
+                    sum_varsigma = 0.0
+                    for k in range(n_mech):
+                        sum_wk += relax_weights[i, k]
+                        exp_term = np.exp(-dt / relax_times[k])
+                        # Update memory variable (L&A eq. 4)
+                        anelastic_strain[i, k] = (
+                            exp_term * anelastic_strain[i, k]
+                            + relax_weights[i, k] * (1.0 - exp_term) * gamma
+                        )
+                        sum_varsigma += anelastic_strain[i, k]
+
+                    deficit = sum_wk * gamma - sum_varsigma
+                    stress_mid[i] += mod_shear_mod[i] * deficit
+                else:
+                    # Rayleigh viscous damping
+                    if n > 0 and dt > 0.0:
+                        strain_rate = d_strain / dt
+                    else:
+                        strain_rate = 0.0
+                    stress_mid[i] += visc_coeff[i] * dz[i] * strain_rate
+
+            # Update interior nodes
+            for i in range(1, n_nodes - 1):
+                if i < n_layers:
+                    rho_node = 0.5 * (rho[i - 1] + rho[i])
+                    stress_above = stress_mid[i - 1]
+                    stress_below = stress_mid[i]
+                    dz_avg = 0.5 * (dz[i - 1] + dz[i])
+                else:
+                    rho_node = rho[n_layers - 1]
+                    stress_above = stress_mid[n_layers - 1]
+                    stress_below = stress_mid[n_layers - 1]
+                    dz_avg = dz[n_layers - 1]
+
+                force = (stress_below - stress_above) / dz_avg
+                u_next[i] = 2 * u_curr[i] - u_prev[i] + dt * dt / rho_node * force
+
+            # Surface boundary
+            u_next[0] = (
+                2 * u_curr[0]
+                - u_prev[0]
+                + dt * dt / rho[0] * stress_mid[0] / (dz[0] / 2)
+            )
+
+            # Base boundary
+            if boundary_code == 0:  # rigid
+                u_next[n_nodes - 1] = base_displ[n]
+            else:  # elastic
+                v_in = base_veloc[n]
+                f_above = -stress_mid[n_layers - 1]
+                f_incoming = 2.0 * impedance_base * v_in
+                alpha = impedance_base * dt / (2.0 * mass_base)
+                u_next[n_nodes - 1] = (
+                    2 * u_curr[n_nodes - 1]
+                    - (1 - alpha) * u_prev[n_nodes - 1]
+                    + dt * dt / mass_base * (f_above + f_incoming)
+                ) / (1 + alpha)
+
+            # Store results
+            for j in range(n_nodes):
+                displ[n, j] = u_next[j]
+                veloc[n, j] = (u_next[j] - u_prev[j]) / (2 * dt)
+                accel[n, j] = (u_next[j] - 2 * u_curr[j] + u_prev[j]) / (dt * dt)
+            for j in range(n_layers):
+                strain[n, j] = strain_mid[j]
+                stress[n, j] = stress_mid[j]
+
+            # Advance time step
+            for j in range(n_nodes):
+                u_prev[j] = u_curr[j]
+                u_curr[j] = u_next[j]
+            for j in range(n_layers):
+                prev_strain_val[j] = strain_mid[j]
+
+        return displ, veloc, accel, strain, stress
 
 
 def _integrate_linear_dispatch(
@@ -1015,6 +1562,131 @@ def _integrate_nonlinear_dispatch(
             boundary,
             rho_base,
             vs_base,
+        )
+
+
+def _integrate_hysteretic_dispatch(
+    n_times: int,
+    n_nodes: int,
+    n_layers: int,
+    dt: float,
+    dz: npt.NDArray[np.floating],
+    rho: npt.NDArray[np.floating],
+    mod_params_list: list[MKZParams | HHParams],
+    damp_params_list: list[MKZParams | HHParams],
+    damping_min: npt.NDArray[np.floating],
+    input_accel: npt.NDArray[np.floating],
+    boundary: str,
+    rho_base: float,
+    vs_base: float,
+    damp_form: str = "liu_archuleta",
+) -> tuple[
+    npt.NDArray[np.floating],
+    npt.NDArray[np.floating],
+    npt.NDArray[np.floating],
+    npt.NDArray[np.floating],
+    npt.NDArray[np.floating],
+]:
+    """Dispatch to Numba or Python hysteretic integration."""
+
+    if HAS_NUMBA:
+        (
+            mod_model_type,
+            mod_gamma_ref,
+            mod_beta,
+            mod_s,
+            mod_shear_mod,
+            mod_gamma_t,
+            mod_a,
+            mod_mu,
+            mod_shear_strength,
+            mod_d,
+            mod_trans_c1,
+            mod_trans_c2,
+        ) = _extract_params_to_arrays(mod_params_list)
+        (
+            damp_model_type,
+            damp_gamma_ref,
+            damp_beta,
+            damp_s,
+            damp_shear_mod,
+            damp_gamma_t,
+            damp_a,
+            damp_mu,
+            damp_shear_strength,
+            damp_d,
+            damp_trans_c1,
+            damp_trans_c2,
+        ) = _extract_params_to_arrays(damp_params_list)
+
+        boundary_code = 0 if boundary == "rigid" else 1
+        damp_form_code = 1 if damp_form == "liu_archuleta" else 0
+
+        # Precompute L&A weight coefficients per layer (eq. 6a-b)
+        relax_weights = _compute_la_weights(
+            damping_min,
+            LIU_ARCHULETA_COEFFS[:, 1],
+            LIU_ARCHULETA_COEFFS[:, 2],
+            N_RELAX_MECHANISMS,
+        )
+
+        return _integrate_hysteretic_numba(
+            n_times,
+            n_nodes,
+            n_layers,
+            dt,
+            dz,
+            rho,
+            mod_model_type,
+            mod_gamma_ref,
+            mod_beta,
+            mod_s,
+            mod_shear_mod,
+            mod_gamma_t,
+            mod_a,
+            mod_mu,
+            mod_shear_strength,
+            mod_d,
+            mod_trans_c1,
+            mod_trans_c2,
+            damp_model_type,
+            damp_gamma_ref,
+            damp_beta,
+            damp_s,
+            damp_shear_mod,
+            damp_gamma_t,
+            damp_a,
+            damp_mu,
+            damp_shear_strength,
+            damp_d,
+            damp_trans_c1,
+            damp_trans_c2,
+            damping_min,
+            input_accel,
+            boundary_code,
+            rho_base,
+            vs_base,
+            damp_form_code,
+            LIU_ARCHULETA_COEFFS[:, 0].copy(),
+            relax_weights,
+            N_RELAX_MECHANISMS,
+        )
+    else:
+        return _integrate_hysteretic_python(
+            n_times,
+            n_nodes,
+            n_layers,
+            dt,
+            dz,
+            rho,
+            mod_params_list,
+            damp_params_list,
+            damping_min,
+            input_accel,
+            boundary,
+            rho_base,
+            vs_base,
+            damp_form=damp_form,
         )
 
 
@@ -1168,6 +1840,8 @@ def propagate_nonlinear(
     rho_base: float | None = None,
     vs_base: float | None = None,
     subcycles: int | None = None,
+    damp_params: MultiLayerParams | None = None,
+    damp_form: Literal["rayleigh", "liu_archuleta"] = "rayleigh",
 ) -> TimeDomainResults:
     """Perform nonlinear time-domain wave propagation.
 
@@ -1182,7 +1856,8 @@ def propagate_nonlinear(
     densities : np.ndarray
         Layer densities [kg/m³].
     params : MultiLayerParams
-        Constitutive model parameters for each layer.
+        Constitutive model parameters for each layer.  In two-set mode
+        this is the modulus-reduction (loading backbone) parameter set.
     damping_min : np.ndarray
         Minimum (small-strain) damping ratios.
     boundary : str
@@ -1193,6 +1868,14 @@ def propagate_nonlinear(
         Base layer shear velocity. Required for elastic boundary.
     subcycles : int, optional
         Number of subcycles per time step.
+    damp_params : MultiLayerParams, optional
+        Damping (unloading backbone) parameters.  When provided, the
+        non-Masing hysteretic integration is used with ``params`` as
+        loading backbone and ``damp_params`` as unloading backbone.
+    damp_form : str
+        Small-strain damping formulation: ``'rayleigh'`` for classic Rayleigh
+        viscous damping, ``'liu_archuleta'`` for the Liu & Archuleta
+        (2006) frequency-independent Q model with 8 relaxation mechanisms.
 
     Returns
     -------
@@ -1217,7 +1900,27 @@ def propagate_nonlinear(
     dt_input = times[1] - times[0] if len(times) > 1 else 0.01
 
     if subcycles is None:
-        subcycles = calc_cfl_subcycles(dt_input, thicknesses, shear_vels)
+        # CFL stability requirement
+        vel_factor = 1.0
+        subcycles_cfl = calc_cfl_subcycles(
+            dt_input,
+            thicknesses,
+            shear_vels * vel_factor,
+        )
+
+        if damp_form == "liu_archuleta":
+            # The L&A memory-variable model requires dt << τ_k for the
+            # relaxation mechanisms that cover the modeled frequency band.
+            # If dt is too large relative to τ_k, the mechanism equilibrates
+            # within one step and provides no dissipation at that frequency.
+            # Require dt < τ_3 / 3 (mechanism 3 targets ~30 Hz) to ensure
+            # adequate temporal resolution for viscous damping.
+            # PySeismoSoil uses n_dt=30; we use a similar conservative value.
+            tau_min_relevant = LIU_ARCHULETA_COEFFS[2, 0]  # τ_3 = 0.0054 s
+            subcycles_la = max(1, int(np.ceil(dt_input / (tau_min_relevant / 3))))
+            subcycles = max(subcycles_cfl, subcycles_la)
+        else:
+            subcycles = subcycles_cfl
 
     dt = dt_input / subcycles
 
@@ -1242,7 +1945,13 @@ def propagate_nonlinear(
     input_accel_sub = np.interp(times_sub, times, input_accel)
 
     # Run nonlinear integration (uses Numba if available)
-    displ, veloc, accel, strain, stress = _integrate_nonlinear_dispatch(
+    # Always use the hysteretic integrator which provides proper Masing rules
+    # and frequency-independent L&A damping.  For single-set mode (MKZ),
+    # duplicate params so loading and unloading use the same backbone.
+    if damp_params is None:
+        damp_params = params
+
+    displ, veloc, accel, strain, stress = _integrate_hysteretic_dispatch(
         n_times_sub,
         n_nodes,
         n_layers,
@@ -1250,11 +1959,13 @@ def propagate_nonlinear(
         thicknesses,
         densities,
         list(params),
+        list(damp_params),
         damping_min,
         input_accel_sub,
         boundary,
         rho_base_val,
         vs_base_val,
+        damp_form=damp_form,
     )
 
     # Downsample

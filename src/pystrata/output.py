@@ -559,8 +559,13 @@ class ResponseSpectrumOutput(LocationBasedOutput):
     def __call__(self, calc, name: str | None = None) -> None:
         Output.__call__(self, calc, name)
         loc = self._get_location(calc)
-        tf = calc.calc_accel_tf(calc.loc_input, loc)
-        ars = calc.motion.calc_osc_accels(self.freqs, self.osc_damping, tf)
+        if hasattr(calc, "calc_osc_accels"):
+            # Time-domain path: compute Sa directly from the time series
+            ars = calc.calc_osc_accels(loc, self.freqs, self.osc_damping)
+        else:
+            # Frequency-domain path: apply transfer function to input FAS
+            tf = calc.calc_accel_tf(calc.loc_input, loc)
+            ars = calc.motion.calc_osc_accels(self.freqs, self.osc_damping, tf)
         self._add_values(ars)
 
 
@@ -669,12 +674,20 @@ class ResponseSpectrumRatioOutput(RatioBasedOutput):
     def __call__(self, calc, name: str | None = None) -> None:
         Output.__call__(self, calc, name)
         loc_in, loc_out = self._get_locations(calc)
-        in_ars = calc.motion.calc_osc_accels(
-            self.freqs, self.osc_damping, calc.calc_accel_tf(calc.loc_input, loc_in)
-        )
-        out_ars = calc.motion.calc_osc_accels(
-            self.freqs, self.osc_damping, calc.calc_accel_tf(calc.loc_input, loc_out)
-        )
+        if hasattr(calc, "calc_osc_accels"):
+            # Time-domain path: compute Sa directly from the time series
+            in_ars = calc.calc_osc_accels(loc_in, self.freqs, self.osc_damping)
+            out_ars = calc.calc_osc_accels(loc_out, self.freqs, self.osc_damping)
+        else:
+            # Frequency-domain path: apply transfer function to input FAS
+            in_ars = calc.motion.calc_osc_accels(
+                self.freqs, self.osc_damping, calc.calc_accel_tf(calc.loc_input, loc_in)
+            )
+            out_ars = calc.motion.calc_osc_accels(
+                self.freqs,
+                self.osc_damping,
+                calc.calc_accel_tf(calc.loc_input, loc_out),
+            )
         ratio = out_ars / in_ars
         self._add_values(ratio)
 
@@ -873,8 +886,7 @@ class MaxAccelProfile(ProfileBasedOutput):
         self._add_values(values)
 
     def _calc_accel(self, calc, depth):
-        return calc.motion.calc_peak(
-            calc.calc_accel_tf(
-                calc.loc_input, calc.profile.location("within", depth=depth)
-            )
-        )
+        loc = calc.profile.location("within", depth=depth)
+        if hasattr(calc, "calc_peak_accel"):
+            return calc.calc_peak_accel(loc)
+        return calc.motion.calc_peak(calc.calc_accel_tf(calc.loc_input, loc))
