@@ -24,6 +24,7 @@ import collections
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.integrate
+import xarray as xr
 from matplotlib.colors import LogNorm, TwoSlopeNorm
 from scipy.interpolate import interp1d
 
@@ -258,6 +259,68 @@ class Output:
         df = pd.DataFrame(self.values, index=self.refs, columns=columns)
 
         return df
+
+    def to_xarray(self, tree) -> xr.DataArray:
+        """Convert output results into an N-D DataArray keyed by logic tree nodes.
+
+        The stored ``names`` must be :class:`~pystrata.logic_tree.Branch` objects
+        (i.e. the output was called with ``output(calc, name=branch)``).
+
+        Parameters
+        ----------
+        tree : LogicTree
+            A rectangular logic tree (no ``requires``/``excludes`` conditions).
+
+        Returns
+        -------
+        xr.DataArray
+            DataArray with dimensions ``(ref_name, node1, node2, ...)``.
+
+        Raises
+        ------
+        ValueError
+            If the tree is not rectangular or names are not Branch objects.
+        """
+        from .logic_tree import Branch
+
+        if not tree.is_rectangular:
+            raise ValueError(
+                "to_xarray only supports fully-crossed (rectangular) logic trees. "
+                "The provided tree has conditional requires/excludes."
+            )
+
+        if not self.names or not isinstance(self.names[0], Branch):
+            raise ValueError(
+                "Output.names must contain Branch objects. "
+                "Call the output with name=branch."
+            )
+
+        ref_name = getattr(self, "ref_name", "ref")
+        node_names = [n.name for n in tree.nodes]
+        shape = [len(self.refs)] + [len(n) for n in tree.nodes]
+
+        data = np.full(shape, np.nan)
+
+        for i, branch in enumerate(self.names):
+            idx = []
+            for node in tree.nodes:
+                bval = branch.value(node.name)
+                for j, opt in enumerate(node.options):
+                    if (
+                        isinstance(opt, float) and np.isclose(opt, bval)
+                    ) or opt == bval:
+                        idx.append(j)
+                        break
+            col = self.values[:, i] if self.values.ndim > 1 else self.values
+            data[(slice(None), *idx)] = col
+
+        coords = {ref_name: self.refs}
+        for node in tree.nodes:
+            coords[node.name] = list(node.options)
+
+        dims = [ref_name] + node_names
+
+        return xr.DataArray(data, dims=dims, coords=coords)
 
     @staticmethod
     def _get_xy(refs, values):

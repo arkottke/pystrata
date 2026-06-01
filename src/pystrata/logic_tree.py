@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Union
 
+import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 
@@ -432,6 +433,21 @@ class LogicTree:
             if n.name == key:
                 return n
 
+    @property
+    def is_rectangular(self) -> bool:
+        """Check if the logic tree is fully crossed (no conditional branches).
+
+        Returns
+        -------
+        bool
+            True if no alternatives have ``requires`` or ``excludes`` conditions.
+        """
+        return all(
+            not a.requires and not a.excludes
+            for node in self.nodes
+            for a in node.alts
+        )
+
     @classmethod
     def from_json(cls, fname: str | Path) -> LogicTree:
         _open = gzip.open if str(fname).endswith(".gz") else open
@@ -458,3 +474,281 @@ class LogicTree:
         """
         nodes = [Node.from_dict(d) for d in dicts]
         return cls(nodes)
+
+
+def separation_of_variance(
+    da: xr.DataArray,
+    tree: LogicTree,
+    ref_value: float,
+) -> xr.Dataset:
+    """Compute weighted variance decomposition at a single reference value.
+
+    For each node in the logic tree the marginal weighted variance is computed
+    in log-space. The fraction of total weighted variance attributable to each
+    node is returned, along with any residual interaction term.
+
+    Parameters
+    ----------
+    da : xr.DataArray
+        N-D DataArray as returned by :meth:`~pystrata.output.Output.to_xarray`.
+    tree : LogicTree
+        The rectangular logic tree.
+    ref_value : float
+        Reference value (frequency or depth) at which to evaluate.
+
+    Returns
+    -------
+    xr.Dataset
+        Dataset with dimension ``node`` and variables:
+
+        - ``variance`` – absolute weighted variance per node
+        - ``variance_fraction`` – fraction of total variance per node
+        - ``weighted_mean`` – scalar, the overall weighted geometric mean
+    """
+    ref_dim = da.dims[0]
+    node_names = [n.name for n in tree.nodes]
+
+    # Select the slice at the requested reference value
+    sliced = da.sel({ref_dim: ref_value}, method="nearest")
+    ln_vals = np.log(sliced.values)
+
+    # Build N-D weight array from outer product of node weights
+    weight_arrays = []
+    for node in tree.nodes:
+        w = np.array([a.weight for a in node.alts])
+        weight_arrays.append(w)
+
+    weights = weight_arrays[0]
+    for w in weight_arrays[1:]:
+        weights = np.multiply.outer(weights, w)
+
+    # Normalize weights to sum to 1
+    weights = weights / weights.sum()
+
+    # Total weighted mean and variance in log-space
+    total_mean = np.sum(weights * ln_vals)
+    total_var = np.sum(weights * (ln_vals - total_mean) ** 2)
+
+    # Marginal variance for each node
+    node_variances = []
+    for k, node in enumerate(tree.nodes):
+        # Weighted mean along all other dimensions
+        marginal = ln_vals
+        marginal_w = weights
+        # Sum over all axes except axis k (iterating in reverse to keep indices stable)
+        other_axes = [i for i in range(len(node_names)) if i != k]
+        for ax in sorted(other_axes, reverse=True):
+            # Weighted average along this axis
+            w_ax = weight_arrays[ax]
+            # Normalize the per-axis weights
+            w_ax = w_ax / w_ax.sum()
+            # Broadcast and sum
+            shape = [1] * len(node_names)
+            shape[ax] = len(w_ax)
+            w_broadcast = w_ax.reshape(shape)
+            marginal = np.sum(marginal * w_broadcast, axis=ax)
+            marginal_w = np.sum(marginal_w, axis=ax)
+
+        # Now marginal is 1-D along node k
+        w_k = weight_arrays[k]
+        w_k = w_k / w_k.sum()
+        marginal_mean = np.sum(w_k * marginal)
+        node_var = np.sum(w_k * (marginal - marginal_mean) ** 2)
+        node_variances.append(node_var)
+
+    node_variances = np.array(node_variances)
+
+    # Interaction / residual
+    interaction = max(0.0, total_var - node_variances.sum())
+
+    labels = node_names + ["Interaction"]
+    variances = np.append(node_variances, interaction)
+
+    fractions = variances / total_var if total_var > 0 else np.zeros_like(variances)
+
+    return xr.Dataset(
+        {
+            "variance": ("node", variances),
+            "variance_fraction": ("node", fractions),
+        },
+        coords={"node": labels},
+        attrs={
+            "weighted_mean": float(np.exp(total_mean)),
+            "total_variance": float(total_var),
+            "ref_value": float(ref_value),
+        },
+    )
+
+
+def compute_marginals(
+    da: xr.DataArray,
+    tree: LogicTree,
+    ref_value: float,
+) -> xr.Dataset:
+    """Compute marginal weighted geometric means per node at a reference value.
+
+    For each node, the output values are averaged (in log-space, weighted) over
+    all other nodes to produce a 1-D marginal for each alternative.  The result
+    is suitable for a tornado plot.
+
+    Parameters
+    ----------
+    da : xr.DataArray
+        N-D DataArray as returned by :meth:`~pystrata.output.Output.to_xarray`.
+    tree : LogicTree
+        The rectangular logic tree.
+    ref_value : float
+        Reference value (frequency or depth) at which to evaluate.
+
+    Returns
+    -------
+    xr.Dataset
+        Dataset with variables named after each node containing the marginal
+        geometric means (one value per alternative).  The overall weighted
+        geometric mean is stored in ``attrs["weighted_mean"]``.
+    """
+    ref_dim = da.dims[0]
+    node_names = [n.name for n in tree.nodes]
+
+    sliced = da.sel({ref_dim: ref_value}, method="nearest")
+    ln_vals = np.log(sliced.values)
+
+    # Per-node normalized weight arrays
+    weight_arrays = []
+    for node in tree.nodes:
+        w = np.array([a.weight for a in node.alts])
+        weight_arrays.append(w / w.sum())
+
+    # Overall weighted mean
+    full_weights = weight_arrays[0]
+    for w in weight_arrays[1:]:
+        full_weights = np.multiply.outer(full_weights, w)
+    total_mean = float(np.exp(np.sum(full_weights * ln_vals)))
+
+    # Marginal for each node
+    data_vars = {}
+    for k, node in enumerate(tree.nodes):
+        marginal = ln_vals
+        other_axes = [i for i in range(len(node_names)) if i != k]
+        for ax in sorted(other_axes, reverse=True):
+            shape = [1] * len(node_names)
+            shape[ax] = len(weight_arrays[ax])
+            w_broadcast = weight_arrays[ax].reshape(shape)
+            marginal = np.sum(marginal * w_broadcast, axis=ax)
+        # marginal is 1-D along node k — convert back from log-space
+        data_vars[node.name] = (
+            f"{node.name}_alt",
+            np.exp(marginal),
+            {"alternatives": list(node.options)},
+        )
+
+    ds = xr.Dataset(
+        data_vars,
+        attrs={"weighted_mean": total_mean, "ref_value": float(ref_value)},
+    )
+    return ds
+
+
+def plot_tornado(ds: xr.Dataset, ax=None, **kwds):
+    """Plot a tornado chart of marginal value ranges per logic-tree node.
+
+    Each horizontal bar spans from the minimum to maximum marginal weighted
+    geometric mean across a node's alternatives. A vertical line marks the
+    overall weighted geometric mean.
+
+    Parameters
+    ----------
+    ds : xr.Dataset
+        Dataset as returned by :func:`compute_marginals`.
+    ax : matplotlib.axes.Axes, optional
+        Axes to plot on. Created if not provided.
+    **kwds
+        Additional keyword arguments passed to ``ax.barh``.
+
+    Returns
+    -------
+    matplotlib.axes.Axes
+    """
+    mean = ds.attrs["weighted_mean"]
+
+    # Collect (node_name, low, high) for each variable
+    entries = []
+    for name in ds.data_vars:
+        vals = ds[name].values
+        entries.append((name, vals.min(), vals.max()))
+
+    # Sort by range width (smallest swing at bottom, largest at top)
+    entries.sort(key=lambda e: e[2] - e[1])
+    labels = [e[0] for e in entries]
+    lows = np.array([e[1] for e in entries])
+    highs = np.array([e[2] for e in entries])
+
+    if ax is None:
+        fig, ax = plt.subplots()
+
+    bar_kwds = {"color": "C0", "edgecolor": "black", "height": 0.6} | kwds
+    bars = ax.barh(
+        range(len(labels)),
+        highs - lows,
+        left=lows,
+        **bar_kwds,
+    )
+    ax.set_yticks(range(len(labels)))
+    ax.set_yticklabels(labels)
+
+    # Label bars with low / high values
+    for i, (lo, hi) in enumerate(zip(lows, highs)):
+        ax.text(lo - 0.01 * mean, i, f"{lo:.3g}", va="center", ha="right")
+        ax.text(hi + 0.01 * mean, i, f"{hi:.3g}", va="center", ha="left")
+
+    # Reference line at overall weighted mean
+    ax.axvline(mean, color="black", ls="--", lw=1, label=f"Mean = {mean:.3g}")
+    ax.legend()
+
+    ref_val = ds.attrs.get("ref_value", "")
+    ax.set_title(f"Tornado Plot (ref = {ref_val})")
+
+    return ax
+
+
+def plot_separation_of_variance(da, tree, ref_values, ax=None, **kwds):
+    """Plot variance fractions across multiple reference values.
+
+    Produces a stacked area chart showing how the variance fraction
+    attributable to each logic tree node changes across a range of reference
+    values (e.g., frequencies).
+
+    Parameters
+    ----------
+    da : xr.DataArray
+        N-D DataArray as returned by :meth:`~pystrata.output.Output.to_xarray`.
+    tree : LogicTree
+        The rectangular logic tree.
+    ref_values : array_like
+        Reference values at which to evaluate the variance decomposition.
+    ax : matplotlib.axes.Axes, optional
+        Axes to plot on. Created if not provided.
+    **kwds
+        Additional keyword arguments passed to ``ax.stackplot``.
+
+    Returns
+    -------
+    matplotlib.axes.Axes
+    """
+    ref_values = np.asarray(ref_values)
+    datasets = [separation_of_variance(da, tree, rv) for rv in ref_values]
+
+    labels = datasets[0]["node"].values.astype(str)
+    fractions = np.array([ds["variance_fraction"].values for ds in datasets]).T
+
+    if ax is None:
+        fig, ax = plt.subplots()
+
+    ax.stackplot(ref_values, fractions, labels=labels, **kwds)
+    ax.set_xlabel(da.dims[0])
+    ax.set_ylabel("Fraction of Total Variance")
+    ax.set_ylim(0, 1)
+    ax.legend(loc="upper right")
+    ax.set_title("Separation of Variance")
+
+    return ax
