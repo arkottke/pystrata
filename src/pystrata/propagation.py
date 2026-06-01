@@ -201,6 +201,7 @@ def _calc_strain_tf_python(
     mask = ~np.isclose(ang_freqs, 0)
     tf = np.zeros_like(mask, dtype=complex)
     tf[mask] = gravity * numer[mask] / denom[mask]
+    tf = np.where(np.isfinite(tf), tf, 0)
     return tf
 
 
@@ -320,6 +321,8 @@ if HAS_NUMBA:
 
             denom = -(ang_freqs[j] ** 2) * wave_in
             tf[j] = gravity * numer / denom
+            if not (np.isfinite(tf[j].real) and np.isfinite(tf[j].imag)):
+                tf[j] = 0.0
         return tf
 
     _calc_waves_dispatch = _calc_waves_numba
@@ -650,7 +653,7 @@ class LinearElasticCalculator(AbstractCalculator):
             of the layer.
         """
         tf = self.wave_at_location(lout) / self.wave_at_location(lin)
-        return tf
+        return np.where(np.isfinite(tf), tf, 0)
 
     def calc_stress_tf(self, lin, lout, damped):
         """Compute the stress transfer function.

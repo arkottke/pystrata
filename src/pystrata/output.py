@@ -530,8 +530,9 @@ class FourierAmplitudeSpectrumOutput(LocationBasedOutput):
     ylabel = "Fourier Ampl. (cm/s)"
 
     ref_name = "freq"
-
-    def __init__(self, freqs, location, ko_bandwidth=30):
+    # Make None the default, so that the default will be not applying smoothing. 
+    # This is to make calling this output "cleaner". 
+    def __init__(self, freqs, location, ko_bandwidth=None):
         super().__init__(freqs, location)
         self._ko_bandwidth = ko_bandwidth
 
@@ -715,7 +716,7 @@ class ProfileBasedOutput(Output):
         if ref is None:
             ref = np.linspace(0, np.nanmax(self.refs) * 1.05, num=512)
 
-        n = self.values.shape[1]
+        n = self.values.shape[1] if self.values.ndim > 1 else 1
         with np.errstate(divide="ignore", invalid="ignore"):
             # Ignore zeros in the data
             ln_values = np.array([self._ln_interp(i, ref) for i in range(n)]).T
@@ -741,11 +742,13 @@ class ProfileBasedOutput(Output):
     def _ln_interp(self, i, ref):
         """Interpolate the values in log-y space."""
 
-        _ref = self.refs[:, i]
+        _ref = self.refs[:, i] if self.refs.ndim > 1 else self.refs
         # Only select points with valid entries
         mask = np.isfinite(_ref)
         _ref = _ref[mask]
-        _ln_values = np.log(self.values[mask, i])
+        _ln_values = np.log(
+            self.values[mask, i] if self.values.ndim > 1 else self.values[mask]
+        )
 
         if np.any(mask):
             f = interp1d(
@@ -776,7 +779,7 @@ class ProfileBasedOutput(Output):
             columns = self.names
 
         # Ignore zeros in the data
-        n = self.values.shape[1]
+        n = self.values.shape[1] if self.values.ndim > 1 else 1
         values = np.exp(np.array([self._ln_interp(i, ref) for i in range(n)])).T
 
         df = pd.DataFrame(values, index=ref, columns=columns)
