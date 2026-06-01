@@ -153,7 +153,10 @@ _ROLLINS_CASES = [
 def test_rollins_mod_reduc(
     stress_mean, coef_unif, expected_strain_ref, expected_mr, expected_dmin
 ):
-    """G/Gmax backbone matches Eqs. (1), (5) and (8) of Rollins et al. (2020)."""
+    """G/Gmax backbone matches Eqs.
+
+    (1), (5) and (8) of Rollins et al. (2020).
+    """
     st = site.RollinsEtAlSoilType(
         unit_wt=20.0,
         stress_mean=stress_mean,
@@ -204,15 +207,22 @@ def test_rollins_damping_min(
     ],
 )
 def test_rollins_masing_scaling(num_cycles, expected_b):
-    """Masing scaling factor matches Eq. (14): b = 0.53 - 0.0057*ln(N)."""
-    st = site.RollinsEtAlSoilType(unit_wt=20.0, stress_mean=100.0, num_cycles=num_cycles)
+    """Masing scaling factor matches Eq.
+
+    (14): b = 0.53 - 0.0057*ln(N).
+    """
+    st = site.RollinsEtAlSoilType(
+        unit_wt=20.0, stress_mean=100.0, num_cycles=num_cycles
+    )
     assert_allclose(st.masing_scaling, expected_b, rtol=1e-4)
 
 
 def test_rollins_damping_custom_min():
     """User-supplied damping_min overrides the 1 % default."""
     st = site.RollinsEtAlSoilType(
-        unit_wt=20.0, stress_mean=100.0, damping_min=0.02,
+        unit_wt=20.0,
+        stress_mean=100.0,
+        damping_min=0.02,
         strains=[1e-6, 1e-4, 1e-3, 1e-2],
     )
     # At very small strains damping should be close to d_min = 2 %
@@ -246,7 +256,7 @@ def iter_wang_stokoe_cases():
 
 @pytest.mark.parametrize("soil_type,params", iter_wang_stokoe_cases())
 def test_wang_stokoe(soil_type, params):
-    """Test random parameters and check within reasonable ranges"""
+    """Test random parameters and check within reasonable ranges."""
     st = site.WangSoilType(soil_type, **params)
 
     damping_min = st.damping.values[0]
@@ -312,7 +322,10 @@ def format_kishida_case_id(case):
 
 @pytest.mark.parametrize("case", kishida_cases, ids=format_kishida_case_id)
 def test_kishida_unit_wt(case):
-    """Test calculation of Unit Wt. by KishidaSoilType."""
+    """Test calculation of Unit Wt.
+
+    by KishidaSoilType.
+    """
     st = site.KishidaSoilType(
         "test",
         unit_wt=None,
@@ -406,47 +419,63 @@ def create_soil_types():
     soil_types.append(("SoilType", site.SoilType("test", 18.0, mr, d)))
 
     # DarendeliSoilType
-    soil_types.append((
-        "DarendeliSoilType",
-        site.DarendeliSoilType(
-            plas_index=30, ocr=1.0, stress_mean=100, freq=1, num_cycles=10
-        ),
-    ))
+    soil_types.append(
+        (
+            "DarendeliSoilType",
+            site.DarendeliSoilType(
+                plas_index=30, ocr=1.0, stress_mean=100, freq=1, num_cycles=10
+            ),
+        )
+    )
 
     # MenqSoilType
-    soil_types.append((
-        "MenqSoilType",
-        site.MenqSoilType(coef_unif=10, diam_mean=5, stress_mean=100, num_cycles=10),
-    ))
+    soil_types.append(
+        (
+            "MenqSoilType",
+            site.MenqSoilType(
+                coef_unif=10, diam_mean=5, stress_mean=100, num_cycles=10
+            ),
+        )
+    )
 
     # TwoParamModifiedHyperbolicSoilType
-    soil_types.append((
-        "TwoParamModifiedHyperbolicSoilType",
-        site.TwoParamModifiedHyperbolicSoilType(stress_mean=100),
-    ))
+    soil_types.append(
+        (
+            "TwoParamModifiedHyperbolicSoilType",
+            site.TwoParamModifiedHyperbolicSoilType(stress_mean=100),
+        )
+    )
 
     # WangSoilType - all soil groups
     for soil_group in site.WangSoilType.FACTORS:
-        soil_types.append((
-            f"WangSoilType_{soil_group}",
-            site.WangSoilType(soil_group, stress_mean=200, void_ratio=0.6),
-        ))
+        soil_types.append(
+            (
+                f"WangSoilType_{soil_group}",
+                site.WangSoilType(soil_group, stress_mean=200, void_ratio=0.6),
+            )
+        )
 
     # KishidaSoilType
-    soil_types.append((
-        "KishidaSoilType",
-        site.KishidaSoilType(stress_vert=100, organic_content=20),
-    ))
+    soil_types.append(
+        (
+            "KishidaSoilType",
+            site.KishidaSoilType(stress_vert=100, organic_content=20),
+        )
+    )
 
     # RollinsEtAlSoilType - without and with uniformity coefficient
-    soil_types.append((
-        "RollinsEtAlSoilType_no_cu",
-        site.RollinsEtAlSoilType(unit_wt=20.0, stress_mean=100.0),
-    ))
-    soil_types.append((
-        "RollinsEtAlSoilType_cu7",
-        site.RollinsEtAlSoilType(unit_wt=20.0, stress_mean=100.0, coef_unif=7.0),
-    ))
+    soil_types.append(
+        (
+            "RollinsEtAlSoilType_no_cu",
+            site.RollinsEtAlSoilType(unit_wt=20.0, stress_mean=100.0),
+        )
+    )
+    soil_types.append(
+        (
+            "RollinsEtAlSoilType_cu7",
+            site.RollinsEtAlSoilType(unit_wt=20.0, stress_mean=100.0, coef_unif=7.0),
+        )
+    )
 
     return soil_types
 
@@ -456,9 +485,9 @@ def create_soil_types():
 def test_nonlinear_curve_interpolation_matches_underlying(name, soil_type, curve_name):
     """Test that interpolating at underlying strain values returns original values.
 
-    This test ensures that limits are properly applied and do not clip values
-    that are within the expected range of the nonlinear curves. The interpolated
-    values at the underlying strains should match the original curve values.
+    This test ensures that limits are properly applied and do not clip values that are
+    within the expected range of the nonlinear curves. The interpolated values at the
+    underlying strains should match the original curve values.
     """
     curve = getattr(soil_type, curve_name)
 
@@ -487,9 +516,8 @@ def test_nonlinear_curve_interpolation_matches_underlying(name, soil_type, curve
 def test_nonlinear_curve_limits_not_too_restrictive(name, soil_type, curve_name):
     """Test that curve limits do not clip values within the underlying curve range.
 
-    This test detects issues where default limits improperly clip values at
-    the extremes of the curve (e.g., low strain mod_reduc near 1.0 or high
-    strain damping values).
+    This test detects issues where default limits improperly clip values at the extremes
+    of the curve (e.g., low strain mod_reduc near 1.0 or high strain damping values).
     """
     curve = getattr(soil_type, curve_name)
 

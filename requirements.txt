@@ -7,6 +7,7 @@ numpy>=2.0
 # Pinned because of https://github.com/pyexcel/pyexcel-xlsx/issues/52
 openpyxl==3.0.10
 pandas
+pint
 pyexcel==0.6.7
 pyexcel-xlsx==0.6.0
 pykooh

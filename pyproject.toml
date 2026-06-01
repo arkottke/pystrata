@@ -13,6 +13,7 @@ requires-python = ">=3.10"
 dependencies = [
     "matplotlib",
     "numpy>=2.0",
+    "pint",
     "pykooh",
     "pyrvt",
     "scipy",
@@ -27,6 +28,7 @@ Documentation = "https://pystrata.readthedocs.io"
 
 [project.optional-dependencies]
 numba = ["numba"]
+dispersion = ["disba"]
 test = [
     "numpy>=2.0",
     "coverage[toml]",

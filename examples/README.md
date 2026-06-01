@@ -24,7 +24,9 @@ The examples included here are used to demonstrate the capabilities of
 16. Example of using the logic tree.
 17. Building a site profile from the USGS National Crustal Model with
     Darendeli nonlinear curves and κ₀-adjusted damping.
+18. Unit conversion with pint – comparing plain floats, metric
+    Quantities, and Imperial Quantities on the same site profile.
 
 To be added:
 
--   Impact of peak factor on site reponse transfer function
+- Impact of peak factor on site reponse transfer function

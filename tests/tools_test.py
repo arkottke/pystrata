@@ -2,9 +2,10 @@ from collections import Counter
 
 import numpy as np
 import pandas as pd
-import pystrata
 import pytest
 from scipy.constants import g as GRAVITY
+
+import pystrata
 
 from . import FPATH_DATA
 

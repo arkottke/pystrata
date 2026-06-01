@@ -13,7 +13,5 @@ jobs:
               run: uv python install 3.12
             - name: Install dependencies
               run: uv sync --dev
-            - name: Lint with ruff
-              run: uv run ruff check .
-            - name: Format check with black
-              run: uv run black --check .
+            - name: Run pre-commit on all files
+              run: uv run pre-commit run --all-files

@@ -22,6 +22,7 @@
 from __future__ import annotations
 
 import collections
+import logging
 import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -32,15 +33,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-import scipy.constants
 import tomli
 from scipy.interpolate import interp1d
 
-from .motion import GRAVITY, WaveField
+from .motion import WaveField
+from .units import GRAVITY, KPA_TO_ATM, convert_kwds_units, convert_units
+
+logger = logging.getLogger(__name__)
 
 COMP_MODULUS_MODEL = "dormieux"
-
-KPA_TO_ATM = scipy.constants.kilo / scipy.constants.atm
 
 PUBLISHED_CURVES = dict()
 
@@ -87,6 +88,7 @@ class NonlinearCurve(ABC):
 
     PARAMS = ["mod_reduc", "damping"]
 
+    @convert_units(strains="dimensionless")
     def __init__(self, name="", strains=None, values=None, limits=None):
         self.name = name
         self._strains = np.asarray(strains).astype(float)
@@ -293,6 +295,7 @@ class SoilType:
         damping is used.
     """
 
+    @convert_units(unit_wt="kilonewton / meter ** 3", damping="dimensionless")
     def __init__(
         self,
         name: str = "",
@@ -368,6 +371,7 @@ class SoilType:
 
 
 class ModifiedHyperbolicSoilType(SoilType, ABC):
+    @convert_units(unit_wt="kilonewton / meter ** 3", strains="dimensionless")
     def __init__(self, name, unit_wt, damping_min, strains=None):
         """
 
@@ -468,6 +472,11 @@ class TwoParamModifiedHyperbolicCoeffs:
 
 
 class TwoParamModifiedHyperbolicSoilType(SoilType):
+    @convert_units(
+        unit_wt="kilonewton / meter ** 3",
+        stress_mean="kilopascal",
+        strains="dimensionless",
+    )
     def __init__(
         self,
         name: str = "",
@@ -547,6 +556,12 @@ class DarendeliSoilType(ModifiedHyperbolicSoilType):
         shear strains levels [decimal]
     """
 
+    @convert_units(
+        unit_wt="kilonewton / meter ** 3",
+        stress_mean="kilopascal",
+        freq="hertz",
+        strains="dimensionless",
+    )
     def __init__(
         self,
         unit_wt=0.0,
@@ -622,6 +637,12 @@ class MenqSoilType(ModifiedHyperbolicSoilType):
         shear strains levels [decimal]
     """
 
+    @convert_units(
+        unit_wt="kilonewton / meter ** 3",
+        stress_mean="kilopascal",
+        diam_mean="millimeter",
+        strains="dimensionless",
+    )
     def __init__(
         self,
         name="",
@@ -824,6 +845,8 @@ class WangSoilType(SoilType):
         },
     }
 
+    @convert_units(unit_wt="kilonewton / meter ** 3", strains="dimensionless")
+    @convert_kwds_units(stress_mean="kilopascal")
     def __init__(
         self,
         soil_group: str,
@@ -1353,6 +1376,11 @@ class AlemuEtAlSoilType(SoilType):
     _E5 = 1.249
     _E6 = 0.680
 
+    @convert_units(
+        unit_wt="kilonewton / meter ** 3",
+        stress_mean="kilopascal",
+        strains="dimensionless",
+    )
     def __init__(
         self,
         unit_wt: float = 0.0,
@@ -1441,6 +1469,11 @@ class RollinsEtAlSoilType(ModifiedHyperbolicSoilType):
         ``np.logspace(-6, -1.5, num=20)``.
     """
 
+    @convert_units(
+        unit_wt="kilonewton / meter ** 3",
+        stress_mean="kilopascal",
+        strains="dimensionless",
+    )
     def __init__(
         self,
         unit_wt: float = 0.0,
@@ -1536,6 +1569,11 @@ class KishidaSoilType(SoilType):
         shear modulus reduction is equal to 1. [decimal]
     """
 
+    @convert_units(
+        unit_wt="kilonewton / meter ** 3",
+        stress_vert="kilopascal",
+        strains="dimensionless",
+    )
     def __init__(
         self,
         name="",
@@ -1668,7 +1706,7 @@ class KishidaSoilType(SoilType):
         d = np.r_[-0.112, 0.038, 0.360]
 
         ln_density = d.T @ x
-        unit_wt = np.exp(ln_density) * scipy.constants.g
+        unit_wt = np.exp(ln_density) * GRAVITY
         return unit_wt
 
     def _create_name(self):
@@ -1700,9 +1738,9 @@ class IterativeValue:
 
     @property
     def relative_error(self) -> float:
-        """The relative error, in percent, between the two iterations."""
+        """The relative error, in decimal, between the two iterations."""
         if np.all(self.value > 0):
-            err = 100.0 * np.max((self.previous - self.value) / self.value)
+            err = np.max((self.previous - self.value) / self.value)
         elif np.isclose(self.value, self.previous).all():
             # When value is zero and close to previous
             err = 0
@@ -1718,12 +1756,16 @@ class IterativeValue:
 class Layer:
     """Docstring for Layer."""
 
+    @convert_units(
+        thickness="meter", shear_vel="meter / second", damping_min="dimensionless"
+    )
     def __init__(
         self,
         soil_type: SoilType,
         thickness: float,
         shear_vel: float,
         damping_min: None | float = None,
+        poissons_ratio: None | float = None,
     ):
         """@todo: to be defined!"""
         self._profile = None
@@ -1742,6 +1784,8 @@ class Layer:
             self._damping_min = damping_min
         else:
             self._damping_min = soil_type.damping_min
+
+        self._poissons_ratio = poissons_ratio
 
         self.reset()
 
@@ -1772,7 +1816,13 @@ class Layer:
 
     def copy(self) -> Layer:
         """Return a copy of the Layer instance with previously defined SoilType."""
-        return Layer(self.soil_type, self.thickness, self.shear_vel, self.damping_min)
+        return Layer(
+            self.soil_type,
+            self.thickness,
+            self.shear_vel,
+            self.damping_min,
+            self.poissons_ratio,
+        )
 
     @property
     def depth(self) -> float:
@@ -1788,6 +1838,27 @@ class Layer:
     def depth_base(self) -> float:
         """Depth to the base of the layer [m]."""
         return self._depth + self._thickness
+
+    @property
+    def poissons_ratio(self) -> float | None:
+        """Poisson's ratio of the layer."""
+        return self._poissons_ratio
+
+    @poissons_ratio.setter
+    def poissons_ratio(self, value: float | None):
+        self._poissons_ratio = value
+
+    @property
+    def comp_vel(self) -> float | None:
+        """Compression-wave velocity [m/s] derived from shear velocity and Poisson's
+        ratio.
+
+        Returns ``None`` if :attr:`poissons_ratio` is not set.
+        """
+        if self._poissons_ratio is None:
+            return None
+        nu = self._poissons_ratio
+        return self.initial_shear_vel * np.sqrt(2 * (1 - nu) / (1 - 2 * nu))
 
     @property
     def density(self) -> float:
@@ -2003,6 +2074,7 @@ class Layer:
 class Location:
     """Location within a profile."""
 
+    @convert_units(depth_within="meter")
     def __init__(self, index, layer, wave_field, depth_within=0):
         self._index = index
         self._layer = layer
@@ -2041,12 +2113,25 @@ class Location:
 class Profile(collections.abc.Container):
     """Soil profile with an infinite halfspace at the base."""
 
+    @convert_units(wt_depth="meter")
     def __init__(self, layers=None, wt_depth=0):
         super().__init__()
         self.layers = layers or []
         self.wt_depth = wt_depth
         if layers:
             self.update_layers()
+            if logger.isEnabledFor(logging.DEBUG):
+                max_depth = (
+                    sum(layer.thickness for layer in self.layers[:-1])
+                    if len(self.layers) > 1
+                    else 0
+                )
+                logger.debug(
+                    "Profile created: %d layers, max_depth=%.1fm, wt_depth=%.1fm",
+                    len(self.layers),
+                    max_depth,
+                    self.wt_depth,
+                )
 
     @classmethod
     def from_dataframe(cls, df, wt_depth=0):
@@ -2346,6 +2431,78 @@ class Profile(collections.abc.Container):
         rayleigh_vel = 4 * thicks.sum() / period_fun
         return rayleigh_vel
 
+    @convert_units(freqs="hertz")
+    def calc_dispersion(
+        self,
+        freqs,
+        wave="rayleigh",
+        mode=0,
+        dc_type="phase",
+    ):
+        """Compute surface-wave dispersion curve via *disba*.
+
+        Parameters
+        ----------
+        freqs : array_like
+            Frequencies [Hz] at which to evaluate the dispersion curve.
+        wave : str, optional
+            Wave type: ``"rayleigh"`` (default) or ``"love"``.
+        mode : int, optional
+            Mode number (0 = fundamental, default).
+        dc_type : str, optional
+            ``"phase"`` (default) or ``"group"``.
+
+        Returns
+        -------
+        np.ndarray
+            Phase or group velocity [m/s] at each frequency.
+
+        Raises
+        ------
+        ValueError
+            If any layer is missing :attr:`Layer.poissons_ratio`.
+        ImportError
+            If *disba* is not installed.
+        """
+        try:
+            from disba import GroupDispersion, PhaseDispersion
+        except ImportError:
+            raise ImportError(
+                "The 'disba' package is required for dispersion calculations. "
+                "Install it with: pip install disba"
+            )
+
+        if any(layer.poissons_ratio is None for layer in self):
+            raise ValueError(
+                "All layers must have poissons_ratio set to compute dispersion."
+            )
+
+        freqs = np.asarray(freqs, dtype=float)
+        # disba expects periods sorted in ascending order
+        periods = 1.0 / freqs
+        sort_idx = np.argsort(periods)
+        periods_sorted = periods[sort_idx]
+
+        # Build velocity model: (thickness [km], Vp [km/s], Vs [km/s], density [g/cm³])
+        thickness = self.thickness / 1e3
+        comp_vel = self.comp_vel / 1e3
+        shear_vel = self.initial_shear_vel / 1e3
+        density = self.density / 1e3
+
+        if dc_type == "phase":
+            dc = PhaseDispersion(thickness, comp_vel, shear_vel, density)
+        elif dc_type == "group":
+            dc = GroupDispersion(thickness, comp_vel, shear_vel, density)
+        else:
+            raise ValueError(f"dc_type must be 'phase' or 'group', got {dc_type!r}")
+
+        result = dc(periods_sorted, mode=mode, wave=wave)
+        # result.velocity is in km/s; convert back to m/s and restore
+        # original frequency ordering
+        velocity = np.empty_like(result.velocity)
+        velocity[sort_idx] = result.velocity
+        return velocity * 1e3
+
     def plot(self, prop, ax=None, plot_kwds=None, axis_kwds=None):
         # Defaults
         xlabels = {
@@ -2416,6 +2573,14 @@ class Profile(collections.abc.Container):
     @property
     def shear_vel(self):
         return self._get_values("shear_vel")
+
+    @property
+    def comp_vel(self):
+        return self._get_values("comp_vel")
+
+    @property
+    def poissons_ratio(self):
+        return self._get_values("poissons_ratio")
 
     @property
     def strain(self):

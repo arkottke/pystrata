@@ -16,8 +16,7 @@ AlternativeValueType = Union[str, int, float, tuple[str]]
 
 @dataclass
 class Realization:
-    """
-    Represents a realization of a node in a logic tree.
+    """Represents a realization of a node in a logic tree.
 
     Parameters
     ----------
@@ -43,8 +42,7 @@ class Realization:
     excludes: dict[str, Any] = field(default_factory=dict)
 
     def is_valid(self, branch):
-        """
-        Check if this realization is valid given a branch.
+        """Check if this realization is valid given a branch.
 
         Parameters
         ----------
@@ -83,8 +81,7 @@ class Realization:
 
 @dataclass
 class Alternative:
-    """
-    Represents an alternative in a node of a logic tree.
+    """Represents an alternative in a node of a logic tree.
 
     Parameters
     ----------
@@ -107,8 +104,7 @@ class Alternative:
     params: dict[str, Any] = field(default_factory=dict)
 
     def is_valid(self, branch):
-        """
-        Check if this alternative is valid given a branch.
+        """Check if this alternative is valid given a branch.
 
         Parameters
         ----------
@@ -147,8 +143,7 @@ class Alternative:
 
 @dataclass
 class Node:
-    """
-    Represents a node in a logic tree.
+    """Represents a node in a logic tree.
 
     Parameters
     ----------
@@ -173,8 +168,7 @@ class Node:
         return self.alts[index]
 
     def by_value(self, value):
-        """
-        Get an alternative by its value.
+        """Get an alternative by its value.
 
         Parameters
         ----------
@@ -200,8 +194,7 @@ class Node:
                 )
 
     def to_xarray(self, dim_name: str, name: str = "") -> xr.DataArray:
-        """
-        Convert the node to a numpy array.
+        """Convert the node to a numpy array.
 
         Returns
         -------
@@ -217,8 +210,7 @@ class Node:
 
     @property
     def options(self):
-        """
-        Get all alternative values for this node.
+        """Get all alternative values for this node.
 
         Returns
         -------
@@ -229,8 +221,7 @@ class Node:
 
     @classmethod
     def from_dict(cls, d):
-        """
-        Create a Node from a dictionary.
+        """Create a Node from a dictionary.
 
         Parameters
         ----------
@@ -320,8 +311,7 @@ class Node:
 
 @dataclass
 class Branch:
-    """
-    Represents a branch in a logic tree.
+    """Represents a branch in a logic tree.
 
     Parameters
     ----------
@@ -342,8 +332,7 @@ class Branch:
 
     @property
     def weight(self):
-        """
-        Calculate the weight of this branch.
+        """Calculate the weight of this branch.
 
         Returns
         -------
@@ -353,8 +342,7 @@ class Branch:
         return np.prod([p.weight for p in self])
 
     def value(self, key):
-        """
-        Get the value of a realization by key.
+        """Get the value of a realization by key.
 
         Parameters
         ----------
@@ -369,8 +357,7 @@ class Branch:
         return self.params[key].value
 
     def as_dict(self):
-        """
-        Convert the branch to a dictionary.
+        """Convert the branch to a dictionary.
 
         Returns
         -------
@@ -382,8 +369,7 @@ class Branch:
 
 @dataclass
 class LogicTree:
-    """
-    Represents a logic tree.
+    """Represents a logic tree.
 
     Parameters
     ----------
@@ -408,8 +394,7 @@ class LogicTree:
                     yield branch
 
     def is_valid(self, branch):
-        """
-        Check if a branch is valid according to the logic tree rules.
+        """Check if a branch is valid according to the logic tree rules.
 
         Parameters
         ----------
@@ -459,8 +444,7 @@ class LogicTree:
 
     @classmethod
     def from_list(cls, dicts: list[dict[str, Any]]) -> LogicTree:
-        """
-        Create a LogicTree from a list of dictionaries.
+        """Create a LogicTree from a list of dictionaries.
 
         Parameters
         ----------
