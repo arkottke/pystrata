@@ -374,7 +374,7 @@ class ModifiedHyperbolicSoilType(SoilType, ABC):
         Parameters
         ----------
         name: str, optional
-        used for identification
+            used for identification
         unit_wt:  float
             unit weight of the material in [kN/m³]
         damping_min: float
