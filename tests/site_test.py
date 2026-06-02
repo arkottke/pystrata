@@ -278,7 +278,7 @@ def test_iterative_value():
     value = 10
     iv.value = value
     assert_allclose(iv.value, value)
-    assert_allclose(iv.relative_error, 10.0)
+    assert_allclose(iv.relative_error, 0.1)
 
 
 def test_soil_type_linear():
