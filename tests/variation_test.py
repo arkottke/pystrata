@@ -193,8 +193,9 @@ def test_halfspace_depth_variation(dist, profile):
 
 
 def test_iter_variations(profile):
-    m = motion.SourceTheoryRvtMotion(6.0, 30, "wna")
-    m.calc_fourier_amps()
+    from pygmm.fourier_spectrum import SourceTheoryModel
+
+    m = motion.RvtMotion.from_fas(SourceTheoryModel(6.0, 30, "wna"))
 
     calc = propagation.EquivalentLinearCalculator()
     var_thickness = variation.ToroThicknessVariation()

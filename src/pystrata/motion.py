@@ -368,9 +368,14 @@ class TimeSeriesMotion(Motion):
         return TimeSeriesMotion(filename, description, time_step, accels)
 
 
-# FIXME: How do multiple inheritence properly?
 class RvtMotion(pyrvt.motions.RvtMotion, Motion):
-    """RVT motion based on user specified Fourier amplitude spectrum and duration."""
+    """RVT motion based on a user-specified Fourier amplitude spectrum + duration.
+
+    Wraps :class:`pyrvt.motions.RvtMotion` to add pystrata's :class:`Motion`
+    bookkeeping (cached PGA/PGV/Arias/CAV) and pint-based unit conversion.
+    Construct directly with arrays, or use :meth:`from_fas` to build from any
+    FAS-producing object (e.g. ``pygmm.fourier_spectrum.SourceTheoryModel``).
+    """
 
     @convert_units(fourier_amps="standard_gravity * second", duration="second")
     def __init__(
@@ -387,6 +392,27 @@ class RvtMotion(pyrvt.motions.RvtMotion, Motion):
             np.asarray(freqs),
             np.asarray(fourier_amps),
             duration=duration,
+            peak_calculator=peak_calculator,
+            calc_kwds=calc_kwds,
+        )
+
+    @classmethod
+    def from_fas(
+        cls,
+        fas,
+        peak_calculator=None,
+        calc_kwds: dict | None = None,
+    ) -> "RvtMotion":
+        """Build from any object exposing ``freqs`` / ``fourier_amps`` / ``duration``.
+
+        Mirrors :meth:`pyrvt.motions.RvtMotion.from_fas` but returns this
+        pystrata wrapper so the :class:`Motion` interface (PGA/PGV caching,
+        Arias, CAV) is available.
+        """
+        return cls(
+            freqs=np.asarray(fas.freqs),
+            fourier_amps=np.asarray(fas.fourier_amps),
+            duration=float(fas.duration),
             peak_calculator=peak_calculator,
             calc_kwds=calc_kwds,
         )
@@ -419,36 +445,4 @@ class CompatibleRvtMotion(pyrvt.motions.CompatibleRvtMotion, Motion):
             window_len=window_len,
             peak_calculator=peak_calculator,
             calc_kwds=calc_kwds,
-        )
-
-
-class SourceTheoryRvtMotion(pyrvt.motions.SourceTheoryMotion, Motion):
-    """RVT motion based on seismological point source model and earthquake scenario
-    parameters."""
-
-    @convert_units(distance="kilometer", depth="kilometer")
-    def __init__(
-        self,
-        magnitude: float,
-        distance: float,
-        region: str | None = None,
-        depth: float | None = 8,
-        peak_calculator: str | pyrvt.peak_calculators.Calculator | None = None,
-        calc_kwds: dict | None = None,
-        freqs: np.ndarray | None = None,
-        disable_site_amp: bool = False,
-        **kwargs,
-    ):
-        Motion.__init__(self)
-        pyrvt.motions.SourceTheoryMotion.__init__(
-            self,
-            magnitude=magnitude,
-            distance=distance,
-            region=region,
-            depth=depth,
-            peak_calculator=peak_calculator,
-            calc_kwds=calc_kwds,
-            freqs=freqs,
-            disable_site_amp=disable_site_amp,
-            **kwargs,
         )
