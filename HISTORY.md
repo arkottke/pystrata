@@ -1,11 +1,25 @@
 # History
 
-## Unreleased
+## Unreleased — 2.0.0
 
-- Add: `AlemuEtAlSoilType` — empirical nonlinear model for transitional silts (Alemu et al. 2025, JGGE).
-- Add: `RollinsEtAlSoilType` — empirical nonlinear model for gravels based on large-scale field testing (Rollins et al. 2020, JGGE).
-- Add: Tests for both new soil types in `tests/site_test.py`.
-- Update: example-15 restructured with model comparison sections (fine-grained, transitional silts, gravels) followed by site response.
+**Breaking changes**:
+
+- Removed empirical soil-curve classes — now live in `pygmm.soil_curves`:
+  `DarendeliSoilType`, `MenqSoilType`, `WangSoilType`, `AlemuEtAlSoilType`,
+  `RollinsEtAlSoilType`, `KishidaSoilType`, `ModifiedHyperbolicSoilType`,
+  `TwoParamModifiedHyperbolicSoilType`.
+  **Migration**: `SoilType.from_curves(pygmm.DarendeliSoilType(...).curves())`
+- Removed `kea16_profile()` — now `pygmm.velocity_profile.kea16_profile()`.
+  **Migration**: `Profile.from_velocity_profile(pygmm.kea16_profile(...), soil_types=...)`
+
+Added:
+
+- `SoilType.from_curves(curves)` — create from any object with `.strains`,
+  `.mod_reduc`, `.damping`, `.damping_min` (duck-typed; accepts `pygmm.contracts.NonlinearSoilCurves`).
+- `Profile.from_velocity_profile(vp, soil_types, layer_thickness=1.0)` — create from
+  any object with `.depth`, `.vs_median`, `.std_vs_ln` (accepts `pygmm.contracts.VelocityProfile`).
+- `pystrata._contracts` — private `NonlinearSoilCurves` and `VelocityProfile` dataclasses
+  (mirrors `pygmm.contracts`; no runtime pygmm dependency).
 
 ## v0.5.5 (2024-10-16)
 

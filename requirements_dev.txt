@@ -9,6 +9,7 @@ jupyter_client
 nbconvert
 nbformat
 pandas
+pygmm
 pre-commit
 pydocstyle
 pytest>=3.5

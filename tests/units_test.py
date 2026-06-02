@@ -69,40 +69,6 @@ class TestLayerUnits:
         assert layer.thickness == 10.0
         assert layer.initial_shear_vel == 200.0
 
-
-class TestDarendeliSoilTypeUnits:
-    """Test DarendeliSoilType with pint units."""
-
-    def test_stress_mean_atm(self):
-        """1 atmosphere ≈ 101.325 kPa."""
-        st = site.DarendeliSoilType(stress_mean=1.0 * ureg.atmosphere)
-        assert_allclose(st._stress_mean, 101.325, rtol=1e-4)
-
-    def test_stress_mean_kpa(self):
-        st = site.DarendeliSoilType(stress_mean=200.0 * ureg.kilopascal)
-        assert st._stress_mean == 200.0
-
-    def test_plain_float_default(self):
-        st = site.DarendeliSoilType()
-        assert st._stress_mean == 101.3
-
-
-class TestMenqSoilTypeUnits:
-    """Test MenqSoilType with pint units."""
-
-    def test_diam_mean_cm(self):
-        """1 cm = 10 mm."""
-        st = site.MenqSoilType(diam_mean=1.0 * ureg.centimeter)
-        assert_allclose(st._diam_mean, 10.0, rtol=1e-10)
-
-    def test_stress_mean_psi(self):
-        stress_psi = 14.696 * ureg.psi
-        st = site.MenqSoilType(stress_mean=stress_psi)
-        assert_allclose(
-            st._stress_mean, stress_psi.to("kilopascal").magnitude, rtol=1e-4
-        )
-
-
 class TestProfileUnits:
     """Test Profile constructor unit conversion."""
 
@@ -189,36 +155,3 @@ class TestCalcPoissonsRatioUnits:
         expected = (r2 - 2) / (2 * (r2 - 1))
         assert_allclose(result, expected)
 
-
-class TestKishidaSoilTypeUnits:
-    """Test KishidaSoilType stress_vert conversion."""
-
-    def test_stress_vert_atm(self):
-        st = site.KishidaSoilType(stress_vert=1.0 * ureg.atmosphere)
-        assert_allclose(st._stress_vert, 101.325, rtol=1e-4)
-
-
-class TestRollinsEtAlSoilTypeUnits:
-    """Test RollinsEtAlSoilType stress_mean conversion."""
-
-    def test_stress_mean_psi(self):
-        stress = 14.696 * ureg.psi
-        st = site.RollinsEtAlSoilType(stress_mean=stress)
-        assert_allclose(st._stress_mean, stress.to("kilopascal").magnitude, rtol=1e-4)
-
-
-class TestAlemuEtAlSoilTypeUnits:
-    """Test AlemuEtAlSoilType stress_mean conversion."""
-
-    def test_stress_mean_bar(self):
-        stress = 1.0 * ureg.bar
-        st = site.AlemuEtAlSoilType(stress_mean=stress)
-        assert_allclose(st._stress_mean, 100.0, rtol=1e-4)
-
-
-class TestTwoParamModifiedHyperbolicUnits:
-    """Test TwoParamModifiedHyperbolicSoilType unit conversion."""
-
-    def test_stress_mean_atm(self):
-        st = site.TwoParamModifiedHyperbolicSoilType(stress_mean=1.0 * ureg.atmosphere)
-        assert_allclose(st._stress_mean, 101.325, rtol=1e-4)
