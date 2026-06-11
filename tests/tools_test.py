@@ -41,14 +41,11 @@ def create_pystrata_profile(
                 row["material"], GRAVITY * row["density"], damping=0.0
             )
         else:
-            soil_type = pystrata.site.WangSoilType(
-                row["material"],
+            soil_type = pystrata.site.SoilType(
                 row["material"] + "-" + str(counter[row["material"]]),
                 GRAVITY * row["density"],
-                damping_min=0,
-                stress_mean=row["stress_mean_eff"],
+                damping=0.05,
             )
-
             counter[row["material"]] += 1
 
         layer = pystrata.site.Layer(

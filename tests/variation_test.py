@@ -19,7 +19,14 @@ import pytest
 from numpy.testing import assert_allclose
 from scipy.stats import lognorm, norm, pearsonr
 
+import pygmm
+
 from pystrata import motion, output, propagation, site, variation
+
+
+def _darendeli(**kw) -> site.SoilType:
+    """Create a pystrata SoilType from pygmm's DarendeliSoilType."""
+    return site.SoilType.from_curves(pygmm.DarendeliSoilType(**kw).curves())
 
 
 def test_randnorm():
@@ -45,7 +52,7 @@ class TestSoilTypeVariation:
 class TestDarendeliVariation:
     @classmethod
     def setup_class(cls):
-        cls.st = site.DarendeliSoilType(
+        cls.st = _darendeli(
             unit_wt=16,
             plas_index=0,
             ocr=1,
@@ -147,22 +154,22 @@ def profile():
     return site.Profile(
         [
             site.Layer(
-                site.DarendeliSoilType(18.0, plas_index=0, ocr=1, stress_mean=200),
+                _darendeli(unit_wt=18.0, plas_index=0, ocr=1, stress_mean=200),
                 10,
                 300,
             ),
             site.Layer(
-                site.DarendeliSoilType(18.0, plas_index=0, ocr=1, stress_mean=200),
+                _darendeli(unit_wt=18.0, plas_index=0, ocr=1, stress_mean=200),
                 10,
                 400,
             ),
             site.Layer(
-                site.DarendeliSoilType(18.0, plas_index=0, ocr=1, stress_mean=200),
+                _darendeli(unit_wt=18.0, plas_index=0, ocr=1, stress_mean=200),
                 10,
                 500,
             ),
             site.Layer(
-                site.DarendeliSoilType(18.0, plas_index=0, ocr=1, stress_mean=200),
+                _darendeli(unit_wt=18.0, plas_index=0, ocr=1, stress_mean=200),
                 20,
                 600,
             ),
@@ -193,8 +200,9 @@ def test_halfspace_depth_variation(dist, profile):
 
 
 def test_iter_variations(profile):
-    m = motion.SourceTheoryRvtMotion(6.0, 30, "wna")
-    m.calc_fourier_amps()
+    from pygmm.fourier_spectrum import SourceTheoryModel
+
+    m = motion.RvtMotion.from_fas(SourceTheoryModel(6.0, 30, "wna"))
 
     calc = propagation.EquivalentLinearCalculator()
     var_thickness = variation.ToroThicknessVariation()

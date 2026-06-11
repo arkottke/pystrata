@@ -104,7 +104,7 @@ def convert_kwds_units(**unit_specs: str):
     """Decorator that converts :class:`pint.Quantity` values inside ``**kwds``.
 
     This is for functions that accept ``**kwds`` dictionaries where some values
-    may be :class:`pint.Quantity` objects (e.g. ``WangSoilType``).
+    may be :class:`pint.Quantity` objects in ``**kwds`` dictionaries.
 
     Parameters
     ----------

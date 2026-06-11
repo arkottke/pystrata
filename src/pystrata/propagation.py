@@ -960,6 +960,12 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         the effective strain ratio. For the `ka02` the recommended value is
         0.65 -- or consistent with an EQL approach. For `zr15` and `ko:##`, there is no
         clear guidance but a value of 1.0 might make sense.
+    strain_reduc_floor: float, default=None
+        Minimum reduction in the shear strain. γ_eff(ω) = max[γ(ω), κ·γ_max]
+        This caps the elastic recovery: high frequencies see the soil parameters
+        at κ·γ_max rather than at the (negligible) spectral strain. The floor is
+        inherently strain-level dependent because it's tied to γ_max — at low
+        intensity, κ·γ_max is still in the elastic range and nothing changes.
     tolerance: float, default=0.025
         tolerance in the iterative properties, which would cause the iterative
         process to terminate.
@@ -985,12 +991,14 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         tolerance: float = 0.025,
         max_iterations: int = 50,
         strain_limit: float = 0.05,
+        strain_reduc_floor: float = None,
     ):
         """Initialize the class."""
         super().__init__(strain_ratio, tolerance, max_iterations, strain_limit)
 
         self._method = method
         self._smoother = None
+        self._strain_reduc_floor = strain_reduc_floor
 
     @property
     def name(self):
@@ -1061,6 +1069,9 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
             strains[::-1] = np.maximum.accumulate(strains[::-1])
         else:
             strains = strain_eff * strain_fas / np.max(strain_fas)
+
+        if self._strain_reduc_floor is not None:
+            strains = np.maximum(strains, self._strain_reduc_floor * np.max(strains))
 
         return strains
 
