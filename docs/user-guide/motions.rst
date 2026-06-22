@@ -67,16 +67,19 @@ RVT motions are defined by their Fourier amplitude spectrum and strong motion du
 
 **Source-Based RVT Motions**
 
-Generate theoretical motions from earthquake source parameters:
+Generate theoretical motions from earthquake source parameters using
+``pygmm.fourier_spectrum.SourceTheoryModel`` and the
+:meth:`~pystrata.motion.RvtMotion.from_fas` factory:
 
 .. code-block:: python
 
-    motion = pystrata.motion.SourceTheoryRvtMotion(
-        magnitude=6.5,          # Moment magnitude
-        distance=20,            # Source-to-site distance (km)
-        region="wna",           # Western North America attenuation
-        stress_drop=100         # Stress drop (bars), optional
+    import pygmm.fourier_spectrum as fs
+    fas = fs.SourceTheoryModel(
+        mag=6.5,          # Moment magnitude
+        dist=20,          # Source-to-site distance (km)
+        region="wna",     # Western North America attenuation
     )
+    motion = pystrata.motion.RvtMotion.from_fas(fas)
 
 **Custom RVT Motions**
 

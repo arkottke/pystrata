@@ -24,6 +24,8 @@ Example Gallery
    example-14
    example-15
    example-16
+   example-17
+   example-18
 
 Complete Example Index
 ----------------------
@@ -77,6 +79,14 @@ All available examples with brief descriptions:
 
 **Logic Trees** (`example-16.ipynb <../../examples/example-16.ipynb>`__)
     Comprehensive example of using logic trees for uncertainty analysis.
+
+**USGS National Crustal Model Profile** (`example-17.ipynb <../../examples/example-17.ipynb>`__)
+    Load a geophysical profile from the USGS NCM, apply Darendeli nonlinear curves, and adjust
+    minimum damping to match a target site kappa (κ₀).
+
+**Unit Conversion with Pint** (`example-18.ipynb <../../examples/example-18.ipynb>`__)
+    Define the same profile three ways — plain floats, metric pint Quantities, and Imperial
+    units — demonstrating transparent unit handling.
 
 Tips for Using Examples
 ------------------------

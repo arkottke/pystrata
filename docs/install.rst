@@ -100,7 +100,9 @@ Test your installation:
    print(pystrata.__version__)
 
    # Run a simple example
-   motion = pystrata.motion.SourceTheoryRvtMotion(6.5, 20, "wna")
+   profile = pystrata.site.Profile([
+       pystrata.site.Layer(pystrata.site.SoilType("Rock", 24.0, None, 0.01), 0, 900),
+   ])
    print("Installation successful!")
 
 Troubleshooting

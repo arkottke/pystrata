@@ -15,7 +15,6 @@ Classes
    TimeSeriesMotion
    RvtMotion
    CompatibleRvtMotion
-   SourceTheoryRvtMotion
 
 Time Series Motions
 -------------------
@@ -35,6 +34,8 @@ Random Vibration Theory Motions
    :members:
    :show-inheritance:
 
-.. autoclass:: SourceTheoryRvtMotion
-   :members:
-   :show-inheritance:
+.. note::
+
+   ``SourceTheoryRvtMotion`` was removed in pystrata v0.6+. Use
+   ``pygmm.fourier_spectrum.SourceTheoryModel`` and pass the result to
+   :meth:`~pystrata.motion.RvtMotion.from_fas` instead.

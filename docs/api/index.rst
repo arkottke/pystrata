@@ -11,11 +11,15 @@ This section provides detailed documentation for all public classes and function
    propagation
    output
    variation
+   logic_tree
+   constitutive
+   generic
+   tools
 
 Overview
 --------
 
-PyStrata's API is organized into five main modules:
+PyStrata's API is organized into the following modules:
 
 **Motion** (:doc:`motion`)
     Classes for representing and manipulating ground motion data
@@ -31,6 +35,18 @@ PyStrata's API is organized into five main modules:
 
 **Variation** (:doc:`variation`)
     Tools for parameter variation and uncertainty analysis
+
+**Logic Tree** (:doc:`logic_tree`)
+    Weighted branching for epistemic uncertainty quantification
+
+**Constitutive** (:doc:`constitutive`)
+    Nonlinear constitutive model parameters for time-domain analyses
+
+**Generic Profiles** (:doc:`generic`)
+    Generic shear-wave velocity profiles from published datasets
+
+**Tools** (:doc:`tools`)
+    File I/O and miscellaneous utilities
 
 Design Philosophy
 -----------------

@@ -23,11 +23,11 @@ Input motion
 
 `pyStrata` permits use of both time series and random vibration theory site
 response. Time series motions are created using a ``TimeSeriesMotion`` and one
-of three methods. Whereas, Random vibration theory motions are created through
-three classes: ``RvtMotion`` for directly specifiying Fourier amplitudes and
-durations, ``CompatibleRvtMotion`` for specifying the motion by the
-acceleration-response, and ``SourceTheoryRvtMotion`` for computing the motion
-by point-source parameters.
+of three methods. Whereas, Random vibration theory motions are created through two classes: ``RvtMotion`` for
+directly specifying Fourier amplitudes and durations, and ``CompatibleRvtMotion``
+for specifying the motion by an acceleration-response spectrum.  To create a
+source-theory motion, use ``pygmm.fourier_spectrum.SourceTheoryModel`` and pass it
+to :meth:`~pystrata.motion.RvtMotion.from_fas`.
 
 .. autoclass:: TimeSeriesMotion
    :special-members: __init__
@@ -37,9 +37,6 @@ by point-source parameters.
    :special-members: __init__
 
 .. autoclass:: CompatibleRvtMotion
-   :special-members: __init__
-
-.. autoclass:: SourceTheoryRvtMotion
    :special-members: __init__
 
 

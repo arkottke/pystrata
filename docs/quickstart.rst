@@ -118,12 +118,10 @@ Working with Different Motion Types
 
 .. code-block:: python
 
-    # Source-based theoretical motion
-    motion = pystrata.motion.SourceTheoryRvtMotion(
-        magnitude=6.5,      # Moment magnitude
-        distance=20,        # Source-to-site distance (km)
-        region="wna"        # Western North America
-    )
+    # Source-based theoretical motion via pygmm + RvtMotion.from_fas
+    import pygmm.fourier_spectrum as fs
+    fas = fs.SourceTheoryModel(mag=6.5, dist=20, region="wna")
+    motion = pystrata.motion.RvtMotion.from_fas(fas)
 
     # RVT from Fourier amplitude spectrum
     motion = pystrata.motion.RvtMotion(
@@ -210,7 +208,8 @@ Here's a complete example that generates plots:
     import pystrata
 
     # Setup
-    motion = pystrata.motion.SourceTheoryRvtMotion(6.5, 20, "wna")
+    import pygmm.fourier_spectrum as fs
+    motion = pystrata.motion.RvtMotion.from_fas(fs.SourceTheoryModel(6.5, 20, "wna"))
     profile = pystrata.site.Profile([
         pystrata.site.Layer(pystrata.site.SoilType("Soil", 18.0, None, 0.05), 30, 400),
         pystrata.site.Layer(pystrata.site.SoilType("Rock", 24.0, None, 0.01), 0, 1200),
