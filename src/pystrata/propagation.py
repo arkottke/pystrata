@@ -950,6 +950,8 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
            for the strain.
          - zr15: use Zalachoris & Rathje (2015) approach of the strain
          spectrum
+         - tan_avg: Loop-averaged tangent strain. Requires `strain_reduc`
+           parameter
          - ko:##: use Konno-Omachi with a bandwith of ## to compute the smooth
          spectrum. The strain is then computed as a running maximum from high
          to low frequencies. A value of 20 or 30 is recommended based on
@@ -960,12 +962,6 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         the effective strain ratio. For the `ka02` the recommended value is
         0.65 -- or consistent with an EQL approach. For `zr15` and `ko:##`, there is no
         clear guidance but a value of 1.0 might make sense.
-    strain_reduc_floor: float, default=None
-        Minimum reduction in the shear strain. γ_eff(ω) = max[γ(ω), κ·γ_max]
-        This caps the elastic recovery: high frequencies see the soil parameters
-        at κ·γ_max rather than at the (negligible) spectral strain. The floor is
-        inherently strain-level dependent because it's tied to γ_max — at low
-        intensity, κ·γ_max is still in the elastic range and nothing changes.
     tolerance: float, default=0.025
         tolerance in the iterative properties, which would cause the iterative
         process to terminate.
@@ -976,7 +972,10 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
     strain_limit: float, default=0.05
         Limit of strain in calculations. If this strain is exceed, the
         iterative calculation is ended.
-
+    freq_shift : float, default=1.0
+        η ≥ 1.  The strain spectrum shape is evaluated at f/η, extending
+        nonlinearity to higher frequencies.  η=1 → identical to the parent
+        ``ko:{bw_ko}`` method.
     References
     ----------
     .. [1] Kausel, E., & Assimaki, D. (2002). Seismic simulation of inelastic
@@ -991,14 +990,14 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         tolerance: float = 0.025,
         max_iterations: int = 50,
         strain_limit: float = 0.05,
-        strain_reduc_floor: float = None,
+        freq_shift: float = 1.0,
     ):
         """Initialize the class."""
         super().__init__(strain_ratio, tolerance, max_iterations, strain_limit)
 
         self._method = method
         self._smoother = None
-        self._strain_reduc_floor = strain_reduc_floor
+        self._freq_shift = freq_shift
 
     @property
     def name(self):
@@ -1007,6 +1006,11 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
     @property
     def method(self):
         return self._method
+
+    @property
+    def freq_shift(self) -> float:
+        """Frequency stretch parameter η."""
+        return self._freq_shift
 
     def _estimate_strains(self):
         """Estimate the strains by running an EQL site response.
@@ -1021,7 +1025,8 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         eql(self._motion, self._profile, self._loc_input)
 
     def _calc_strain(self, loc_input, loc_layer, motion, *args):
-        freqs = np.array(motion.freqs)
+        freqs = np.array(motion.freqs, dtype=float)
+
         strain_tf = self.calc_strain_tf(loc_input, loc_layer)
         strain_fas = np.abs(strain_tf * motion.fourier_amps)
         # Maximum strain in the time domain modified by the effective strain
@@ -1070,8 +1075,17 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         else:
             strains = strain_eff * strain_fas / np.max(strain_fas)
 
-        if self._strain_reduc_floor is not None:
-            strains = np.maximum(strains, self._strain_reduc_floor * np.max(strains))
+        # Evaluate the monotone-decreasing shape at f/η via interpolation.
+        if self._freq_shift != 1:
+            # left=strains[0]: below the freq grid, return the max strain.
+            # right=strains[-1]: above the freq grid, hold the minimum value.
+            strains = np.interp(
+                freqs / self._freq_shift,
+                freqs,
+                strains,
+                left=strains[0],
+                right=strains[-1],
+            )
 
         return strains
 
