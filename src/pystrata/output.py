@@ -390,9 +390,7 @@ class OutputLocation:
     ) -> None:
         self._depth = depth
         self._index = index
-        if not isinstance(wave_field, WaveField):
-            wave_field = WaveField[wave_field]
-        self._wave_field = wave_field
+        self._wave_field = WaveField(wave_field)
 
     @property
     def depth(self) -> float | None:

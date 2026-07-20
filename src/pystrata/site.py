@@ -25,8 +25,6 @@ import collections
 import logging
 import warnings
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from functools import wraps
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -37,7 +35,7 @@ import tomli
 from scipy.interpolate import interp1d
 
 from .motion import WaveField
-from .units import GRAVITY, KPA_TO_ATM, convert_kwds_units, convert_units
+from .units import GRAVITY, convert_units
 
 logger = logging.getLogger(__name__)
 
@@ -333,7 +331,9 @@ class SoilType:
         return SoilType(self.name, self.unit_wt, self.mod_reduc, self.damping)
 
     @classmethod
-    def from_curves(cls, curves, name: str = "", unit_wt: float | None = None) -> "SoilType":
+    def from_curves(
+        cls, curves, name: str = "", unit_wt: float | None = None
+    ) -> SoilType:
         """Create from any object with .strains, .mod_reduc, .damping, .damping_min.
 
         Duck-typed: accepts ``pygmm.contracts.NonlinearSoilCurves`` or any
@@ -382,6 +382,7 @@ class SoilType:
 
     def __hash__(self):
         return hash(self.__dict__.values())
+
 
 # TODO: for nonlinear site response this class wouldn't be used. Better way
 # to do this? Maybe have the calculator create it?
@@ -747,9 +748,9 @@ class Location:
         self._layer = layer
         self._depth_within = depth_within
 
-        if not isinstance(wave_field, WaveField):
-            wave_field = WaveField[wave_field]
-        self._wave_field = wave_field
+        # Accepts a WaveField, a canonical name, or a shorthand alias
+        # (e.g. "2A", "A+B", "A", "B").
+        self._wave_field = WaveField(wave_field)
 
     @property
     def depth_within(self):
@@ -833,7 +834,7 @@ class Profile(collections.abc.Container):
         soil_types,
         layer_thickness: float = 1.0,
         wt_depth: float = 0,
-    ) -> "Profile":
+    ) -> Profile:
         """Create from any object with .depth, .vs_median, .std_vs_ln.
 
         Duck-typed: accepts ``pygmm.contracts.VelocityProfile`` or any object
@@ -1058,8 +1059,7 @@ class Profile(collections.abc.Container):
         Location
             Corresponding :class:`Location` object.
         """
-        if not isinstance(wave_field, WaveField):
-            wave_field = WaveField[wave_field]
+        wave_field = WaveField(wave_field)
 
         if index is None and depth is not None:
             i, depth_within = self.lookup_depth(depth)

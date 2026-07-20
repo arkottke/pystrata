@@ -39,7 +39,43 @@ logger = logging.getLogger(__name__)
 class WaveField(enum.Enum):
     outcrop = 0
     within = 1
-    incoming_only = 2
+    up_going = 2
+    down_going = 3
+
+    @classmethod
+    def _missing_(cls, value):
+        # Resolve string names and shorthand aliases (e.g. "2A", "A+B", "A",
+        # "B") to their canonical members. Called by ``WaveField(value)`` when
+        # ``value`` is not one of the member values.
+        if isinstance(value, str):
+            key = value.strip()
+            if key in cls._member_map_:
+                return cls._member_map_[key]
+            alias = _WAVE_FIELD_ALIASES.get(key)
+            if alias is not None:
+                return cls._member_map_[alias]
+        return None
+
+
+#: Shorthand aliases for the wave-field conditions. Each maps to the name of a
+#: canonical :class:`WaveField` member:
+#:
+#: - ``"2A"`` -- outcrop (twice the up-going wave)
+#: - ``"A+B"`` -- within (sum of up- and down-going waves)
+#: - ``"A"`` -- up_going (up-going wave only)
+#: - ``"B"`` -- down_going (down-going wave only)
+#:
+#: ``"incoming_only"`` is retained as an alias for ``up_going`` for backwards
+#: compatibility.
+_WAVE_FIELD_ALIASES = {
+    "2A": "outcrop",
+    "A+B": "within",
+    "A": "up_going",
+    "incoming_only": "up_going",
+    "upgoing": "up_going",
+    "B": "down_going",
+    "downgoing": "down_going",
+}
 
 
 class Motion:
@@ -402,7 +438,7 @@ class RvtMotion(pyrvt.motions.RvtMotion, Motion):
         fas,
         peak_calculator=None,
         calc_kwds: dict | None = None,
-    ) -> "RvtMotion":
+    ) -> RvtMotion:
         """Build from any object exposing ``freqs`` / ``fourier_amps`` / ``duration``.
 
         Mirrors :meth:`pyrvt.motions.RvtMotion.from_fas` but returns this

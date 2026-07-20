@@ -194,7 +194,9 @@ def _wave_at_location_python(
         return waves_a_row * exp_pos + waves_b_row * np.exp(-cterm)
     elif wave_field_code == 0:  # WaveField.outcrop
         return 2.0 * waves_a_row * exp_pos
-    else:  # WaveField.incoming_only
+    elif wave_field_code == 3:  # WaveField.down_going
+        return waves_b_row * np.exp(-cterm)
+    else:  # WaveField.up_going
         return waves_a_row * exp_pos
 
 
@@ -302,7 +304,9 @@ if HAS_NUMBA:
                 result[j] = waves_a_row[j] * exp_pos + waves_b_row[j] * np.exp(-cterm)
             elif wave_field_code == 0:  # WaveField.outcrop
                 result[j] = 2.0 * waves_a_row[j] * exp_pos
-            else:  # WaveField.incoming_only
+            elif wave_field_code == 3:  # WaveField.down_going
+                result[j] = waves_b_row[j] * np.exp(-cterm)
+            else:  # WaveField.up_going
                 result[j] = waves_a_row[j] * exp_pos
         return result
 
@@ -342,7 +346,9 @@ if HAS_NUMBA:
                 wave_in = waves_a_in[j] * exp_pos_in + waves_b_in[j] * np.exp(-cterm_in)
             elif wave_field_code_in == 0:  # outcrop
                 wave_in = 2.0 * waves_a_in[j] * exp_pos_in
-            else:  # incoming_only
+            elif wave_field_code_in == 3:  # down_going
+                wave_in = waves_b_in[j] * np.exp(-cterm_in)
+            else:  # up_going
                 wave_in = waves_a_in[j] * exp_pos_in
 
             denom = -(ang_freqs[j] ** 2) * wave_in

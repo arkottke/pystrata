@@ -178,7 +178,7 @@ def _parse_input_loc(block, profile, **kwargs):
     layer, wave_field = parse_fixed_width(2 * [(5, int)], block)
 
     return profile.location(
-        motion.WaveField[wave_field],
+        motion.WaveField(wave_field),
         index=(layer - 1),
     )
 
