@@ -11,6 +11,7 @@ This guide provides practical information for using PyStrata effectively in your
    calculations
    outputs
    logic_trees
+   parallel
 
 Overview
 --------
@@ -31,6 +32,9 @@ PyStrata follows a modular design philosophy where site response analysis is bro
 
 **Uncertainty Handling** (:doc:`logic_trees`)
     Tools for probabilistic analysis and uncertainty quantification
+
+**Running Ensembles** (:doc:`parallel`)
+    Evaluating many realizations, reproducibly and across processes
 
 This modular approach allows users to mix and match components as needed for their specific analysis requirements.
 
@@ -138,9 +142,10 @@ Performance Considerations
     * Consider batch processing for large studies
 
 **Parallel Processing**
-    * Logic tree analyses can be parallelized
-    * Profile suite calculations benefit from parallel execution
-    * Individual analyses are typically single-threaded
+    * An individual analysis is single-threaded
+    * Realizations, motions, and logic-tree branches are independent, so they
+      are distributed across processes by
+      :func:`pystrata.runner.run_ensemble` -- see :doc:`parallel`
 
 Validation and Quality Assurance
 --------------------------------

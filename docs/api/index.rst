@@ -10,9 +10,9 @@ This section provides detailed documentation for all public classes and function
    site
    propagation
    output
+   runner
    variation
    logic_tree
-   constitutive
    generic
    tools
 
@@ -33,14 +33,14 @@ PyStrata's API is organized into the following modules:
 **Output** (:doc:`output`)
     Output quantity computation and data handling
 
+**Runner** (:doc:`runner`)
+    Ensemble evaluation, serially or across processes
+
 **Variation** (:doc:`variation`)
     Tools for parameter variation and uncertainty analysis
 
 **Logic Tree** (:doc:`logic_tree`)
     Weighted branching for epistemic uncertainty quantification
-
-**Constitutive** (:doc:`constitutive`)
-    Nonlinear constitutive model parameters for time-domain analyses
 
 **Generic Profiles** (:doc:`generic`)
     Generic shear-wave velocity profiles from published datasets
