@@ -26,6 +26,8 @@ The examples included here are used to demonstrate the capabilities of
     Darendeli nonlinear curves and κ₀-adjusted damping.
 18. Unit conversion with pint – comparing plain floats, metric
     Quantities, and Imperial Quantities on the same site profile.
+19. Impact of incidence angle and inhomogeneity (general viscoelastic SII-wave
+    propagation), swept 30° from vertical.
 
 To be added:
 
