@@ -58,7 +58,7 @@ def _has_reference_data() -> bool:
 
 needs_data = pytest.mark.skipif(
     not _has_reference_data(),
-    reason="Reference data not found — run examples/example-20.ipynb first",
+    reason="Reference data not found — run examples/example-21.ipynb first",
 )
 
 
@@ -73,7 +73,7 @@ def _load_motion(label: str) -> pystrata.motion.TimeSeriesMotion:
 
 
 def _build_profile() -> pystrata.site.Profile:
-    """Three-layer Darendeli profile used in example-20."""
+    """Three-layer Darendeli profile used in example-21."""
     return pystrata.site.Profile(
         [
             pystrata.site.Layer(
