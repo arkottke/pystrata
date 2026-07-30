@@ -35,8 +35,6 @@ Available Calculators
      - Iterative EQL: updates G/Gmax and damping to strain-compatible values
    * - :class:`FrequencyDependentEqlCalculator`
      - Frequency-dependent EQL variant (Kausel & Assimaki 2002)
-   * - :class:`TimeDomainCalculator`
-     - True nonlinear FDM with MKZ or HH constitutive model
    * - :class:`QuarterWaveLenCalculator`
      - Quarter-wavelength approximation for site amplification
 
@@ -79,36 +77,6 @@ strain transfer function, which better captures the behavior of soft soils under
     calc = pystrata.propagation.FrequencyDependentEqlCalculator()
     calc(motion, profile, profile.location("outcrop", index=-1))
 
-Time-Domain (Nonlinear)
------------------------
-
-:class:`TimeDomainCalculator` uses explicit central-difference integration and supports two
-constitutive models:
-
-- ``"mkz"`` — Modified Kondner–Zelasko (hyperbolic)
-- ``"hh"`` — Hashash-Hardin (extended modified hyperbolic)
-
-The profile **must be discretized** before use (``Profile.auto_discretize``).  If Numba is
-installed, inner loops are JIT-compiled automatically.
-
-.. code-block:: python
-
-    # Discretize for adequate spatial resolution
-    profile.auto_discretize(max_freq=50.0)
-
-    calc = pystrata.propagation.TimeDomainCalculator(
-        model="hh",           # constitutive model: 'mkz' or 'hh'
-        boundary="elastic",   # transmitting base: 'elastic' or 'rigid'
-    )
-
-    # Optionally inspect fitted constitutive parameters before running
-    params = calc.prepare(profile)
-
-    calc(motion, profile, profile.location("outcrop", index=-1))
-
-    # Access time-series results directly
-    surface_accel = calc.accel_ts(profile.location("outcrop", index=0))
-
 Quarter-Wavelength Approximation
 ---------------------------------
 
@@ -143,10 +111,6 @@ Choosing a Calculator
      - FrequencyDependentEql
      - Frequency-dependent damping
      - Slower than basic EQL
-   * - True nonlinear / time histories
-     - TimeDomain
-     - Captures hysteresis, pore pressure
-     - Requires discretized profile + constitutive fit
    * - Rapid amplification estimate
      - QuarterWaveLen
      - No profile wave propagation

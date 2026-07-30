@@ -15,7 +15,6 @@ Classes
    LinearElasticCalculator
    EquivalentLinearCalculator
    FrequencyDependentEqlCalculator
-   TimeDomainCalculator
    QuarterWaveLenCalculator
 
 Linear Methods
@@ -33,13 +32,6 @@ Equivalent-Linear Methods
    :show-inheritance:
 
 .. autoclass:: FrequencyDependentEqlCalculator
-   :members:
-   :show-inheritance:
-
-Time-Domain Nonlinear
----------------------
-
-.. autoclass:: TimeDomainCalculator
    :members:
    :show-inheritance:
 
