@@ -1,6 +1,5 @@
-import pytest
-
 import numpy as np
+import pytest
 
 from pystrata.logic_tree import (
     Alternative,
@@ -55,6 +54,21 @@ def test_branch_count(my_tree):
     branches = list(my_tree)
     count = (2 * 3 * 3) - 3 - 1 - 3
     assert len(branches) == count
+
+
+def test_len_conditional_tree(my_tree):
+    """A conditional tree has to be enumerated, not computed from the product."""
+    assert not my_tree.is_rectangular
+    assert len(my_tree) == len(list(my_tree))
+    assert len(my_tree) < np.prod([len(node) for node in my_tree.nodes])
+
+
+def test_len_rectangular_tree(rectangular_tree):
+    assert rectangular_tree.is_rectangular
+    assert len(rectangular_tree) == len(list(rectangular_tree))
+    assert len(rectangular_tree) == np.prod(
+        [len(node) for node in rectangular_tree.nodes]
+    )
 
 
 def test_valid_branches(my_tree):
@@ -399,7 +413,9 @@ def test_separation_of_variance_fractions_sum_to_one():
             ),
         ]
     )
-    output = _make_output(tree, lambda b, r: b.value("A") * b.value("B"), refs=np.array([0.5]))
+    output = _make_output(
+        tree, lambda b, r: b.value("A") * b.value("B"), refs=np.array([0.5])
+    )
     da = output.to_xarray(tree)
 
     ds = separation_of_variance(da, tree, ref_value=0.5)
@@ -471,6 +487,7 @@ def test_compute_marginals_independent_nodes():
 
 def test_plot_tornado_returns_axes():
     import matplotlib
+
     matplotlib.use("Agg")
 
     tree = LogicTree(

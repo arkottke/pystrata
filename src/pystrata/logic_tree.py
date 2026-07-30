@@ -393,6 +393,18 @@ class LogicTree:
                     seen_branches.add(branch_key)
                     yield branch
 
+    def __len__(self) -> int:
+        """Number of branches in the tree.
+
+        Conditional alternatives are filtered and duplicates removed while iterating, so
+        a non-rectangular tree has to be enumerated rather than computed from the
+        product of the node sizes.
+        """
+        if self.is_rectangular:
+            return int(np.prod([len(node) for node in self.nodes]))
+
+        return sum(1 for _ in self)
+
     def is_valid(self, branch):
         """Check if a branch is valid according to the logic tree rules.
 
@@ -428,9 +440,7 @@ class LogicTree:
             True if no alternatives have ``requires`` or ``excludes`` conditions.
         """
         return all(
-            not a.requires and not a.excludes
-            for node in self.nodes
-            for a in node.alts
+            not a.requires and not a.excludes for node in self.nodes for a in node.alts
         )
 
     @classmethod
@@ -671,7 +681,7 @@ def plot_tornado(ds: xr.Dataset, ax=None, **kwds):
         fig, ax = plt.subplots()
 
     bar_kwds = {"color": "C0", "edgecolor": "black", "height": 0.6} | kwds
-    bars = ax.barh(
+    ax.barh(
         range(len(labels)),
         highs - lows,
         left=lows,
