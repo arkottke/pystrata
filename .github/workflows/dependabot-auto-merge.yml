@@ -1,0 +1,40 @@
+name: Dependabot auto-merge
+
+# Auto-merges Dependabot's weekly development-dependency updates once the test
+# matrix passes. Production dependencies and every major bump are left for
+# manual review, so nothing that ships to users lands unreviewed.
+#
+# Requires "Allow auto-merge" to be enabled in the repository settings
+# (Settings -> General -> Pull Requests). Without it the merge step fails.
+
+on: pull_request_target
+
+permissions:
+    contents: write
+    pull-requests: write
+
+jobs:
+    auto-merge:
+        runs-on: ubuntu-latest
+        if: github.event.pull_request.user.login == 'dependabot[bot]'
+
+        steps:
+            - name: Fetch Dependabot metadata
+              id: metadata
+              uses: dependabot/fetch-metadata@v2
+              with:
+                  alert-lookup: true
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+
+            # The `development` group is defined in .github/dependabot.yml and
+            # only collects minor and patch updates, so a major can never
+            # arrive under this name. The update-type check is belt and braces
+            # in case that grouping is later widened.
+            - name: Enable auto-merge
+              if: >
+                  steps.metadata.outputs.dependency-group == 'development' &&
+                  steps.metadata.outputs.update-type != 'version-update:semver-major'
+              run: gh pr merge --auto --squash "$PR_URL"
+              env:
+                  PR_URL: ${{ github.event.pull_request.html_url }}
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

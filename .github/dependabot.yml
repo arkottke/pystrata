@@ -1,0 +1,33 @@
+version: 2
+
+updates:
+    # Python dependencies, resolved through uv.lock.
+    #
+    # Security updates are enabled separately in the repository settings and
+    # only cover direct dependencies with a known advisory. Most of this
+    # project's alerts are against transitive packages pinned in uv.lock
+    # (mistune and bleach via nbconvert, starlette and tornado via the docs
+    # server, pillow via matplotlib), which are only bumped when the lock file
+    # itself is refreshed -- that is what these version updates do.
+    - package-ecosystem: "uv"
+      directory: "/"
+      schedule:
+          interval: "weekly"
+          day: "sunday"
+      open-pull-requests-limit: 10
+      commit-message:
+          prefix: "deps"
+      groups:
+          # One pull request per week for the routine bumps, rather than one
+          # per package. Majors stay ungrouped so they are reviewed on their
+          # own.
+          production:
+              dependency-type: "production"
+              update-types:
+                  - "minor"
+                  - "patch"
+          development:
+              dependency-type: "development"
+              update-types:
+                  - "minor"
+                  - "patch"
