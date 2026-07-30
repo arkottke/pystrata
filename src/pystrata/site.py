@@ -992,6 +992,109 @@ class Profile(collections.abc.Container):
 
         return Profile(layers, wt_depth=self.wt_depth)
 
+    def depth_grid(
+        self,
+        spacing: float | None = None,
+        max_depth: float | None = None,
+        *,
+        max_freq: float = 50.0,
+        wave_frac: float = 0.2,
+        depth_var=None,
+        quantile: float = 0.999,
+        margin: float = 1.05,
+    ) -> np.ndarray:
+        """Build a uniform depth grid for reporting profile-based outputs.
+
+        The grid is intended for :class:`~pystrata.output.ProfileBasedOutput`
+        subclasses, which otherwise store a different set of depths for every
+        realization. By default the spacing resolves the same wavelengths as
+        :meth:`auto_discretize`, and the grid extends past the depth range that
+        a half-space depth variation can sample.
+
+        Parameters
+        ----------
+        spacing : float, optional
+            Grid spacing [m]. Defaults to ``wave_frac * min(Vs) / max_freq``
+            using the minimum initial shear-wave velocity of the soil layers.
+        max_depth : float, optional
+            Maximum depth of the grid [m]. Defaults to *margin* times the depth
+            implied by *depth_var*, or the base of the soil column when no
+            variation is given.
+        max_freq : float, optional
+            Maximum frequency of interest [Hz], used to derive *spacing*.
+        wave_frac : float, optional
+            Fraction of a wavelength to resolve. Typically 1/3 to 1/5.
+        depth_var : optional
+            Half-space depth variation, or a frozen ``scipy.stats``
+            distribution of the half-space depth. Duck-typed: anything
+            providing ``depth_limit(quantile)`` or ``ppf(quantile)`` works.
+        quantile : float, optional
+            Quantile of *depth_var* the grid should reach.
+        margin : float, optional
+            Factor applied to the resolved maximum depth.
+
+        Returns
+        -------
+        numpy.ndarray
+            Monotonically increasing depths [m], starting at zero.
+
+        Warns
+        -----
+        UserWarning
+            If *max_depth* is shallower than the depth *depth_var* is expected
+            to reach, so that deeper realizations would be truncated.
+
+        Notes
+        -----
+        The default spacing is derived from the seed profile. A velocity
+        variation may produce realizations slower than the seed, which are
+        resolved more coarsely; pass a smaller *spacing* (or a larger
+        *max_freq*) when exact interface depths matter.
+        """
+        if spacing is None:
+            vel_min = min(layer.initial_shear_vel for layer in self[:-1])
+            spacing = vel_min / max_freq * wave_frac
+
+        if spacing <= 0:
+            raise ValueError(f"spacing must be positive, not {spacing}.")
+
+        limit = None
+        if depth_var is not None:
+            if hasattr(depth_var, "depth_limit"):
+                limit = float(depth_var.depth_limit(quantile))
+            elif hasattr(depth_var, "ppf"):
+                limit = float(depth_var.ppf(quantile))
+            else:
+                raise TypeError(
+                    "depth_var must provide depth_limit(quantile) or ppf(quantile); "
+                    f"got {type(depth_var).__name__}."
+                )
+
+        base = self[-2].depth_base if len(self) > 1 else 0.0
+
+        if max_depth is None:
+            max_depth = margin * (base if limit is None else limit)
+        elif limit is not None and max_depth < limit:
+            warnings.warn(
+                f"The depth grid extends to {max_depth:.1f} m, which is shallower "
+                f"than the {100 * quantile:g}th-percentile sampled depth of "
+                f"{limit:.1f} m. Increase max_depth so that the grid covers the "
+                "range of the depth variation.",
+                stacklevel=2,
+            )
+
+        # Always cover the seed profile, regardless of the variation
+        max_depth = max(max_depth, base)
+
+        count = int(np.ceil(max_depth / spacing)) + 1
+        if count > 100_000:
+            raise ValueError(
+                f"The requested grid would contain {count} points. Increase "
+                "spacing or reduce max_depth."
+            )
+
+        return np.arange(count) * spacing
+
     def pore_pressure(self, depth):
         """Pore pressure at a given depth in [kN//m²].
 

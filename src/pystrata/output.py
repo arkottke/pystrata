@@ -23,6 +23,7 @@
 from __future__ import annotations
 
 import collections
+import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -135,14 +136,28 @@ class OutputCollection(collections.abc.Collection):
     def __getitem__(self, key) -> Output:
         return self.outputs[key]
 
-    def __call__(self, calc, name: str | None = None) -> None:
+    def __call__(self, calc, name=None, index: int | None = None) -> None:
         # Save results
         for o in self:
-            o(calc, name=name)
+            o(calc, name=name, index=index)
 
     def reset(self) -> None:
         for o in self:
             o.reset()
+
+    def reserve(self, count: int) -> None:
+        """Pre-allocate storage for *count* realizations in each output."""
+        for o in self:
+            o.reserve(count)
+
+    def extend(self, other: OutputCollection) -> None:
+        """Append the results of *other*, output by output."""
+        if len(other) != len(self):
+            raise ValueError(
+                f"Cannot extend {len(self)} outputs with {len(other)} outputs."
+            )
+        for mine, theirs in zip(self, other):
+            mine.extend(theirs)
 
 
 def append_arrays(many: np.ndarray, single: npt.ArrayLike) -> np.ndarray:
@@ -178,6 +193,32 @@ def append_arrays(many: np.ndarray, single: npt.ArrayLike) -> np.ndarray:
     return np.c_[many, single]
 
 
+def stack_columns(columns: list[np.ndarray]) -> np.ndarray:
+    """Stack 1-D arrays as columns, padding short ones with NaN.
+
+    Parameters
+    ----------
+    columns : list of :class:`numpy.ndarray`
+        1-D arrays, which need not share a length.
+
+    Returns
+    -------
+    :class:`numpy.ndarray`
+        2-D array of shape ``(max length, len(columns))``.
+    """
+    length = max(len(c) for c in columns)
+    dtype = np.result_type(*[c.dtype for c in columns], np.float64)
+
+    if all(len(c) == length for c in columns):
+        return np.column_stack(columns).astype(dtype, copy=False)
+
+    stacked = np.full((length, len(columns)), np.nan, dtype=dtype)
+    for i, column in enumerate(columns):
+        stacked[: len(column), i] = column
+
+    return stacked
+
+
 class Output:
     _const_ref = False
 
@@ -185,39 +226,141 @@ class Output:
     yscale = "log"
     drawstyle = "default"
 
+    #: dtype of the stored values. Overridden per instance by outputs that
+    #: store complex values.
+    _dtype = float
+
     def __init__(self, refs: npt.ArrayLike | None = None) -> None:
         self._refs = np.asarray([] if refs is None else refs)
-        self._values: np.ndarray | None = None
-        self._names: list[str] = []
+        self._names: list = []
 
-    def __call__(self, calc, name: str | None = None) -> None:
+        # Results accumulate as a list of columns and are stacked on demand.
+        # Stacking on every call is quadratic in the number of realizations.
+        self._ref_cols: list[np.ndarray] = []
+        self._value_cols: list[np.ndarray] = []
+        self._refs_cache: np.ndarray | None = None
+        self._values_cache: np.ndarray | None = None
+
+        # Populated by reserve(), which switches to assignment by index
+        self._buffer: np.ndarray | None = None
+        self._index: int | None = None
+
+    def reserve(self, count: int) -> None:
+        """Pre-allocate storage for *count* realizations.
+
+        Results are then written by index rather than appended, so they may be
+        collected out of order -- realization *i* always lands in column *i*.
+        Columns that are never written remain NaN.
+
+        This requires constant references, since the shape must be known up
+        front. Calling it is optional; without it results are appended.
+
+        Parameters
+        ----------
+        count : int
+            Number of realizations to allocate.
+        """
+        if not self._const_ref:
+            raise RuntimeError(
+                f"{type(self).__name__} does not have constant references, so "
+                "the result shape is not known in advance and cannot be "
+                "pre-allocated."
+            )
+        if self._value_cols or self._buffer is not None:
+            raise RuntimeError("reserve() must be called before collecting results.")
+
+        self._buffer = np.full((len(self._refs), count), np.nan, dtype=self._dtype)
+        self._names = [None] * count
+
+    def __call__(self, calc, name=None, index: int | None = None) -> None:
+        if index is None:
+            index = (
+                len(self._value_cols) if self._buffer is None else self._next_index()
+            )
+        self._index = index
+
         if name is None:
-            if self.values is None:
-                i = 1
-            elif len(self.values.shape) == 1:
-                i = 2
-            else:
-                i = self.values.shape[1] + 1
-            name = "r%d" % i
-        self._names.append(name)
+            name = "r%d" % (index + 1)
+
+        if self._buffer is None:
+            self._names.append(name)
+        else:
+            self._names[index] = name
+
+    def _next_index(self) -> int:
+        """Index of the first unwritten column of a pre-allocated buffer."""
+        written = [i for i, n in enumerate(self._names) if n is not None]
+        return (max(written) + 1) if written else 0
 
     @property
     def refs(self) -> np.ndarray:
+        if self._ref_cols:
+            if self._refs_cache is None:
+                self._refs_cache = (
+                    self._ref_cols[0]
+                    if len(self._ref_cols) == 1
+                    else stack_columns(self._ref_cols)
+                )
+            return self._refs_cache
         return self._refs
 
     @property
     def values(self) -> np.ndarray | None:
-        return self._values
+        if self._buffer is not None:
+            return self._buffer
+        if not self._value_cols:
+            return None
+        if self._values_cache is None:
+            self._values_cache = (
+                self._value_cols[0]
+                if len(self._value_cols) == 1
+                else stack_columns(self._value_cols)
+            )
+        return self._values_cache
 
     @property
-    def names(self) -> list[str]:
+    def names(self) -> list:
         return self._names
 
     def reset(self) -> None:
-        self._values = None
         self._names = []
+        self._value_cols = []
+        self._values_cache = None
+        self._index = None
+        if self._buffer is not None:
+            self._buffer[:] = np.nan
+            self._names = [None] * self._buffer.shape[1]
         if not self._const_ref:
             self._refs = np.array([])
+            self._ref_cols = []
+            self._refs_cache = None
+
+    def extend(self, other: Output) -> None:
+        """Append the results of *other* to this output.
+
+        Used to combine results computed separately, such as chunks of an
+        ensemble evaluated in different processes.
+
+        Parameters
+        ----------
+        other : Output
+            Output of the same type holding additional realizations.
+        """
+        if type(other) is not type(self):
+            raise TypeError(
+                f"Cannot extend {type(self).__name__} with {type(other).__name__}."
+            )
+        if self._buffer is not None or other._buffer is not None:
+            raise RuntimeError(
+                "extend() is not supported for pre-allocated outputs; write "
+                "into the reserved columns by index instead."
+            )
+
+        self._value_cols.extend(other._value_cols)
+        self._ref_cols.extend(other._ref_cols)
+        self._names.extend(other._names)
+        self._values_cache = None
+        self._refs_cache = None
 
     def iter_results(self):
         shared_ref = len(self.refs.shape) == 1
@@ -227,18 +370,16 @@ class Output:
             yield name, refs, values
 
     def _add_refs(self, refs: npt.ArrayLike) -> None:
-        refs = np.asarray(refs)
-        if len(self._refs) == 0:
-            self._refs = np.array(refs)
-        else:
-            self._refs = append_arrays(self._refs, refs)
+        self._ref_cols.append(np.asarray(refs))
+        self._refs_cache = None
 
     def _add_values(self, values: npt.ArrayLike) -> None:
         values = np.asarray(values)
-        if self._values is None:
-            self._values = values
+        if self._buffer is None:
+            self._value_cols.append(values)
+            self._values_cache = None
         else:
-            self._values = append_arrays(self._values, values)
+            self._buffer[:, self._index] = values
 
     def calc_stats(self, as_dataframe: bool = False):
         ln_values = np.log(self.values)
@@ -265,21 +406,63 @@ class Output:
 
         return df
 
-    def to_xarray(self, tree) -> xr.DataArray:
-        """Convert output results into an N-D DataArray keyed by logic tree nodes.
+    def _to_xarray_flat(self) -> xr.DataArray | xr.Dataset:
+        """Results keyed by realization, without a logic tree.
 
-        The stored ``names`` must be :class:`~pystrata.logic_tree.Branch` objects
-        (i.e. the output was called with ``output(calc, name=branch)``).
+        Constant references become a coordinate. Varying references are stored
+        as a 2-D data variable instead: aligning on them would outer-join every
+        distinct value, producing an array that is almost entirely empty.
+        """
+        ref_name = getattr(self, "ref_name", "ref")
+        values = self.values
+        if values is None:
+            raise ValueError("No results have been collected.")
+        if values.ndim == 1:
+            values = values[:, None]
+
+        realizations = [
+            name if isinstance(name, str) else str(name) for name in self.names
+        ]
+
+        if self.refs.ndim == 1:
+            return xr.DataArray(
+                values,
+                dims=(ref_name, "realization"),
+                coords={ref_name: self.refs, "realization": realizations},
+                name=getattr(self, "ylabel", None),
+            )
+
+        # A positional dimension, so that the varying references stay a data
+        # variable. Naming the dimension after them would make xarray promote
+        # them to a coordinate and align on their values.
+        return xr.Dataset(
+            {
+                "value": (("index", "realization"), values),
+                ref_name: (("index", "realization"), self.refs),
+            },
+            coords={"realization": realizations},
+        )
+
+    def to_xarray(self, tree=None) -> xr.DataArray | xr.Dataset:
+        """Convert output results into a labeled array.
+
+        With no *tree*, results are keyed by realization. Given a logic tree,
+        results are reshaped into one dimension per node; the stored ``names``
+        must then be :class:`~pystrata.logic_tree.Branch` objects (i.e. the
+        output was called with ``output(calc, name=branch)``).
 
         Parameters
         ----------
-        tree : LogicTree
+        tree : LogicTree, optional
             A rectangular logic tree (no ``requires``/``excludes`` conditions).
 
         Returns
         -------
-        xr.DataArray
-            DataArray with dimensions ``(ref_name, node1, node2, ...)``.
+        xr.DataArray or xr.Dataset
+            With *tree*, a DataArray with dimensions
+            ``(ref_name, node1, node2, ...)``. Without one, a DataArray with
+            dimensions ``(ref_name, realization)``, or a Dataset when the
+            references vary between realizations.
 
         Raises
         ------
@@ -287,6 +470,9 @@ class Output:
             If the tree is not rectangular or names are not Branch objects.
         """
         from .logic_tree import Branch
+
+        if tree is None:
+            return self._to_xarray_flat()
 
         if not tree.is_rectangular:
             raise ValueError(
@@ -418,7 +604,7 @@ class LocationBasedOutput(Output):
     def location(self) -> OutputLocation:
         return self._location
 
-    def __call__(self, calc, name=None):
+    def __call__(self, calc, name=None, index: int | None = None):
         raise NotImplementedError
 
     def _get_location(self, calc):
@@ -441,10 +627,10 @@ class TimeSeriesOutput(LocationBasedOutput):
     def times(self) -> np.ndarray:
         return self.refs
 
-    def __call__(self, calc, name: str | None = None) -> None:
+    def __call__(self, calc, name=None, index: int | None = None) -> None:
         if not isinstance(calc.motion, TimeSeriesMotion):
             raise NotImplementedError
-        Output.__call__(self, calc, name)
+        Output.__call__(self, calc, name, index)
         # Compute the response
         loc = self._get_location(calc)
         tf = self._get_trans_func(calc, loc)
@@ -563,8 +749,8 @@ class FourierAmplitudeSpectrumOutput(LocationBasedOutput):
     def ko_bandwidth(self) -> float:
         return self._ko_bandwidth
 
-    def __call__(self, calc, name: str | None = None) -> None:
-        Output.__call__(self, calc, name)
+    def __call__(self, calc, name=None, index: int | None = None) -> None:
+        Output.__call__(self, calc, name, index)
         loc = self._get_location(calc)
         tf = calc.calc_accel_tf(calc.loc_input, loc)
 
@@ -617,8 +803,8 @@ class ResponseSpectrumOutput(LocationBasedOutput):
     def ylabel(self) -> str:
         return f"{100 * self.osc_damping:g}%-Damped, Spec. Accel. (g)"
 
-    def __call__(self, calc, name: str | None = None) -> None:
-        Output.__call__(self, calc, name)
+    def __call__(self, calc, name=None, index: int | None = None) -> None:
+        Output.__call__(self, calc, name, index)
         loc = self._get_location(calc)
         tf = calc.calc_accel_tf(calc.loc_input, loc)
         ars = calc.motion.calc_osc_accels(self.freqs, self.osc_damping, tf)
@@ -646,7 +832,7 @@ class RatioBasedOutput(Output):
     def location_out(self) -> OutputLocation:
         return self._location_out
 
-    def __call__(self, calc, name=None):
+    def __call__(self, calc, name=None, index: int | None = None):
         raise NotImplementedError
 
     def _get_locations(self, calc):
@@ -672,9 +858,12 @@ class AccelTransferFunctionOutput(RatioBasedOutput):
         super().__init__(refs, location_in, location_out)
         self._ko_bandwidth = ko_bandwidth
         self._absolute = absolute
+        # The unmodified transfer function is complex. Assigning it into a
+        # real-valued buffer would silently discard the imaginary part.
+        self._dtype = float if absolute else complex
 
-    def __call__(self, calc, name: str | None = None) -> None:
-        Output.__call__(self, calc, name)
+    def __call__(self, calc, name=None, index: int | None = None) -> None:
+        Output.__call__(self, calc, name, index)
         # Locate position within the profile
         loc_in, loc_out = self._get_locations(calc)
         # Compute the response
@@ -727,8 +916,8 @@ class ResponseSpectrumRatioOutput(RatioBasedOutput):
     def ylabel(self) -> str:
         return f"{100 * self.osc_damping:g}%-Damped, Resp. Spectral Ratio"
 
-    def __call__(self, calc, name: str | None = None) -> None:
-        Output.__call__(self, calc, name)
+    def __call__(self, calc, name=None, index: int | None = None) -> None:
+        Output.__call__(self, calc, name, index)
         loc_in, loc_out = self._get_locations(calc)
         in_ars = calc.motion.calc_osc_accels(
             self.freqs, self.osc_damping, calc.calc_accel_tf(calc.loc_input, loc_in)
@@ -741,32 +930,196 @@ class ResponseSpectrumRatioOutput(RatioBasedOutput):
 
 
 class ProfileBasedOutput(Output):
+    """Base class for outputs reported as a function of depth.
+
+    By default each realization stores its own layer depths, which differ
+    whenever the layering varies. Passing *depths* instead resamples every
+    realization onto a fixed grid, so results are directly comparable and the
+    stored array has a constant shape. Use
+    :meth:`~pystrata.site.Profile.depth_grid` to build a suitable grid.
+
+    Resampling is lossy: layer interfaces are snapped to the next grid node and
+    the original depths are not recoverable.
+
+    Parameters
+    ----------
+    depths : array_like, optional
+        Fixed, monotonically increasing depths [m] onto which each realization
+        is resampled. When ``None`` (default) the layer depths of each
+        realization are stored as-is.
+    fill_below : {'nan', 'hold'}, optional
+        Value reported below the base of a realization's soil column.
+        ``'nan'`` excludes those depths from statistics, and is the default
+        when *depths* is given. ``'hold'`` repeats the deepest value, and is
+        the default otherwise.
+    """
+
     ylabel = "Depth (m)"
     yscale = "linear"
     drawstyle = "steps-post"
 
     ref_name = "depth"
 
-    def __init__(self) -> None:
-        super().__init__()
+    #: Interpolation used when resampling. Layer properties are piecewise
+    #: constant, so they use the value of the layer the depth falls within.
+    _interp_kind = "next"
 
-    def __call__(self, calc, name: str | None = None) -> None:
-        Output.__call__(self, calc, name)
-        depths = np.r_[0, calc.profile.depth_mid[:-1]]
-        self._add_refs(depths)
+    #: Number of points in the default reporting grid.
+    _stats_count = 512
+
+    def __init__(
+        self,
+        depths: npt.ArrayLike | None = None,
+        fill_below: str | None = None,
+    ) -> None:
+        super().__init__(depths)
+        self._const_ref = depths is not None
+
+        if self._const_ref:
+            _depths = self._refs
+            if _depths.ndim != 1 or _depths.size < 2:
+                raise ValueError(
+                    "depths must be a 1-D array of at least two values; got shape "
+                    f"{_depths.shape}."
+                )
+            if not np.all(np.diff(_depths) > 0):
+                raise ValueError("depths must be strictly increasing.")
+
+        if fill_below is None:
+            fill_below = "nan" if self._const_ref else "hold"
+        if fill_below not in ("nan", "hold"):
+            raise ValueError(f"fill_below must be 'nan' or 'hold', not {fill_below!r}.")
+        self._fill_below = fill_below
+        self._warned_extent = False
+
+    @property
+    def depths(self) -> np.ndarray:
+        """Depths at which the values are reported."""
+        return self._refs
+
+    @property
+    def fill_below(self) -> str:
+        return self._fill_below
+
+    def __call__(self, calc, name=None, index: int | None = None) -> None:
+        Output.__call__(self, calc, name, index)
+        depths, values = self._calc_profile(calc)
+
+        if self._const_ref:
+            self._check_extent(calc)
+            self._add_values(self._resample(depths, values))
+        else:
+            self._add_refs(depths)
+            self._add_values(values)
+
+    def reset(self) -> None:
+        super().reset()
+        self._warned_extent = False
+
+    def _calc_profile(self, calc) -> tuple[np.ndarray, np.ndarray]:
+        """Return the depths and values of a single realization."""
+        raise NotImplementedError
+
+    def _check_extent(self, calc) -> None:
+        """Warn once if a realization extends below the fixed grid."""
+        base = calc.profile[-2].depth_base
+        if base > self._refs[-1] and not self._warned_extent:
+            self._warned_extent = True
+            warnings.warn(
+                "A realization extends below the fixed depth grid; results "
+                f"below {self._refs[-1]:.1f} m are discarded. Rebuild the grid "
+                "with a larger max_depth.",
+                stacklevel=3,
+            )
+
+    def _resample(
+        self,
+        depths: npt.ArrayLike,
+        values: npt.ArrayLike,
+        grid: npt.ArrayLike | None = None,
+    ) -> np.ndarray:
+        """Resample one realization onto *grid*.
+
+        Interpolation is performed in linear space. For ``kind='next'`` no
+        arithmetic is done between nodes, so this is identical to interpolating
+        the logarithm, while avoiding the round trip through ``log(0)`` for
+        outputs that report zero at the surface.
+        """
+        grid = self._refs if grid is None else np.asarray(grid, dtype=float)
+        depths = np.asarray(depths, dtype=float)
+        values = np.asarray(values, dtype=float)
+
+        below = values[-1] if self._fill_below == "hold" else np.nan
+        f = interp1d(
+            depths,
+            values,
+            kind=self._interp_kind,
+            fill_value=(values[0], below),
+            bounds_error=False,
+        )
+        return f(grid)
+
+    def _resample_stored(self, i: int, grid: npt.ArrayLike) -> np.ndarray:
+        """Resample stored realization *i*, dropping any NaN padding."""
+        refs = self.refs[:, i] if self.refs.ndim > 1 else self.refs
+        values = self.values[:, i] if self.values.ndim > 1 else self.values
+
+        mask = np.isfinite(refs)
+        if not np.any(mask):
+            return np.full(np.shape(grid), np.nan)
+
+        return self._resample(refs[mask], values[mask], grid)
+
+    def _default_ref(self) -> np.ndarray:
+        """The grid used by :meth:`calc_stats` and :meth:`to_dataframe`."""
+        if self._const_ref:
+            return self._refs
+
+        # With NaN fill the padded tail would be empty by construction, so the
+        # margin only manufactures rows with no data behind them.
+        margin = 1.0 if self._fill_below == "nan" else 1.05
+        return np.linspace(0, np.nanmax(self.refs) * margin, num=self._stats_count)
 
     def calc_stats(self, as_dataframe: bool = False, ref: npt.ArrayLike | None = None):
         if ref is None:
-            ref = np.linspace(0, np.nanmax(self.refs) * 1.05, num=512)
+            ref = self._default_ref()
+            resampled = self._const_ref
+        else:
+            ref = np.asarray(ref, dtype=float)
+            resampled = False
 
-        n = self.values.shape[1] if self.values.ndim > 1 else 1
-        with np.errstate(divide="ignore", invalid="ignore"):
-            # Ignore zeros in the data
-            ln_values = np.array([self._ln_interp(i, ref) for i in range(n)]).T
+        with (
+            np.errstate(divide="ignore", invalid="ignore"),
+            warnings.catch_warnings(),
+        ):
+            # Depths below every realization have no data, which numpy reports
+            # as an empty slice. A count of zero already conveys this.
+            warnings.filterwarnings("ignore", "Mean of empty slice", RuntimeWarning)
+            warnings.filterwarnings("ignore", "Degrees of freedom", RuntimeWarning)
+
+            # Outputs that report zero at the surface give -inf here, which
+            # carries through to a median of zero.
+            if resampled:
+                values = self.values
+                ln_values = np.log(values if values.ndim > 1 else values[:, None])
+            else:
+                n = self.values.shape[1] if self.values.ndim > 1 else 1
+                ln_values = np.array(
+                    [self._resample_stored(i, ref) for i in range(n)]
+                ).T
+                ln_values = np.log(ln_values)
+
             median = np.exp(np.nanmean(ln_values, axis=1))
             ln_std = np.nanstd(ln_values, axis=1)
 
-        stats = {"ref": ref, "median": median, "ln_std": ln_std}
+        stats = {
+            "ref": ref,
+            "median": median,
+            "ln_std": ln_std,
+            # Realizations contributing at each depth. Varies with depth when
+            # fill_below='nan' and the profile depth is randomized.
+            "count": np.sum(np.isfinite(ln_values), axis=1),
+        }
         if as_dataframe and pd:
             stats = pd.DataFrame(stats).set_index("ref")
             stats.index.name = self.ref_name
@@ -782,127 +1135,113 @@ class ProfileBasedOutput(Output):
         ax.invert_yaxis()
         return ax
 
-    def _ln_interp(self, i: int, ref: npt.ArrayLike) -> np.ndarray:
-        """Interpolate the values in log-y space."""
-
-        _ref = self.refs[:, i] if self.refs.ndim > 1 else self.refs
-        # Only select points with valid entries
-        mask = np.isfinite(_ref)
-        _ref = _ref[mask]
-        _ln_values = np.log(
-            self.values[mask, i] if self.values.ndim > 1 else self.values[mask]
-        )
-
-        if np.any(mask):
-            f = interp1d(
-                _ref,
-                _ln_values,
-                kind="next",
-                fill_value=(_ln_values[0], _ln_values[-1]),
-                bounds_error=False,
-            )
-            _ln_interped = f(ref)
-        else:
-            nans = np.empty_like(ref)
-            nans[:] = np.nan
-            _ln_interped = np.array(nans)
-
-        return _ln_interped
-
     def to_dataframe(self, ref: npt.ArrayLike | None = None):
         if not pd:
             raise RuntimeError("Install `pandas` library.")
 
         if ref is None:
-            ref = np.linspace(0, np.nanmax(self.refs))
+            ref = self._default_ref()
+            resampled = self._const_ref
+        else:
+            ref = np.asarray(ref, dtype=float)
+            resampled = False
 
         if isinstance(self.names[0], tuple):
             columns = pd.MultiIndex.from_tuples(self.names)
         else:
             columns = self.names
 
-        # Ignore zeros in the data
-        n = self.values.shape[1] if self.values.ndim > 1 else 1
-        values = np.exp(np.array([self._ln_interp(i, ref) for i in range(n)])).T
+        if resampled:
+            values = self.values
+            values = values if values.ndim > 1 else values[:, None]
+        else:
+            n = self.values.shape[1] if self.values.ndim > 1 else 1
+            values = np.array([self._resample_stored(i, ref) for i in range(n)]).T
 
-        df = pd.DataFrame(values, index=ref, columns=columns)
-
-        return df
+        return pd.DataFrame(values, index=ref, columns=columns)
 
 
-class MaxStrainProfile(ProfileBasedOutput):
+class _LayerTopProfile(ProfileBasedOutput):
+    """Profile output reported at the top of each layer.
+
+    The surface takes the value of the first layer, so the reported depths are the layer
+    tops and the deepest is the base of the soil column.
+    """
+
+    def _layer_values(self, calc) -> list:
+        raise NotImplementedError
+
+    def _calc_profile(self, calc):
+        depths = np.asarray(calc.profile.depth, dtype=float)
+        values = self._layer_values(calc)
+        # Bring the first mid-layer value to the surface
+        return depths, np.r_[values[0], values]
+
+
+class _LayerMidProfile(ProfileBasedOutput):
+    """Profile output reported at the mid-depth of each layer.
+
+    The surface takes the value of the first layer. A final point is reported at the
+    base of the soil column so that the deepest layer is represented over its full
+    thickness rather than only to its mid-depth.
+    """
+
+    def _layer_values(self, calc) -> list:
+        raise NotImplementedError
+
+    def _surface_value(self, values):
+        return values[0]
+
+    def _calc_profile(self, calc):
+        depths = np.r_[
+            0, calc.profile.depth_mid[:-1], calc.profile[-2].depth_base
+        ].astype(float)
+        values = self._layer_values(calc)
+        return depths, np.r_[self._surface_value(values), values, values[-1]]
+
+
+class MaxStrainProfile(_LayerMidProfile):
     xlabel = "Max. Strain (dec)"
 
-    def __init__(self):
-        super().__init__()
+    def _surface_value(self, values):
+        # No strain at the free surface
+        return 0.0
 
-    def __call__(self, calc, name=None):
-        ProfileBasedOutput.__call__(self, calc, name)
-        values = [0] + [layer.strain_max for layer in calc.profile[:-1]]
-        self._add_values(values)
+    def _layer_values(self, calc):
+        return [layer.strain_max for layer in calc.profile[:-1]]
 
 
-class DampingProfile(ProfileBasedOutput):
+class DampingProfile(_LayerTopProfile):
     xlabel = "Damping (dec)"
 
-    def __call__(self, calc, name=None):
-        Output.__call__(self, calc, name)
-        # Add depth at top of layer
-        self._add_refs(calc.profile.depth)
-
-        values = [layer.damping for layer in calc.profile[:-1]]
-        # Bring the first mid-layer value to the surface
-        values.insert(0, values[0])
-        self._add_values(values)
+    def _layer_values(self, calc):
+        return [layer.damping for layer in calc.profile[:-1]]
 
 
-class ShearModReducProfile(ProfileBasedOutput):
+class ShearModReducProfile(_LayerTopProfile):
     xlabel = "G/Gmax"
 
-    def __call__(self, calc, name=None):
-        Output.__call__(self, calc, name)
-        # Add depth at top of layer
-        self._add_refs(calc.profile.depth)
-
-        values = [layer.shear_mod_reduc for layer in calc.profile[:-1]]
-        # Bring the first mid-layer value to the surface
-        values.insert(0, values[0])
-        self._add_values(values)
+    def _layer_values(self, calc):
+        return [layer.shear_mod_reduc for layer in calc.profile[:-1]]
 
 
-class InitialVelProfile(ProfileBasedOutput):
+class InitialVelProfile(_LayerTopProfile):
     xlabel = "Initial Velocity (m/s)"
 
-    def __init__(self):
-        super().__init__()
-
-    def __call__(self, calc, name=None):
-        Output.__call__(self, calc, name)
-        # Add depth at top of layer
-        self._add_refs(calc.profile.depth)
-
-        values = [layer.initial_shear_vel for layer in calc.profile[:-1]]
-        values.insert(0, values[0])
-        self._add_values(values)
+    def _layer_values(self, calc):
+        return [layer.initial_shear_vel for layer in calc.profile[:-1]]
 
 
-class CompatVelProfile(ProfileBasedOutput):
+class CompatVelProfile(_LayerTopProfile):
     xlabel = "Strain-Compatible Velocity (m/s)"
 
-    def __init__(self):
-        super().__init__()
-
-    def __call__(self, calc, name=None):
-        Output.__call__(self, calc, name)
-        # Add depth at top of layer
-        self._add_refs(calc.profile.depth)
-
-        values = [np.min(layer.shear_vel) for layer in calc.profile[:-1]]
-        values.insert(0, values[0])
-        self._add_values(values)
+    def _layer_values(self, calc):
+        return [np.min(layer.shear_vel) for layer in calc.profile[:-1]]
 
 
-class CyclicStressRatioProfile(ProfileBasedOutput):
+class CyclicStressRatioProfile(_LayerMidProfile):
+    xlabel = "Cyclic Stress Ratio"
+
     # From Idriss and Boulanger (2008, pg. 70):
     # The 0.65 is a constant used to represent the reference stress
     # level. While being somewhat arbitrary it was selected in the
@@ -910,30 +1249,26 @@ class CyclicStressRatioProfile(ProfileBasedOutput):
     # and has been in use ever since.
     _stress_level = 0.65
 
-    def __init__(self):
-        super().__init__()
-
-    def __call__(self, calc, name=None):
-        ProfileBasedOutput.__call__(self, calc, name)
-        values = [
-            layer.stress_shear_max / layer.stress_vert(layer.thickness / 2, True)
+    def _layer_values(self, calc):
+        return [
+            self._stress_level
+            * layer.stress_shear_max
+            / layer.stress_vert(layer.thickness / 2, True)
             for layer in calc.profile[:-1]
         ]
-        # Repeat the first value for the surface
-        values = self._stress_level * np.array([values[0]] + values)
-        self._add_values(values)
 
 
-class MaxAccelProfile(ProfileBasedOutput):
+class MaxAccelProfile(_LayerTopProfile):
     xlabel = "Max. Accel. (g)"
 
-    def __call__(self, calc, name=None):
-        Output.__call__(self, calc, name)
-        # Add depth at top of layer
-        depths = calc.profile.depth
-        values = [self._calc_accel(calc, depth) for depth in depths]
-        self._add_refs(depths)
-        self._add_values(values)
+    # Acceleration is a continuous field rather than a layer property, so it is
+    # interpolated between the depths at which it was computed.
+    _interp_kind = "linear"
+
+    def _calc_profile(self, calc):
+        depths = np.asarray(calc.profile.depth, dtype=float)
+        values = np.array([self._calc_accel(calc, depth) for depth in depths])
+        return depths, values
 
     def _calc_accel(self, calc, depth):
         return calc.motion.calc_peak(

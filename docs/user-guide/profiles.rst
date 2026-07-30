@@ -145,5 +145,14 @@ Profile Utilities
     # Auto-discretize for adequate frequency resolution
     profile.auto_discretize(max_freq=25.0, wave_frac=0.2)
 
+    # Uniform depth grid for reporting profile-based outputs
+    grid = profile.depth_grid(max_freq=25.0, wave_frac=0.2)
+
     # Export to DataFrame
     df = profile.to_dataframe()
+
+:meth:`~pystrata.site.Profile.depth_grid` applies the same
+``wave_frac * Vs / max_freq`` criterion as ``auto_discretize``, but returns a
+single uniform spacing rather than sub-dividing each layer. Pass ``depth_var``
+so that the grid extends past the range a half-space depth variation samples,
+or ``spacing`` to set it directly. See :doc:`outputs` for how the grid is used.
