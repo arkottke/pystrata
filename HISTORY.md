@@ -1,6 +1,6 @@
 # History
 
-## Unreleased — 2.0.0
+## Unreleased — 0.6.0
 
 **Breaking changes**:
 
