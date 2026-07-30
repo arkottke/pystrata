@@ -31,9 +31,32 @@ from scipy.sparse import diags
 from . import site
 from .units import convert_units
 
-# Used to define the random state. A specific state can be set with:
-# random_state.set_seed(42)
-random_state = np.random.RandomState()
+# Default generator used when a random number generator is not provided. Prefer
+# passing ``rng=`` explicitly -- a shared global stream cannot be made
+# reproducible across processes, because forked workers inherit identical state
+# and would draw identical realizations.
+_default_rng = np.random.default_rng()
+
+
+def _as_generator(rng) -> np.random.Generator:
+    """Coerce *rng* into a :class:`numpy.random.Generator`.
+
+    Parameters
+    ----------
+    rng : None, int, or numpy.random.Generator
+        ``None`` selects the module-level default generator, so calls that do
+        not specify a generator share a single stream. An integer is used as a
+        seed.
+
+    Returns
+    -------
+    numpy.random.Generator
+    """
+    if rng is None:
+        return _default_rng
+    if isinstance(rng, np.random.Generator):
+        return rng
+    return np.random.default_rng(rng)
 
 
 class TruncatedNorm:
@@ -67,20 +90,20 @@ class TruncatedNorm:
     def scale(self):
         return self._scale
 
-    def __call__(self, size=1):
+    def __call__(self, size=1, rng=None):
         """Random number generator that follows a truncated normal distribution.
 
-        This is the defalut random number generator used by the program. It
+        This is the default random number generator used by the program. It
         generates normally distributed values ranging from -2 to +2 with unit
         standard deviation.
-
-        The state of the random number generator is controlled by the
-        ``np.random.RandomState`` instance.
 
         Parameters
         ----------
         size : int
             Number of random values to compute
+        rng : None, int, or numpy.random.Generator, optional
+            Generator used to draw the variates. Defaults to the module-level
+            generator.
 
         Returns
         -------
@@ -88,20 +111,25 @@ class TruncatedNorm:
             Random variates of given `size`.
         """
         return stats.truncnorm.rvs(
-            -self.limit, self.limit, scale=self._scale, size=size
+            -self.limit,
+            self.limit,
+            scale=self._scale,
+            size=size,
+            random_state=_as_generator(rng),
         )
 
-    def correlated(self, correl):
+    def correlated(self, correl, rng=None):
         # Acceptance proportion
         accept = np.diff(stats.norm.cdf([-self.limit, self.limit]))[0]
         # The expected number of tries required
         expected = np.ceil(1 / accept).astype(int)
 
+        generator = _as_generator(rng)
         while True:
             # Compute the multivariate normal with a unit variance and
             # specified standard deviation. Use twice the expected since
             # this calculation is fast and we don't want to loop.
-            randvar = np.random.multivariate_normal(
+            randvar = generator.multivariate_normal(
                 [0, 0], [[1, correl], [correl, 1]], size=(2 * expected)
             )
             valid = np.all(np.abs(randvar) < self.limit, axis=1)
@@ -193,7 +221,7 @@ class ToroThicknessVariation:
     def c_1(self):
         return self._c_1
 
-    def iter_thickness(self, depth_total):
+    def iter_thickness(self, depth_total, rng=None):
         r"""Iterate over the varied thicknesses.
 
         The layering is generated using a non-homogenous Poisson process. The
@@ -210,18 +238,22 @@ class ToroThicknessVariation:
         depth_total: float
             Total depth generated. Last thickness is truncated to achieve
             this depth.
+        rng : None, int, or numpy.random.Generator, optional
+            Generator used to draw the layer increments. Defaults to the
+            module-level generator.
 
         Yields
         ------
         float
             Varied thickness.
         """
+        generator = _as_generator(rng)
         total = 0
         depth_prev = 0
 
         while depth_prev < depth_total:
             # Add a random exponential increment
-            total += np.random.exponential(1.0)
+            total += generator.exponential(1.0)
 
             # Convert between x and depth using the inverse of \Lambda(t)
             depth = (
@@ -245,13 +277,16 @@ class ToroThicknessVariation:
 
             depth_prev = depth
 
-    def __call__(self, profile):
+    def __call__(self, profile, rng=None):
         """Calculated a varied thickness profile.
 
         Parameters
         ----------
         profile : site.Profile
             Profile to be varied. Not modified in place.
+        rng : None, int, or numpy.random.Generator, optional
+            Generator used to draw the layering. Defaults to the module-level
+            generator.
 
         Returns
         -------
@@ -259,7 +294,7 @@ class ToroThicknessVariation:
             Varied site profile.
         """
         layers = []
-        for thick, depth_mid in self.iter_thickness(profile[-2].depth_base):
+        for thick, depth_mid in self.iter_thickness(profile[-2].depth_base, rng=rng):
             # Locate the proper layer and add it to the model
             for layer in profile:
                 if layer.depth < depth_mid <= layer.depth_base:
@@ -292,12 +327,70 @@ class ToroThicknessVariation:
 
 
 class HalfSpaceDepthVariation:
+    """Vary the depth of the half-space.
+
+    The total depth of each realization is drawn directly from *dist*: the
+    profile is truncated when the draw is shallower than the seed profile, and
+    the deepest soil layer is replicated when it is deeper.
+
+    Parameters
+    ----------
+    dist : scipy.stats.rv_continuous
+        Frozen distribution of the half-space depth [m].
+    """
+
     def __init__(self, dist: stats.rv_continuous):
         self._dist = dist
 
-    def __call__(self, profile: site.Profile) -> site.Profile:
+    @property
+    def dist(self) -> stats.rv_continuous:
+        """Distribution of the half-space depth."""
+        return self._dist
+
+    def depth_limit(self, quantile: float = 0.999) -> float:
+        """Half-space depth at the specified quantile.
+
+        Because the total depth is drawn directly from :attr:`dist`, this is
+        the corresponding quantile of the realized profile depth. Note that an
+        unbounded distribution (e.g. ``norm``) has no finite maximum, so this
+        is a quantile rather than a hard limit.
+
+        Parameters
+        ----------
+        quantile : float, optional
+            Quantile in ``(0, 1)``.
+
+        Returns
+        -------
+        float
+            Depth of the half-space [m].
+        """
+        return float(self._dist.ppf(quantile))
+
+    def __call__(self, profile: site.Profile, rng=None) -> site.Profile:
+        """Calculate a profile with a varied half-space depth.
+
+        Parameters
+        ----------
+        profile : site.Profile
+            Profile to be varied. Not modified in place.
+        rng : None, int, or numpy.random.Generator, optional
+            Generator used to draw the depth. Defaults to the module-level
+            generator.
+
+        Returns
+        -------
+        site.Profile
+            Varied site profile.
+        """
         # Update the distribution with the central value of the profile
-        varied_depth = self._dist.rvs()
+        varied_depth = self._dist.rvs(random_state=_as_generator(rng))
+
+        if varied_depth <= 0:
+            raise ValueError(
+                f"Sampled a half-space depth of {varied_depth:.3f} m. The "
+                "distribution must be limited to positive depths."
+            )
 
         # Find the layer
         index, depth_within = profile.lookup_depth(varied_depth)
@@ -309,10 +402,11 @@ class HalfSpaceDepthVariation:
             # Reduce the thickness of the layer above the half-space
             layers[-1]._thickness = depth_within
         else:
-            # Variation extends past the depth of the model
+            # Variation extends past the depth of the model. Sub-divide the
+            # added thickness so that no layer is thicker than the original.
             orig_thick = profile[-2].thickness
             total_thick = orig_thick + depth_within
-            count = np.ceil(total_thick // orig_thick).astype(int)
+            count = max(int(np.ceil(total_thick / orig_thick)), 1)
 
             thick = total_thick / count
 
@@ -345,13 +439,16 @@ class VelocityVariation:
     def __init__(self, vary_bedrock=False):
         self._vary_bedrock = vary_bedrock
 
-    def __call__(self, profile: site.Profile) -> site.Profile:
+    def __call__(self, profile: site.Profile, rng=None) -> site.Profile:
         """Calculate a varied shear-wave velocity profile.
 
         Parameters
         ----------
         profile : site.Profile
             Profile to be varied. Not modified in place.
+        rng : None, int, or numpy.random.Generator, optional
+            Generator used to draw the velocities. Defaults to the module-level
+            generator.
 
         Returns
         -------
@@ -362,7 +459,9 @@ class VelocityVariation:
         mean = np.log(profile.initial_shear_vel)
         covar = self._calc_covar_matrix(profile)
 
-        ln_vel_rand = np.random.multivariate_normal(mean, covar, check_valid="ignore")
+        ln_vel_rand = _as_generator(rng).multivariate_normal(
+            mean, covar, check_valid="ignore"
+        )
 
         # Limits based on the number of standard deviations
         offset = randnorm.limit * np.sqrt(np.diag(covar))
@@ -851,7 +950,7 @@ class SoilTypeVariation:
         self._sample_mode = sample_mode
         self._percentiles = percentiles
 
-    def __call__(self, soil_type, sample_index=None):
+    def __call__(self, soil_type, sample_index=None, rng=None):
         """Return a single varied realisation of *soil_type*.
 
         Parameters
@@ -863,6 +962,10 @@ class SoilTypeVariation:
             ``sample_mode='fixed_percentiles'``.  Ignored in
             ``'random'`` mode.  Must be provided (and within range) in
             ``'fixed_percentiles'`` mode.
+        rng : None, int, or numpy.random.Generator, optional
+            Generator used to draw the variates. Ignored in
+            ``'fixed_percentiles'`` mode, which is deterministic. Defaults to
+            the module-level generator.
         """
 
         def get_values(nlp):
@@ -883,7 +986,7 @@ class SoilTypeVariation:
             percentile = self._percentiles[sample_index]
             randvar = randnorm.correlated_at_percentile(self.correlation, percentile)
         else:
-            randvar = randnorm.correlated(self.correlation)
+            randvar = randnorm.correlated(self.correlation, rng=rng)
 
         varied_mod_reduc, varied_damping = self._get_varied(randvar, mod_reduc, damping)
 
@@ -906,7 +1009,9 @@ class SoilTypeVariation:
                 setattr(realization, attr_name, values)
         return realization
 
-    def vary_profile(self, profile: site.Profile, sample_index: int | None = None):
+    def vary_profile(
+        self, profile: site.Profile, sample_index: int | None = None, rng=None
+    ):
         """Return a profile with varied soil types.
 
         Parameters
@@ -916,10 +1021,13 @@ class SoilTypeVariation:
         sample_index : int | None, optional
             Index into :attr:`percentiles` for ``sample_mode='fixed_percentiles'``.
             Ignored in ``'random'`` mode.
+        rng : None, int, or numpy.random.Generator, optional
+            Generator used to draw the variates. Defaults to the module-level
+            generator.
         """
         # Map of varied soil types
         varied = {
-            str(st): self(st, sample_index=sample_index)
+            str(st): self(st, sample_index=sample_index, rng=rng)
             for st in profile.iter_soil_types()
         }
 
@@ -1146,6 +1254,84 @@ class DispersionCheck:
         return float(np.max(np.abs(z))) <= self.max_z_score
 
 
+def varied_profile(
+    profile: site.Profile,
+    index: int,
+    seed: int | None = None,
+    var_depth: HalfSpaceDepthVariation | None = None,
+    var_thickness: ToroThicknessVariation | None = None,
+    var_velocity: VelocityVariation | None = None,
+    var_soiltypes: SoilTypeVariation | None = None,
+) -> site.Profile:
+    """Generate a single realization of a varied profile.
+
+    Realization *index* is fully determined by *seed*, so it can be generated
+    without producing the realizations before it. This is what allows an
+    ensemble to be split across processes.
+
+    Parameters
+    ----------
+    profile : site.Profile
+        Seed profile. Not modified in place.
+    index : int
+        Zero-based realization index.
+    seed : int or None
+        Base seed. When ``None`` the module-level generator is used and the
+        result is not reproducible.
+    var_depth, var_thickness, var_velocity, var_soiltypes
+        Variation models, applied in that order.
+
+    Returns
+    -------
+    site.Profile
+        Varied profile.
+
+    See Also
+    --------
+    iter_varied_profiles : Generate a sequence of realizations.
+    """
+    rng = (
+        None
+        if seed is None
+        else np.random.default_rng(np.random.SeedSequence([seed, index]))
+    )
+
+    sample_index = None
+    if var_soiltypes and var_soiltypes.sample_mode == "fixed_percentiles":
+        sample_index = index % len(var_soiltypes.percentiles)
+
+    return _vary(
+        profile,
+        rng,
+        var_depth,
+        var_thickness,
+        var_velocity,
+        var_soiltypes,
+        sample_index,
+    )
+
+
+def _vary(
+    profile, rng, var_depth, var_thickness, var_velocity, var_soiltypes, sample_index
+):
+    """Apply the variation models to a copy of *profile*."""
+    varied = profile.copy()
+
+    if var_depth:
+        varied = var_depth(varied, rng=rng)
+
+    if var_thickness:
+        varied = var_thickness(varied, rng=rng)
+
+    if var_velocity:
+        varied = var_velocity(varied, rng=rng)
+
+    if var_soiltypes:
+        varied = var_soiltypes.vary_profile(varied, sample_index=sample_index, rng=rng)
+
+    return varied
+
+
 def iter_varied_profiles(
     profile: site.Profile,
     count: int,
@@ -1154,6 +1340,8 @@ def iter_varied_profiles(
     var_soiltypes: SoilTypeVariation | None = None,
     check: None | Callable = None,
     max_attempts: int | None = None,
+    var_depth: HalfSpaceDepthVariation | None = None,
+    seed: int | None = None,
 ) -> Generator[site.Profile]:
     """Iterate over simulated profiles.
 
@@ -1180,6 +1368,16 @@ def iter_varied_profiles(
         Maximum number of profile generations to attempt.  Defaults to
         ``count * 100`` when *check* is provided.  Ignored when *check* is
         ``None``.
+    var_depth : HalfSpaceDepthVariation | None
+        model for the half-space depth variation.  Applied before the
+        thickness variation, since it changes the total depth of the profile.
+    seed : int or None
+        When provided, each realization draws from a generator derived from
+        ``SeedSequence([seed, attempt])``.  A given realization is then
+        reproducible independent of how many realizations are requested or the
+        order in which they are consumed, which is what allows an ensemble to
+        be distributed across processes.  When ``None``, the module-level
+        generator is used and the sequence is not reproducible.
 
     Returns
     -------
@@ -1207,26 +1405,29 @@ def iter_varied_profiles(
                 f"({yielded} accepted so far). Consider relaxing the check criteria."
             )
 
-        # Copy the profile to form the realization
-        _profile = profile.copy()
+        # Derive a generator for this attempt. Seeding on the attempt counter
+        # -- rather than on the number accepted -- keeps rejected realizations
+        # from shifting the stream of those that follow.
+        rng = (
+            None
+            if seed is None
+            else np.random.default_rng(np.random.SeedSequence([seed, attempts]))
+        )
 
-        if var_thickness:
-            _profile = var_thickness(_profile)
+        # Determine the sample_index to forward (None in random mode)
+        sample_index = None
+        if var_soiltypes and var_soiltypes.sample_mode == "fixed_percentiles":
+            sample_index = i % len(var_soiltypes.percentiles)
 
-        if var_velocity:
-            _profile = var_velocity(_profile)
-
-        if var_soiltypes:
-            # Determine the sample_index to forward (None in random mode)
-            n_pct = (
-                len(var_soiltypes.percentiles)
-                if var_soiltypes.sample_mode == "fixed_percentiles"
-                else 0
-            )
-            sample_index = (
-                i % n_pct if var_soiltypes.sample_mode == "fixed_percentiles" else None
-            )
-            _profile = var_soiltypes.vary_profile(_profile, sample_index=sample_index)
+        _profile = _vary(
+            profile,
+            rng,
+            var_depth,
+            var_thickness,
+            var_velocity,
+            var_soiltypes,
+            sample_index,
+        )
 
         i += 1
         attempts += 1

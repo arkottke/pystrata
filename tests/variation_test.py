@@ -15,13 +15,12 @@
 #
 # Copyright (C) Albert Kottke, 2013-2016
 import numpy as np
+import pygmm
 import pytest
 from numpy.testing import assert_allclose
 from scipy.stats import lognorm, norm, pearsonr
 
-import pygmm
-
-from pystrata import motion, output, propagation, site, variation
+from pystrata import motion, output, propagation, site, units, variation
 
 
 def _darendeli(**kw) -> site.SoilType:
@@ -56,7 +55,7 @@ class TestDarendeliVariation:
             unit_wt=16,
             plas_index=0,
             ocr=1,
-            stress_mean=1 / site.KPA_TO_ATM,
+            stress_mean=1 / units.KPA_TO_ATM,
             freq=1,
             num_cycles=10,
             strains=[1e-7, 2.2e-5, 1e-2],
@@ -197,6 +196,129 @@ def test_halfspace_depth_variation(dist, profile):
 
     assert_allclose(dist.mean(), np.mean(depths), rtol=0.2)
     assert_allclose(dist.std(), np.std(depths), rtol=0.2)
+
+
+def _summarize(profile):
+    """Reduce a profile to the values the variation models actually change."""
+    return np.array(
+        [(layer.thickness, layer.initial_shear_vel) for layer in profile], dtype=float
+    )
+
+
+def test_halfspace_depth_accessors():
+    dist = norm(loc=50, scale=5)
+    varier = variation.HalfSpaceDepthVariation(dist)
+
+    assert varier.dist is dist
+    assert_allclose(varier.depth_limit(0.99), dist.ppf(0.99))
+    assert_allclose(varier.depth_limit(), dist.ppf(0.999))
+
+
+@pytest.mark.parametrize("dist", [norm(loc=60, scale=4), lognorm(s=0.2, scale=60)])
+def test_halfspace_depth_limit_bounds_samples(dist, profile):
+    varier = variation.HalfSpaceDepthVariation(dist)
+    limit = varier.depth_limit(0.99)
+
+    rng = np.random.default_rng(1234)
+    depths = np.array([varier(profile, rng=rng)[-1].depth for _ in range(500)])
+
+    assert np.mean(depths <= limit) >= 0.98
+
+
+def test_halfspace_depth_sublayers_no_thicker_than_original(profile):
+    """Extending past the seed profile sub-divides rather than thickening."""
+    orig_thick = profile[-2].thickness
+    # Deterministic draw well past the base of the seed profile
+    varier = variation.HalfSpaceDepthVariation(norm(loc=69, scale=1e-9))
+
+    varied = varier(profile, rng=np.random.default_rng(0))
+
+    assert_allclose(varied[-1].depth, 69, rtol=1e-6)
+    assert all(layer.thickness <= orig_thick + 1e-9 for layer in varied[:-1])
+
+
+def test_halfspace_depth_rejects_nonpositive_draw(profile):
+    varier = variation.HalfSpaceDepthVariation(norm(loc=-5, scale=1e-9))
+
+    with pytest.raises(ValueError, match="positive depths"):
+        varier(profile, rng=np.random.default_rng(0))
+
+
+def test_seed_is_reproducible(profile):
+    var_velocity = variation.ToroVelocityVariation.generic_model("USGS C")
+
+    def run(seed):
+        return [
+            _summarize(p)
+            for p in variation.iter_varied_profiles(
+                profile, 4, var_velocity=var_velocity, seed=seed
+            )
+        ]
+
+    first, again, other = run(7), run(7), run(8)
+
+    for a, b in zip(first, again):
+        assert_allclose(a, b)
+    assert not np.allclose(first[0], other[0])
+
+
+def test_seed_realization_independent_of_count(profile):
+    """Realization *i* is the same regardless of how many are requested.
+
+    This is the property that lets an ensemble be split across processes: a
+    worker computing only realization 3 gets the same profile as a serial run.
+    """
+    var_velocity = variation.ToroVelocityVariation.generic_model("USGS C")
+
+    def run(count):
+        return [
+            _summarize(p)
+            for p in variation.iter_varied_profiles(
+                profile, count, var_velocity=var_velocity, seed=42
+            )
+        ]
+
+    small, large = run(3), run(10)
+
+    for i, expected in enumerate(small):
+        assert_allclose(expected, large[i])
+
+
+def test_unseeded_is_not_repeating(profile):
+    var_velocity = variation.ToroVelocityVariation.generic_model("USGS C")
+
+    def run():
+        return _summarize(
+            next(variation.iter_varied_profiles(profile, 1, var_velocity=var_velocity))
+        )
+
+    assert not np.allclose(run(), run())
+
+
+def test_var_depth_composes_with_var_thickness(profile):
+    """A depth variation and a thickness variation can now both be applied."""
+    var_depth = variation.HalfSpaceDepthVariation(norm(loc=70, scale=3))
+    var_thickness = variation.ToroThicknessVariation()
+
+    varied = list(
+        variation.iter_varied_profiles(
+            profile,
+            5,
+            var_depth=var_depth,
+            var_thickness=var_thickness,
+            seed=3,
+        )
+    )
+
+    assert len(varied) == 5
+    # The depth variation moved the base away from the seed value of 50 m
+    depths = [p[-1].depth for p in varied]
+    assert all(abs(d - 50) > 1e-6 for d in depths)
+    assert len(set(np.round(depths, 6))) == len(depths)
+    # The thickness variation re-layered the profile. The Poisson process can
+    # yield either more or fewer layers than the seed, so check that the
+    # layering differs between realizations rather than a fixed direction.
+    assert len({len(p) for p in varied}) > 1
 
 
 def test_iter_variations(profile):
