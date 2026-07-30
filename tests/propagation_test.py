@@ -33,10 +33,12 @@ def _use_python_dispatch():
     """Temporarily force pure-Python dispatch (no numba)."""
     saved = (
         _prop._calc_waves_dispatch,
+        _prop._calc_waves_general_dispatch,
         _prop._wave_at_location_dispatch,
         _prop._calc_strain_tf_dispatch,
     )
     _prop._calc_waves_dispatch = _prop._calc_waves_python
+    _prop._calc_waves_general_dispatch = _prop._calc_waves_general_python
     _prop._wave_at_location_dispatch = _prop._wave_at_location_python
     _prop._calc_strain_tf_dispatch = _prop._calc_strain_tf_python
     try:
@@ -44,6 +46,7 @@ def _use_python_dispatch():
     finally:
         (
             _prop._calc_waves_dispatch,
+            _prop._calc_waves_general_dispatch,
             _prop._wave_at_location_dispatch,
             _prop._calc_strain_tf_dispatch,
         ) = saved
@@ -548,6 +551,152 @@ def test_linear_elastic_nrattle():
         rounded,
         rtol=1e-4,
     )
+
+
+# ---------------------------------------------------------------------------
+# General (inhomogeneous / obliquely incident) SII wave propagation
+# ---------------------------------------------------------------------------
+
+
+def _general_profile(soil_damping=0.03, rock_damping=0.01):
+    """Two-layer soil-over-rock profile used by the general-wave tests."""
+    profile = pystrata.site.Profile(
+        [
+            pystrata.site.Layer(
+                pystrata.site.SoilType("Soil", 18.0, None, soil_damping), 30, 300
+            ),
+            pystrata.site.Layer(
+                pystrata.site.SoilType("Rock", 22.0, None, rock_damping), 0, 900
+            ),
+        ]
+    )
+    profile.update_layers()
+    return profile
+
+
+def _general_motion():
+    freqs = np.logspace(-1, 2, 1024)
+    return pystrata.motion.Motion(freqs=freqs)
+
+
+def _run_accel_tf(profile, motion, **kwds):
+    calc = pystrata.propagation.LinearElasticCalculator(**kwds)
+    loc_in = profile.location("outcrop", index=len(profile) - 1)
+    loc_out = profile.location("outcrop", index=0)
+    calc(motion, profile, loc_in)
+    return calc, np.abs(calc.calc_accel_tf(loc_in, loc_out))
+
+
+def test_general_default_unchanged():
+    """`incidence_angle=0` must use the untouched path and be bit-identical."""
+    profile = _general_profile()
+    motion = _general_motion()
+    _, tf_default = _run_accel_tf(profile, motion)
+    _, tf_zero = _run_accel_tf(_general_profile(), motion, incidence_angle=0.0)
+    assert np.array_equal(tf_default, tf_zero)
+
+
+def test_general_reduces_to_homogeneous():
+    """The general kernel at theta->0 reproduces the normal-incidence result."""
+    profile = _general_profile()
+    motion = _general_motion()
+    _, tf_default = _run_accel_tf(profile, motion)
+    # A tiny angle forces the general path but is physically negligible.
+    _, tf_general = _run_accel_tf(_general_profile(), motion, incidence_angle=1e-7)
+    np.testing.assert_allclose(tf_general, tf_default, rtol=1e-9)
+
+
+@pytest.mark.parametrize("theta", [0, 20, 40, 60])
+def test_general_vertical_wave_number(theta):
+    """Layer vertical wave numbers follow d_beta = sqrt(k_S**2 - k**2) exactly.
+
+    With elastic (undamped) layers the wave numbers are real, so they can be
+    compared to the closed-form Snell's-law expression to machine precision. The
+    horizontal slowness is fixed by the half space (Vs = 900 m/s).
+    """
+    profile = _general_profile(soil_damping=0.0, rock_damping=0.0)
+    motion = pystrata.motion.Motion(freqs=np.linspace(0.1, 10, 64))
+    calc, _ = _run_accel_tf(profile, motion, incidence_angle=theta)
+
+    ang_freqs = motion.angular_freqs
+    sin_t = np.sin(np.radians(theta))
+    # Soil layer (Vs = 300) with horizontal slowness set by the rock (Vs = 900).
+    expected_soil = (ang_freqs / 300.0) * np.sqrt(1 - (300 / 900) ** 2 * sin_t**2)
+    np.testing.assert_allclose(calc._wave_nums[0].real, expected_soil, rtol=1e-10)
+    # Half space: d_beta = (omega / Vs) * cos(theta).
+    expected_rock = (ang_freqs / 900.0) * np.cos(np.radians(theta))
+    np.testing.assert_allclose(calc._wave_nums[1].real, expected_rock, rtol=1e-10)
+
+
+@pytest.mark.parametrize("theta", [15, 30, 45])
+def test_general_resonance_shift(theta):
+    """Fundamental resonance shifts with incidence angle per Snell's law.
+
+    For an elastic soil layer (Vs, thickness H) over a stiffer half space, the
+    vertical wave number in the soil is k_S * sqrt(1 - (Vs/Vs_hs)**2 sin^2 theta),
+    so the fundamental frequency is Vs/(4H) / sqrt(1 - (Vs/Vs_hs)**2 sin^2 theta).
+    """
+    profile = _general_profile(soil_damping=0.0, rock_damping=0.0)
+    # Fine linear grid around the ~2.5 Hz fundamental for a sharp peak location.
+    motion = pystrata.motion.Motion(freqs=np.linspace(2.0, 3.2, 4000))
+    _, tf = _run_accel_tf(profile, motion, incidence_angle=theta)
+
+    f_peak = motion.freqs[np.argmax(tf)]
+    vs, h, vs_hs = 300.0, 30.0, 900.0
+    factor = np.sqrt(1 - (vs / vs_hs) ** 2 * np.sin(np.radians(theta)) ** 2)
+    f_expected = vs / (4 * h) / factor
+    np.testing.assert_allclose(f_peak, f_expected, rtol=5e-3)
+
+
+def test_general_python_numba_parity():
+    """Pure-Python and numba general kernels agree for an oblique case."""
+    motion = _general_motion()
+    _, tf_numba = _run_accel_tf(
+        _general_profile(), motion, incidence_angle=30, inhomogeneity=10
+    )
+    with _use_python_dispatch():
+        _, tf_python = _run_accel_tf(
+            _general_profile(), motion, incidence_angle=30, inhomogeneity=10
+        )
+    np.testing.assert_allclose(tf_python, tf_numba, rtol=1e-10)
+
+
+def test_general_inhomogeneity_normal_incidence():
+    """A normally incident inhomogeneous wave (theta=0, gamma!=0) is admissible.
+
+    Even at normal incidence a nonzero degree of inhomogeneity yields a finite, physical
+    response that differs from the homogeneous case.
+    """
+    profile = _general_profile()
+    motion = _general_motion()
+    _, tf_homog = _run_accel_tf(_general_profile(), motion)
+    _, tf_inhomog = _run_accel_tf(profile, motion, incidence_angle=0, inhomogeneity=20)
+    assert np.all(np.isfinite(tf_inhomog))
+    assert np.any(np.abs(tf_inhomog - tf_homog) > 1e-6)
+
+
+def test_general_zero_frequency_and_grazing_finite():
+    """Zero frequency and near-grazing incidence stay finite (no NaN/Inf)."""
+    profile = _general_profile()
+    # Include f = 0 and a steep angle; verify the transfer function is finite.
+    motion = pystrata.motion.Motion(freqs=np.linspace(0.0, 50.0, 512))
+    _, tf = _run_accel_tf(profile, motion, incidence_angle=80, inhomogeneity=30)
+    assert np.all(np.isfinite(tf))
+
+
+def test_general_equivalent_linear_forwards_kwargs():
+    """EQL and FDM forward the incidence/inhomogeneity parameters."""
+    eql = pystrata.propagation.EquivalentLinearCalculator(
+        incidence_angle=25, inhomogeneity=10
+    )
+    assert eql.incidence_angle == pytest.approx(25)
+    assert eql.inhomogeneity == pytest.approx(10)
+
+    fdm = pystrata.propagation.FrequencyDependentEqlCalculator(
+        incidence_angle=25, inhomogeneity=10
+    )
+    assert fdm.incidence_angle == pytest.approx(25)
+    assert fdm.inhomogeneity == pytest.approx(10)
 
 
 #

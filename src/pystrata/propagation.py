@@ -184,6 +184,66 @@ def _calc_waves_python(angular_freqs, comp_shear_vels, comp_shear_mods, thicknes
     return waves_a, waves_b, wave_nums
 
 
+def _calc_waves_general_python(
+    angular_freqs, comp_shear_vels, comp_shear_mods, thicknesses, horiz_wave_nums
+):
+    """Pure-Python/numpy wave propagation for general (inhomogeneous) SII waves.
+
+    Identical to :func:`_calc_waves_python` but the vertical wave number of each
+    layer is the general SH value ``d_beta = sqrt(k_S**2 - k**2)`` rather than the
+    normal-incidence value ``k_S = omega / Vs*``, where ``k`` is the (complex,
+    per-frequency) horizontal wave number set by the incidence angle and degree of
+    inhomogeneity of the wave incident at the base half-space. Because the impedance
+    ratio and phase term of the transfer-matrix recursion are already expressed
+    through ``wave_nums``, this single change generalizes the propagator to oblique
+    and inhomogeneous incidence (Borcherdt, *Viscoelastic Waves in Layered Media*,
+    Ch. 9). Setting ``horiz_wave_nums = 0`` recovers :func:`_calc_waves_python`.
+
+    Parameters
+    ----------
+    angular_freqs : np.ndarray, shape (n_freqs,)
+    comp_shear_vels : np.ndarray, shape (n_layers, n_freqs)
+    comp_shear_mods : np.ndarray, shape (n_layers, n_freqs)
+    thicknesses : np.ndarray, shape (n_layers,)
+    horiz_wave_nums : np.ndarray, shape (n_freqs,)
+        Complex horizontal wave number ``k`` (same in every layer).
+    """
+    n_layers = comp_shear_vels.shape[0]
+    n_freqs = len(angular_freqs)
+
+    wave_nums = np.empty((n_layers, n_freqs), dtype=complex)
+    for i in range(n_layers):
+        comp_wave_num = angular_freqs / comp_shear_vels[i, :]
+        wave_nums[i, :] = np.sqrt(comp_wave_num**2 - horiz_wave_nums**2)
+
+    waves_a = np.ones_like(wave_nums, dtype=complex)
+    waves_b = np.ones_like(wave_nums, dtype=complex)
+    for i in range(n_layers - 1):
+        with np.errstate(invalid="ignore"):
+            cimped = (wave_nums[i] * comp_shear_mods[i, :]) / (
+                wave_nums[i + 1] * comp_shear_mods[i + 1, :]
+            )
+
+        cterm = 1j * wave_nums[i, :] * thicknesses[i]
+
+        waves_a[i + 1, :] = 0.5 * waves_a[i] * (1 + cimped) * np.exp(
+            cterm
+        ) + 0.5 * waves_b[i] * (1 - cimped) * np.exp(-cterm)
+        waves_b[i + 1, :] = 0.5 * waves_a[i] * (1 - cimped) * np.exp(
+            cterm
+        ) + 0.5 * waves_b[i] * (1 + cimped) * np.exp(-cterm)
+
+        mask = ~np.isfinite(cimped)
+        waves_a[i + 1, mask] = 1.0
+        waves_b[i + 1, mask] = 1.0
+
+    mask = np.isclose(angular_freqs, 0)
+    waves_a[-1, mask] = 1.0
+    waves_b[-1, mask] = 1.0
+
+    return waves_a, waves_b, wave_nums
+
+
 def _wave_at_location_python(
     wave_nums_row, depth_within, waves_a_row, waves_b_row, wave_field_code
 ):
@@ -291,6 +351,61 @@ if HAS_NUMBA:
         return waves_a, waves_b, wave_nums
 
     @numba.njit(cache=True)
+    def _calc_waves_general_numba(
+        angular_freqs, comp_shear_vels, comp_shear_mods, thicknesses, horiz_wave_nums
+    ):
+        """Numba twin of :func:`_calc_waves_general_python`.
+
+        Uses the general SH vertical wave number ``d_beta = sqrt(k_S**2 - k**2)``
+        so the transfer-matrix recursion handles oblique and inhomogeneous
+        incidence. ``horiz_wave_nums = 0`` recovers :func:`_calc_waves_numba`.
+        """
+        n_layers = comp_shear_vels.shape[0]
+        n_freqs = len(angular_freqs)
+
+        wave_nums = np.empty((n_layers, n_freqs), dtype=np.complex128)
+        for i in range(n_layers):
+            for j in range(n_freqs):
+                comp_wave_num = angular_freqs[j] / comp_shear_vels[i, j]
+                wave_nums[i, j] = np.sqrt(comp_wave_num**2 - horiz_wave_nums[j] ** 2)
+
+        waves_a = np.ones((n_layers, n_freqs), dtype=np.complex128)
+        waves_b = np.ones((n_layers, n_freqs), dtype=np.complex128)
+        for i in range(n_layers - 1):
+            for j in range(n_freqs):
+                denom = wave_nums[i + 1, j] * comp_shear_mods[i + 1, j]
+                if denom == 0:
+                    waves_a[i + 1, j] = 1.0
+                    waves_b[i + 1, j] = 1.0
+                    continue
+
+                cimped = (wave_nums[i, j] * comp_shear_mods[i, j]) / denom
+                cterm = 1j * wave_nums[i, j] * thicknesses[i]
+                exp_pos = np.exp(cterm)
+                exp_neg = np.exp(-cterm)
+
+                if np.isfinite(cimped.real) and np.isfinite(cimped.imag):
+                    waves_a[i + 1, j] = (
+                        0.5 * waves_a[i, j] * (1 + cimped) * exp_pos
+                        + 0.5 * waves_b[i, j] * (1 - cimped) * exp_neg
+                    )
+                    waves_b[i + 1, j] = (
+                        0.5 * waves_a[i, j] * (1 - cimped) * exp_pos
+                        + 0.5 * waves_b[i, j] * (1 + cimped) * exp_neg
+                    )
+                else:
+                    waves_a[i + 1, j] = 1.0
+                    waves_b[i + 1, j] = 1.0
+
+        # Set wave amplitudes to 1 at frequencies near 0
+        for j in range(n_freqs):
+            if abs(angular_freqs[j]) < 1e-8:
+                waves_a[n_layers - 1, j] = 1.0
+                waves_b[n_layers - 1, j] = 1.0
+
+        return waves_a, waves_b, wave_nums
+
+    @numba.njit(cache=True)
     def _wave_at_location_numba(
         wave_nums_row, depth_within, waves_a_row, waves_b_row, wave_field_code
     ):
@@ -358,10 +473,12 @@ if HAS_NUMBA:
         return tf
 
     _calc_waves_dispatch = _calc_waves_numba
+    _calc_waves_general_dispatch = _calc_waves_general_numba
     _wave_at_location_dispatch = _wave_at_location_numba
     _calc_strain_tf_dispatch = _calc_strain_tf_numba
 else:
     _calc_waves_dispatch = _calc_waves_python
+    _calc_waves_general_dispatch = _calc_waves_general_python
     _wave_at_location_dispatch = _wave_at_location_python
     _calc_strain_tf_dispatch = _calc_strain_tf_python
 
@@ -588,16 +705,95 @@ class QuarterWaveLenCalculator(AbstractCalculator):
 
 
 class LinearElasticCalculator(AbstractCalculator):
-    """Class for performing linear elastic site response."""
+    """Class for performing linear elastic site response.
+
+    Parameters
+    ----------
+    incidence_angle : float, default=0.0
+        Angle of incidence [degrees] of the SII (SH) wave at the base half
+        space, measured from vertical. The default of 0 corresponds to a
+        vertically propagating wave and reproduces the classical
+        (normal-incidence) transfer-matrix solution.
+    inhomogeneity : float, default=0.0
+        Degree of inhomogeneity [degrees] of the incident SII wave -- the angle
+        between the propagation and attenuation vectors (Borcherdt,
+        *Viscoelastic Waves in Layered Media*, Ch. 9). A value of 0 corresponds
+        to a homogeneous wave.
+
+    Notes
+    -----
+    Nonzero ``incidence_angle`` or ``inhomogeneity`` engage the general
+    (inhomogeneous) SII solution. When both are zero the original
+    normal-incidence propagator is used and results are unchanged.
+
+    Choosing the degree of inhomogeneity (``inhomogeneity``, gamma)
+    ..............................................................
+    The degree of inhomogeneity gamma is the angle between the wave's
+    *propagation* vector P (normal to planes of constant phase) and its
+    *attenuation* vector A (normal to planes of constant amplitude). For a
+    *homogeneous* wave these are parallel (gamma = 0): amplitude decays in the
+    same direction the wave travels. For an *inhomogeneous* wave they are not, so
+    amplitude decays fastest in a direction oblique to propagation.
+
+    Importantly, gamma is a property of the *incident wavefield*, not of the soil
+    column -- it cannot be derived from the layer velocities and damping alone.
+    The layers only transform an incident ``(incidence_angle, inhomogeneity)``
+    pair into the per-layer wave field. The physically invariant quantity, held
+    continuous across every boundary, is the complex horizontal wave number
+    ``k = k_R - i k_I``; specifying ``(incidence_angle, inhomogeneity)`` is
+    equivalent to specifying ``(k_R, k_I)``, where ``k_R`` is the horizontal
+    phase slowness and ``k_I`` is the horizontal amplitude decay
+    (Borcherdt eq. 9.1.32). Note that even a homogeneous wave (gamma = 0) at
+    oblique incidence has ``k_I != 0``: oblique travel through a lossy medium
+    produces horizontal attenuation on its own, and gamma measures only the
+    *additional* inhomogeneity beyond that.
+
+    Ways to select gamma in practice:
+
+    1. Default ``inhomogeneity = 0`` (homogeneous incident wave). This is
+       standard practice: the wave arrives from a deep, comparatively low-loss
+       source region and is treated as homogeneous. Use this unless you have a
+       specific reason not to.
+    2. Let it be generated by deeper structure. Inhomogeneity is *created* at
+       interfaces -- a homogeneous wave refracting obliquely through deeper
+       attenuating layers emerges inhomogeneous. To honor this, extend the
+       profile down to where gamma = 0 is defensible and let the propagation
+       determine the effective inhomogeneity at your base.
+    3. Invert from measurements. With array data, ``k_R = omega / c_app`` from
+       the apparent horizontal phase velocity ``c_app`` (or
+       ``incidence_angle = arcsin(v_HS / c_app)`` from source geometry / ray
+       tracing) and ``k_I`` from the horizontal amplitude-decay coefficient; then
+       solve eq. 9.1.32 for ``(incidence_angle, inhomogeneity)``.
+    4. Sensitivity study. Because gamma is uncertain and physically bounded
+       (the attenuation vector is constrained by the material Q), the most honest
+       use is often to sweep it (e.g. 0, 15, 30 degrees) and report the response
+       envelope.
+
+    pyStrata treats ``inhomogeneity`` purely as a user-supplied input; it does not
+    attempt to estimate or quantify gamma from the profile or motion.
+    """
 
     name = "LE"
 
-    def __init__(self):
+    def __init__(self, incidence_angle: float = 0.0, inhomogeneity: float = 0.0):
         super().__init__()
+
+        self._incidence_angle = np.radians(incidence_angle)
+        self._inhomogeneity = np.radians(inhomogeneity)
 
         self._waves_a = np.array([])
         self._waves_b = np.array([])
         self._wave_nums = np.array([])
+
+    @property
+    def incidence_angle(self) -> float:
+        """Angle of incidence at the base half space [degrees]."""
+        return np.degrees(self._incidence_angle)
+
+    @property
+    def inhomogeneity(self) -> float:
+        """Degree of inhomogeneity of the incident wave [degrees]."""
+        return np.degrees(self._inhomogeneity)
 
     def __call__(
         self,
@@ -655,8 +851,67 @@ class LinearElasticCalculator(AbstractCalculator):
             comp_shear_mods[i, :] = layer.comp_shear_mod
         thicknesses = profile.thickness
 
-        self._waves_a, self._waves_b, self._wave_nums = _calc_waves_dispatch(
-            angular_freqs, comp_shear_vels, comp_shear_mods, thicknesses
+        if not self._incidence_angle and not self._inhomogeneity:
+            # Default path: vertically propagating homogeneous wave. Left
+            # untouched so results are unchanged from previous versions.
+            self._waves_a, self._waves_b, self._wave_nums = _calc_waves_dispatch(
+                angular_freqs, comp_shear_vels, comp_shear_mods, thicknesses
+            )
+        else:
+            # General (inhomogeneous / obliquely incident) SII wave.
+            horiz_wave_nums = self._calc_horiz_wave_nums(angular_freqs, profile)
+            self._waves_a, self._waves_b, self._wave_nums = (
+                _calc_waves_general_dispatch(
+                    angular_freqs,
+                    comp_shear_vels,
+                    comp_shear_mods,
+                    thicknesses,
+                    horiz_wave_nums,
+                )
+            )
+
+    def _calc_horiz_wave_nums(self, angular_freqs, profile):
+        """Compute the horizontal wave number ``k`` of the incident SII wave.
+
+        The horizontal (complex) wave number is fixed by the wave incident at the
+        base half space and, by the boundary conditions, is identical in every
+        layer (Borcherdt, Ch. 9). It is returned per frequency.
+
+        For a homogeneous incident wave (``inhomogeneity == 0``) this reduces to
+        ``k = sin(theta) * omega / Vs*`` of the half space (eq. 9.1.39). For an
+        inhomogeneous wave the full expression (eq. 9.1.32) is used, with the
+        intrinsic absorption ``Q^-1`` taken from the half-space damping.
+
+        Parameters
+        ----------
+        angular_freqs : :class:`numpy.ndarray`
+        profile : :class:`~.site.Profile`
+
+        Returns
+        -------
+        :class:`numpy.ndarray`
+            Complex horizontal wave number, shape ``(n_freqs,)``.
+        """
+        half_space = profile[-1]
+        theta = self._incidence_angle
+
+        if not self._inhomogeneity:
+            # Homogeneous incident wave (eq. 9.1.39): k = k_S * sin(theta), using
+            # the complex half-space velocity for consistency with the layer
+            # propagation.
+            comp_wave_num = angular_freqs / half_space.comp_shear_vel
+            return np.sin(theta) * comp_wave_num
+
+        # Inhomogeneous incident wave (eq. 9.1.32).
+        gamma = self._inhomogeneity
+        vel = half_space.shear_vel
+        # Intrinsic absorption Q^-1 = 1 / Q of the half space (~= 2 * damping).
+        inv_q = 1.0 / half_space.soil_type.quality
+        chi = np.sqrt(1.0 + inv_q**2)
+        chi_su = np.sqrt(1.0 + inv_q**2 / np.cos(gamma) ** 2)
+        return (angular_freqs / vel) * (
+            np.sqrt((1.0 + chi_su) / (1.0 + chi)) * np.sin(theta)
+            - 1j * np.sqrt((-1.0 + chi_su) / (1.0 + chi)) * np.sin(theta - gamma)
         )
 
     def wave_at_location(self, loc: Location) -> np.ndarray:
@@ -767,7 +1022,13 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
     name = "EQL"
 
     def __init__(
-        self, strain_ratio=0.65, tolerance=0.025, max_iterations=15, strain_limit=0.05
+        self,
+        strain_ratio=0.65,
+        tolerance=0.025,
+        max_iterations=15,
+        strain_limit=0.05,
+        incidence_angle: float = 0.0,
+        inhomogeneity: float = 0.0,
     ):
         """Initialize the class.
 
@@ -787,8 +1048,16 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
         strain_limit: float, default=0.05
             Limit of strain in calculations. If this strain is exceed, the
             iterative calculation is ended.
+
+        incidence_angle: float, default=0.0
+            Angle of incidence [degrees] of the SII wave at the base half space.
+            See :class:`LinearElasticCalculator`.
+
+        inhomogeneity: float, default=0.0
+            Degree of inhomogeneity [degrees] of the incident SII wave. See
+            :class:`LinearElasticCalculator`.
         """
-        super().__init__()
+        super().__init__(incidence_angle=incidence_angle, inhomogeneity=inhomogeneity)
         self._strain_ratio = strain_ratio
         self._tolerance = tolerance
         self._max_iterations = max_iterations
@@ -997,9 +1266,18 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         max_iterations: int = 50,
         strain_limit: float = 0.05,
         freq_shift: float = 1.0,
+        incidence_angle: float = 0.0,
+        inhomogeneity: float = 0.0,
     ):
         """Initialize the class."""
-        super().__init__(strain_ratio, tolerance, max_iterations, strain_limit)
+        super().__init__(
+            strain_ratio,
+            tolerance,
+            max_iterations,
+            strain_limit,
+            incidence_angle=incidence_angle,
+            inhomogeneity=inhomogeneity,
+        )
 
         self._method = method
         self._smoother = None
@@ -1027,6 +1305,8 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
             strain_ratio=self.strain_ratio,
             strain_limit=self.strain_limit,
             tolerance=self.tolerance,
+            incidence_angle=self.incidence_angle,
+            inhomogeneity=self.inhomogeneity,
         )
         eql(self._motion, self._profile, self._loc_input)
 
