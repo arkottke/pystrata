@@ -23,9 +23,9 @@ jobs:
             - name: Lint with ruff
               run: |
                   uv run ruff check .
-            - name: Format check with black
+            - name: Format check with ruff
               run: |
-                  uv run black --check .
+                  uv run ruff format --check .
             - name: Install package
               run: |
                   uv pip install -e .

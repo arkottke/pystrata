@@ -8,8 +8,8 @@ FrequencyDependentEqlCalculator with 60 realizations.
 import time
 
 import numpy as np
-
 import pygmm
+
 import pystrata
 from pystrata import propagation
 

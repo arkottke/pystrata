@@ -122,6 +122,8 @@ dev = [
     # Code quality
     "black[colorama,jupyter]",
     "ruff",
+    # Run by the linter workflow via `uv run pre-commit run --all-files`
+    "pre-commit",
     # Additional dependencies for development
     "openpyxl",
     "pandas",

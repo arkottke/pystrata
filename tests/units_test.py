@@ -69,6 +69,7 @@ class TestLayerUnits:
         assert layer.thickness == 10.0
         assert layer.initial_shear_vel == 200.0
 
+
 class TestProfileUnits:
     """Test Profile constructor unit conversion."""
 
@@ -154,4 +155,3 @@ class TestCalcPoissonsRatioUnits:
         r2 = (400.0 / 200.0) ** 2
         expected = (r2 - 2) / (2 * (r2 - 1))
         assert_allclose(result, expected)
-

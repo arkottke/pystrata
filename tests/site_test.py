@@ -16,16 +16,12 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
 # Copyright (C) Albert Kottke, 2013-2015
-import json
 
 import numpy as np
 import pytest
-import scipy.constants
 from numpy.testing import assert_allclose
 
 from pystrata import site
-
-from . import FPATH_DATA
 
 
 def test_published_nonlinear_curve():
@@ -101,6 +97,7 @@ def test_soil_type_iterative():
     assert_allclose(layer.strain, strain)
     assert_allclose(layer.shear_mod, 0.5 * layer.initial_shear_mod)
     assert_allclose(layer.damping, 0.05)
+
 
 @pytest.mark.parametrize("depth,expected", [(10, 300), (20, 400), (30, 490.909)])
 def test_time_average_vel(depth, expected):

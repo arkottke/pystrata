@@ -6,15 +6,12 @@ import gzip
 import json
 import os
 import urllib.request
-import warnings
 from pathlib import Path
 
 import numpy as np
-import numpy.typing as npt
 import pandas as pd
 
 from .tools import calc_mean_eff_stress
-
 
 
 def aaa21_profile(

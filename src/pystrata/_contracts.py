@@ -7,7 +7,6 @@ Canonical definitions live in ``pygmm.contracts``; this file is a private
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 import numpy as np
 import numpy.typing as npt
@@ -24,8 +23,8 @@ class NonlinearSoilCurves:
     mod_reduc: npt.NDArray[np.floating]
     damping: npt.NDArray[np.floating]
     damping_min: float
-    unit_wt: Optional[float] = None
-    name: Optional[str] = None
+    unit_wt: float | None = None
+    name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -38,5 +37,5 @@ class VelocityProfile:
     depth: npt.NDArray[np.floating]
     vs_median: npt.NDArray[np.floating]
     std_vs_ln: npt.NDArray[np.floating]
-    region: Optional[str] = None
-    site_class: Optional[str] = None
+    region: str | None = None
+    site_class: str | None = None

@@ -40,7 +40,7 @@ Use this prompt to replicate the documentation system used in this project for o
         ```
     - Configure `nbsphinx` to not execute notebooks during build (unless desired):
         ```python
-        nbsphinx_execute = 'never'
+        nbsphinx_execute = "never"
         nbsphinx_allow_errors = True
         ```
     - Configure `bibtex` if references are needed.

@@ -7,7 +7,8 @@ import pytest
 from numpy.testing import assert_allclose
 
 pygmm = pytest.importorskip("pygmm")
-import pystrata
+# Imported after the skip check so the module is not required to collect this file
+import pystrata  # noqa: E402
 
 
 @pytest.fixture
@@ -28,7 +29,7 @@ def simple_profile_for_eql():
 
 
 def test_from_curves_darendeli():
-    """pygmm DarendeliSoilType curves → pystrata SoilType.from_curves round-trip."""
+    """Pygmm DarendeliSoilType curves → pystrata SoilType.from_curves round-trip."""
     pgm_st = pygmm.DarendeliSoilType(unit_wt=18.0, stress_mean=50.0)
     curves = pgm_st.curves()
 
@@ -65,7 +66,7 @@ def test_from_curves_stub():
 
 
 def test_from_velocity_profile_kea16():
-    """pygmm kea16_profile → pystrata Profile.from_velocity_profile round-trip."""
+    """Pygmm kea16_profile → pystrata Profile.from_velocity_profile round-trip."""
     depth = np.arange(0, 30, 5, dtype=float)
     vp = pygmm.kea16_profile(depth, vs30=400.0, region="california")
 
