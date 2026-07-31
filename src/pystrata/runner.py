@@ -260,7 +260,7 @@ def run_ensemble(
         (i * len(motions) + j, i, j) for i in range(count) for j in range(len(motions))
     ]
     names = [
-        (f"p{i}", f"m{j}") if multi_motion else "r%d" % (i + 1)
+        (f"p{i}", f"m{j}") if multi_motion else f"r{i + 1}"
         for i in range(count)
         for j in range(len(motions))
     ]

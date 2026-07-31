@@ -41,8 +41,8 @@ def test_notebook(fpath):
     try:
         ep.preprocess(nb, {"metadata": {"path": fpath.parent}})
     except CellExecutionError:
-        msg = 'Error executing the notebook "%s".\n\n' % fpath
-        msg += 'See notebook "%s" for the traceback.' % fpath
+        msg = f'Error executing the notebook "{fpath}".\n\n'
+        msg += f'See notebook "{fpath}" for the traceback.'
         print(msg)
         raise
     finally:

@@ -45,7 +45,6 @@ test = [
     "pyexcel",
 ]
 style = [
-    "black[colorama,jupyter]",
     "ruff",
 ]
 docs = [
@@ -61,13 +60,8 @@ docs = [
     "matplotlib",
 ]
 
-[tool.black]
-line-length = 88
-target-version = ['py310']
-
 [tool.ruff]
 exclude = ["docs"]
-# Same as Black.
 line-length = 88
 indent-width = 4
 
@@ -79,7 +73,7 @@ extend-include = ["*.ipynb"]
 quote-style = "double"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "Q", "I"]
+select = ["E", "F", "W", "Q", "I", "UP"]
 ignore = ["E203", "E501"]
 
 # Coverage configuration
@@ -120,7 +114,6 @@ dev = [
     "nbconvert",
     "pygmm",
     # Code quality
-    "black[colorama,jupyter]",
     "ruff",
     # Run by the linter workflow via `uv run pre-commit run --all-files`
     "pre-commit",

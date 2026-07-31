@@ -9,11 +9,6 @@ repos:
           - id: ruff
             args:
                 [--fix]
-    - repo: https://github.com/asottile/pyupgrade
-      rev: v3.21.2
-      hooks:
-          - id: pyupgrade
-            args: [--py3-plus, --py310-plus]
     - repo: https://github.com/PyCQA/docformatter
       rev: v1.7.7
       hooks:

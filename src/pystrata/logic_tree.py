@@ -5,13 +5,13 @@ import itertools
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Union
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 
-AlternativeValueType = Union[str, int, float, tuple[str]]
+AlternativeValueType = str | int | float | tuple[str]
 
 
 @dataclass

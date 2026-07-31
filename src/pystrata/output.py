@@ -280,7 +280,7 @@ class Output:
         self._index = index
 
         if name is None:
-            name = "r%d" % (index + 1)
+            name = f"r{index + 1}"
 
         if self._buffer is None:
             self._names.append(name)
