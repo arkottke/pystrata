@@ -2325,17 +2325,16 @@ wheels = [
 
 [[package]]
 name = "pykooh"
-version = "0.5.0"
+version = "0.5.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numba" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "setuptools" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/23/c4/4bd65fe26b8e4bb31435aaa60200c7427cde8beb6a74506018ff832b9a19/pykooh-0.5.0.tar.gz", hash = "sha256:8007715d1456a504a6cb735daadd3c06a5e5b2d2117524375b6b3d32fcb11112", size = 933105, upload-time = "2025-05-24T03:56:26.683Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5a/1a/6c1c7d84c8071ae96137045603eb14be428267cd1fae699d5413536c1cdc/pykooh-0.5.1.tar.gz", hash = "sha256:2b7705ab6480e7e0c8f3d8c399575f68f05467adc646f0ae67dd53028c0a43cb", size = 933283, upload-time = "2026-07-30T23:01:10.026Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/01/a9/d1686c09d4d98ff3cacb24810fb57fdc28bc26aca9ea068bb632fb3f9e7a/pykooh-0.5.0-py3-none-any.whl", hash = "sha256:41768131dcb851bde22078c29342490aabf1e36813c392bc608103b856fd6cd0", size = 7375, upload-time = "2025-05-24T03:56:25.422Z" },
+    { url = "https://files.pythonhosted.org/packages/57/2f/39a0c7efb46b6919e61f6a3bdaa1440a27791348ad51c530b8f89cb85106/pykooh-0.5.1-py3-none-any.whl", hash = "sha256:3c7b94c08392ff0811b322ddc11f01eac2a3ce36d8eca6cff5833dfbb655c7e8", size = 7366, upload-time = "2026-07-30T23:01:08.734Z" },
 ]
 
 [[package]]
