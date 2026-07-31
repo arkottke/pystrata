@@ -38,7 +38,7 @@ Added:
   `EquivalentLinearCalculator`, and `FrequencyDependentEqlCalculator` via new
   `incidence_angle` (θ) and `inhomogeneity` (γ) keyword arguments (degrees).
   Nonzero values engage the general viscoelastic transfer-matrix solution
-  (Borcherdt, *Viscoelastic Waves in Layered Media*, Ch. 9), supporting oblique
+  (Borcherdt, _Viscoelastic Waves in Layered Media_, Ch. 9), supporting oblique
   incidence and inhomogeneous body waves. Defaults (`0.0`) reproduce the previous
   normal-incidence, homogeneous-wave results unchanged.
 - `pystrata.runner` — `run_ensemble(..., n_jobs=)` evaluates realizations,
@@ -47,7 +47,7 @@ Added:
   on `n_jobs` or `chunksize`. `n_jobs=1` (the default) reproduces the loop the
   examples write by hand.
 - `rng=` on every variation model's `__call__`, and `seed=` on
-  `iter_varied_profiles`. Realization *i* is derived from
+  `iter_varied_profiles`. Realization _i_ is derived from
   `SeedSequence([seed, i])`, so it is identical regardless of how many
   realizations are requested or the order they are consumed in.
 - `variation.varied_profile(profile, index, seed=...)` — generate one
