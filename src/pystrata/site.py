@@ -566,12 +566,14 @@ class DarendeliSoilType(ModifiedHyperbolicSoilType):
         self._num_cycles = num_cycles
 
         if damping_min is None:
-            damping_min = self._calc_damping_min()
+            self._damping_min = self._calc_damping_min()
+        else:
+            self._damping_min = damping_min
 
         if not name:
             name = self._create_name()
 
-        super().__init__(name, unit_wt, damping_min, strains)
+        super().__init__(name, unit_wt, self._damping_min, strains)
 
     def _calc_damping_min(self):
         """Minimum damping [decimal]"""
@@ -601,6 +603,11 @@ class DarendeliSoilType(ModifiedHyperbolicSoilType):
     def _create_name(self) -> str:
         fmt = "Darendeli (PI={:.0f}, OCR={:.1f}, σₘ'={:.1f} kN/m²)"
         return fmt.format(self._plas_index, self._ocr, self._stress_mean)
+
+    @property
+    def damping_min(self) -> float:
+        """Return the small-strain damping."""
+        return self._damping_min
 
 
 class MenqSoilType(ModifiedHyperbolicSoilType):
@@ -2152,32 +2159,47 @@ class Profile(collections.abc.Container):
 
     def auto_discretize(
         self,
-        max_freq: float = 50.0,
-        wave_frac: float = 0.2,
+        max_freq: npt.ArrayLike = 50.0,
+        wave_frac: npt.ArrayLike = 0.2,
         nonlinear_only: bool = True,
     ) -> Profile:
         """Subdivide the layers to capture strain variation.
 
         Parameters
         ----------
-        max_freq: float
-            Maximum frequency of interest [Hz].
-        wave_frac: float
-            Fraction of wavelength required. Typically 1/3 to 1/5.
-
-        max_thick: float *optional*
-            If provided, layers are limited to be at most that thick. This is applied to
-            all layers regardless of nonlinearity.
+        max_freq: array_like
+            Maximum frequency of interest [Hz]. A scalar is applied to all
+            layers; an array provides a value for each layer, excluding the
+            halfspace.
+        wave_frac: array_like
+            Fraction of wavelength required. Typically 1/3 to 1/5. A scalar is
+            applied to all layers; an array provides a value for each layer,
+            excluding the halfspace.
+        nonlinear_only: bool
+            Only subdivide layers with nonlinear soil types.
 
         Returns
         -------
         profile: Profile
             A new profile with modified layer thicknesses
         """
+        n_layers = len(self) - 1
+        max_freq = np.asarray(max_freq, dtype=float)
+        wave_frac = np.asarray(wave_frac, dtype=float)
+        try:
+            max_freq = np.broadcast_to(max_freq, n_layers)
+            wave_frac = np.broadcast_to(wave_frac, n_layers)
+        except ValueError as err:
+            raise ValueError(
+                f"max_freq (shape {max_freq.shape}) and wave_frac "
+                f"(shape {wave_frac.shape}) must match the number of "
+                f"layers ({n_layers})"
+            ) from err
+
         layers = []
-        for layer in self[:-1]:
+        for i, layer in enumerate(self[:-1]):
             if not nonlinear_only or layer.soil_type.is_nonlinear:
-                opt_thickness = layer.shear_vel / max_freq * wave_frac
+                opt_thickness = layer.shear_vel / max_freq[i] * wave_frac[i]
                 count = max(np.ceil(layer.thickness / opt_thickness).astype(int), 1)
                 thickness = layer.thickness / count
                 for _ in range(count):
@@ -2191,6 +2213,7 @@ class Profile(collections.abc.Container):
                     )
             else:
                 layers.append(layer)
+
         # Add the halfspace
         layers.append(self[-1])
 

@@ -34,7 +34,7 @@ except ImportError:
 
 import pykooh
 
-from .motion import GRAVITY, TimeSeriesMotion, WaveField
+from .motion import GRAVITY, TimeSeriesMotion, WaveField, _compute_fourier_spectrum
 
 
 def plot_amplification_evolv(
@@ -207,9 +207,19 @@ class Output:
     def names(self):
         return self._names
 
-    def reset(self):
+    def reset_all(self):
         self._values = None
         self._names = []
+        if not self._const_ref:
+            self._refs = np.array([])
+
+    def reset_values(self):
+        self._values = None
+    
+    def reset_name(self):
+        self._names = []
+
+    def reset_refs(self):
         if not self._const_ref:
             self._refs = np.array([])
 
@@ -311,7 +321,6 @@ class Output:
 
         return ax
 
-
 class OutputLocation:
     def __init__(self, wave_field, depth=None, index=None):
         self._depth = depth
@@ -353,7 +362,7 @@ class LocationBasedOutput(Output):
         """Locate location within the profile."""
         return self._location(calc.profile)
 
-
+    
 class TimeSeriesOutput(LocationBasedOutput):
     xlabel = "Time (sec)"
     xscale = "linear"
@@ -412,7 +421,7 @@ class AriasIntensityTSOutput(AccelerationTSOutput):
 
 class StrainTSOutput(TimeSeriesOutput):
     def __init__(self, location, in_percent=False):
-        super().__init__(location)
+        super().__init__(location)  
         self._in_percent = in_percent
         assert self.location.wave_field == WaveField.within
 
@@ -500,7 +509,204 @@ class FourierAmplitudeSpectrumOutput(LocationBasedOutput):
                 self.ko_bandwidth,
             )
 
-        self._add_values(fas)
+        values = self._modify_values(fas)
+
+        self._add_values(values)
+
+    def _modify_values(self, values):
+        return values
+
+class FourierComplexSpectrumOutput(LocationBasedOutput):
+    _const_ref = True
+    xlabel = "Frequency (Hz)"
+    ylabel = "Fourier Ampl. (cm/s)"
+
+    ref_name = "freq"
+    # Make None the default, so that the default will be not applying smoothing. 
+    # This is to make calling this output "cleaner". 
+    def __init__(self, freqs, location):
+        super().__init__(freqs, location)
+
+    @property
+    def freqs(self):
+        return self._refs
+
+    def __call__(self, calc, name=None):
+        Output.__call__(self, calc, name)
+        self._refs = calc.motion.freqs
+        loc = self._get_location(calc)
+        tf = calc.calc_accel_tf(calc.loc_input, loc)
+
+        # Only return the absolute value
+        fcs = tf * calc.motion.fourier_amps
+
+        values = self._modify_values(fcs)
+
+        self._add_values(values)
+
+    def _modify_values(self, values):
+        return values
+
+def _fit_kappa(freqs, amps):
+    """Fit kappa to the log of the Fourier amplitudes.
+
+    Parameters
+    ----------
+    freqs : array_like
+        frequencies (Hz) over which the fit is performed
+    amps : array_like
+        Fourier amplitudes at *freqs*. Complex amplitudes are reduced to their
+        magnitude prior to the fit.
+
+    Returns
+    -------
+    kappa : float
+        fit kappa (sec)
+    intercept : float
+        intercept of the fit in log-space
+    """
+    slope, intercept = np.polyfit(freqs, np.log(np.abs(amps)), 1)
+
+    return -slope / np.pi, intercept
+
+
+class KappaCorrectionMixin(Output):
+    """Parameters and math shared by the kappa corrected outputs.
+
+    The mixin is listed *before* the output that it modifies -- that is,
+    ``class Foo(KappaCorrectionMixin, BarOutput)`` -- so that its initializer
+    and correction hooks take precedence in the method resolution order. The
+    two kappa arguments are inserted after the references and the remaining
+    arguments are passed through to the output. :class:`Output` is only a base
+    so that the attributes provided by that output are resolvable; the mixin is
+    not used on its own.
+    """
+
+    # Provided by the output that the mixin is combined with
+    freqs: np.ndarray
+    ko_bandwidth: float | None
+
+    def __init__(self, refs, freqs_range_for_kappa, kappa_target, *args, **kwargs):
+        super().__init__(refs, *args, **kwargs)
+        self._freqs_range = freqs_range_for_kappa
+        self._kappa_target = kappa_target
+
+    @property
+    def freqs_range(self):
+        """Frequencies (Hz) over which kappa is fit."""
+        return self._freqs_range
+
+    @property
+    def kappa_target(self):
+        """Target kappa (sec) of the corrected output."""
+        return self._kappa_target
+
+    def _calc_correction(self, freqs, amps):
+        """Factor that shifts the fit kappa onto the target kappa.
+
+        Parameters
+        ----------
+        freqs : array_like
+            frequencies (Hz) at which the correction is computed
+        amps : array_like
+            Fourier amplitudes at :attr:`freqs_range` used for the kappa fit
+        """
+        kappa, _ = _fit_kappa(self.freqs_range, amps)
+        delta_kappa = kappa - self.kappa_target
+
+        return np.exp(-np.pi * delta_kappa * freqs)
+
+
+class SpectrumKappaCorrectionMixin(KappaCorrectionMixin):
+    """Kappa correction of outputs whose values are a Fourier spectrum."""
+
+    def _modify_values(self, values):
+        amps = np.interp(self.freqs_range, self.freqs, values)
+
+        return self._calc_correction(self.freqs, amps) * values
+
+
+class TransferFuncKappaCorrectionMixin(KappaCorrectionMixin):
+    """Kappa correction of outputs computed from an acceleration transfer function.
+
+    Kappa is fit to the Fourier amplitudes of the output motion -- the transfer
+    function scaled by the Fourier amplitudes of the input motion -- and the
+    correction is applied to the transfer function.
+    """
+
+    def _modify_tf(self, calc, values):
+        freqs = self._tf_freqs(calc)
+        tf = np.interp(self.freqs_range, freqs, values)
+        amps = np.abs(tf * self._calc_input_amps(calc))
+
+        return self._calc_correction(freqs, amps) * values
+
+    def _tf_freqs(self, calc):
+        """Frequencies (Hz) at which the transfer function is provided."""
+        return calc.motion.freqs
+
+    def _calc_input_amps(self, calc):
+        """Fourier amplitudes of the input motion at :attr:`freqs_range`."""
+        if not hasattr(calc.motion, "time_step"):
+            return np.interp(
+                self.freqs_range, calc.motion.freqs, calc.motion.fourier_amps
+            )
+
+        _, amps = _compute_fourier_spectrum(
+            calc.motion.time_step,
+            calc.motion._accels,
+            freqs=self.freqs_range,
+            ko_bandwidth=self.ko_bandwidth,
+        )
+
+        return amps
+
+
+class KappaOutput(FourierAmplitudeSpectrumOutput):
+
+    ylabel = "Kappa"
+
+    def __init__(self, freqs_range, location, ko_bandwidth=None):
+        super().__init__(np.array(['Kappa']), location, ko_bandwidth)
+        self._freqs_range = freqs_range
+
+    @property
+    def freqs(self):
+        return self._freqs_range
+
+    def _modify_values(self, values):
+        kappa, _ = _fit_kappa(self.freqs, values)
+
+        return np.array([kappa])
+
+class KappaFittedLineOutput(FourierAmplitudeSpectrumOutput):
+
+    ylabel = "Kappa"
+
+    def __init__(self, freqs_range, location, ko_bandwidth=None):
+        super().__init__(freqs_range, location, ko_bandwidth)
+
+    def _modify_values(self, values):
+        kappa, intercept = _fit_kappa(self.freqs, values)
+
+        return np.exp(-np.pi * kappa * self.freqs + intercept)
+
+class KappaCorrectFourierAmplitudeSpectrumOutput(
+    SpectrumKappaCorrectionMixin, FourierAmplitudeSpectrumOutput
+):
+    """Kappa corrected Fourier amplitude spectrum.
+
+    Created with ``(freqs, freqs_range_for_kappa, kappa_target, location,
+    ko_bandwidth=None)``.
+    """
+
+class KappaCorrectFourierComplexSpectrumOutput(
+    SpectrumKappaCorrectionMixin, FourierComplexSpectrumOutput
+):
+    """Kappa corrected complex Fourier spectrum.
+
+    Created with ``(freqs, freqs_range_for_kappa, kappa_target, location)``.
+    """
 
 
 class ResponseSpectrumOutput(LocationBasedOutput):
@@ -509,7 +715,7 @@ class ResponseSpectrumOutput(LocationBasedOutput):
 
     ref_name = "freq"
 
-    def __init__(self, freqs, location, osc_damping):
+    def __init__(self, freqs, location, osc_damping = 0.05):
         super().__init__(freqs, location)
         self._osc_damping = osc_damping
 
@@ -533,9 +739,54 @@ class ResponseSpectrumOutput(LocationBasedOutput):
         Output.__call__(self, calc, name)
         loc = self._get_location(calc)
         tf = calc.calc_accel_tf(calc.loc_input, loc)
+        tf = self._modify_tf(calc,tf)
         ars = calc.motion.calc_osc_accels(self.freqs, self.osc_damping, tf)
         self._add_values(ars)
 
+    def _modify_tf(self,calc,values):
+        return values
+
+class KappaCorrectedResponseSpectrumOutput(ResponseSpectrumOutput):
+
+    def __init__(self, freqs, freqs_range_for_kappa, kappa_target, location, osc_damping = 0.05,ko_bandwidth = None):
+        super().__init__(freqs, location, osc_damping)
+        self._freqs_range = freqs_range_for_kappa
+        self._kappa_target = kappa_target
+        self._ko_bandwidth = ko_bandwidth
+
+    @property
+    def freqs_range(self):
+        return self._freqs_range
+
+    @property
+    def kappa_target(self):
+        return self._kappa_target
+
+    @property
+    def ko_bandwidth(self):
+        return self._ko_bandwidth
+
+    def _modify_tf(self,calc,values):
+
+        values_for_kappa = np.interp(self.freqs_range,calc.motion.freqs,values)
+
+        if not hasattr(calc.motion, "time_step"):
+            fas = np.interp(self.freqs_range,calc.motion.freqs,calc.motion.fourier_amps)
+        else:
+            _, fas = _compute_fourier_spectrum(
+                calc.motion.time_step,
+                calc.motion._accels,
+                freqs=self.freqs_range,
+                ko_bandwidth=self.ko_bandwidth)
+
+        fas = np.abs(values_for_kappa * fas)
+
+        kappa = -np.polyfit(self.freqs_range,np.log(fas),1)[0]/np.pi
+
+        delta_kappa = kappa - self.kappa_target
+        kappa_corrected_values = np.exp(-np.pi*delta_kappa*calc.motion.freqs)*values
+
+        return kappa_corrected_values
 
 class RatioBasedOutput(Output):
     _const_ref = True
@@ -568,7 +819,12 @@ class AccelTransferFunctionOutput(RatioBasedOutput):
     ref_name = "freq"
 
     def __init__(
-        self, refs, location_in, location_out, ko_bandwidth=None, absolute=True
+        self, 
+        refs, 
+        location_in, 
+        location_out, 
+        ko_bandwidth=None, 
+        absolute=True
     ):
         super().__init__(refs, location_in, location_out)
         self._ko_bandwidth = ko_bandwidth
@@ -589,11 +845,70 @@ class AccelTransferFunctionOutput(RatioBasedOutput):
         else:
             tf = pykooh.smooth(self.freqs, calc.motion.freqs, tf, self._ko_bandwidth)
 
-        self._add_values(tf)
+        values = self._modify_tf(calc, tf)
+
+        self._add_values(values)
 
     @property
     def freqs(self):
         return self._refs
+    
+    @property
+    def ko_bandwidth(self):
+        return self._ko_bandwidth
+    
+    def _modify_tf(self, calc, values):
+        return values
+
+class KappaCorrectedAccelTransferFunctionOutput(AccelTransferFunctionOutput):
+
+    def __init__(
+        self, 
+        refs,
+        freqs_range_for_kappa,
+        kappa_target,
+        location_in,
+        location_out,
+        ko_bandwidth=None, 
+        absolute=True
+    ):
+        super().__init__(refs,
+                         location_in,
+                         location_out,        
+                         ko_bandwidth, 
+                         absolute)
+        self._freqs_range = freqs_range_for_kappa
+        self._kappa_target = kappa_target
+
+    @property
+    def freqs_range(self):
+        return self._freqs_range
+
+    @property
+    def kappa_target(self):
+        return self._kappa_target
+
+    def _modify_tf(self, calc, values):
+
+        values_for_kappa = np.interp(self.freqs_range,calc.motion.freqs,values)
+
+        if not hasattr(calc.motion, "time_step"):
+            fas = np.interp(self.freqs_range,calc.motion.freqs,calc.motion.fourier_amps)
+        else:
+            _, fas = _compute_fourier_spectrum(
+                calc.motion.time_step,
+                calc.motion._accels,
+                freqs=self.freqs_range,
+                ko_bandwidth=self.ko_bandwidth)
+
+        fas = np.abs(values_for_kappa * fas)
+
+        kappa = -np.polyfit(self.freqs_range,np.log(fas),1)[0]/np.pi
+
+        delta_kappa = kappa - self.kappa_target
+        kappa_corrected_values = np.exp(-np.pi*delta_kappa*calc.motion.freqs)*values
+
+        return kappa_corrected_values
 
 
 class ResponseSpectrumRatioOutput(RatioBasedOutput):
@@ -601,10 +916,15 @@ class ResponseSpectrumRatioOutput(RatioBasedOutput):
 
     ref_name = "freq"
 
-    def __init__(self, freqs, location_in, location_out, osc_damping):
+    def __init__(self, freqs, location_in, location_out, osc_damping, ko_bandwidth = None):
         super().__init__(freqs, location_in, location_out)
         self._osc_damping = osc_damping
+        self._ko_bandwidth = ko_bandwidth
 
+    @property
+    def ko_bandwidth(self):
+        return self._ko_bandwidth
+    
     @property
     def freqs(self):
         return self._refs
@@ -624,14 +944,59 @@ class ResponseSpectrumRatioOutput(RatioBasedOutput):
     def __call__(self, calc, name=None):
         Output.__call__(self, calc, name)
         loc_in, loc_out = self._get_locations(calc)
+
+        in_tf =  calc.calc_accel_tf(calc.loc_input, loc_in)
         in_ars = calc.motion.calc_osc_accels(
-            self.freqs, self.osc_damping, calc.calc_accel_tf(calc.loc_input, loc_in)
+            self.freqs, self.osc_damping, in_tf
         )
+        
+        out_tf = calc.calc_accel_tf(calc.loc_input, loc_out)
+        out_tf = self._modify_tf(calc,out_tf)
         out_ars = calc.motion.calc_osc_accels(
-            self.freqs, self.osc_damping, calc.calc_accel_tf(calc.loc_input, loc_out)
+            self.freqs, self.osc_damping, out_tf
         )
         ratio = out_ars / in_ars
         self._add_values(ratio)
+
+    def _modify_tf(self,calc,values):
+        return values
+
+class KappaCorrectedResponseSpectrumRatioOutput(ResponseSpectrumRatioOutput):
+
+    def __init__(self, freqs, freqs_range_for_kappa, kappa_target, location_in, location_out, osc_damping, ko_bandwidth = None):
+        super().__init__(freqs, location_in, location_out, osc_damping)
+        self._freqs_range = freqs_range_for_kappa
+        self._kappa_target = kappa_target
+
+    @property
+    def freqs_range(self):
+        return self._freqs_range
+
+    @property
+    def kappa_target(self):
+        return self._kappa_target
+
+    def _modify_tf(self, calc, values):
+
+        values_for_kappa = np.interp(self.freqs_range,calc.motion.freqs,values)
+
+        if not hasattr(calc.motion, "time_step"):
+            fas = np.interp(self.freqs_range,calc.motion.freqs,calc.motion.fourier_amps)
+        else:
+            _, fas = _compute_fourier_spectrum(
+                calc.motion.time_step,
+                calc.motion._accels,
+                freqs=self.freqs_range,
+                ko_bandwidth=self.ko_bandwidth)
+
+        fas = np.abs(values_for_kappa * fas)
+
+        kappa = -np.polyfit(self.freqs_range,np.log(fas),1)[0]/np.pi
+
+        delta_kappa = kappa - self.kappa_target
+        kappa_corrected_values = np.exp(-np.pi*delta_kappa*calc.motion.freqs)*values
+
+        return kappa_corrected_values
 
 
 class ProfileBasedOutput(Output):
@@ -681,7 +1046,7 @@ class ProfileBasedOutput(Output):
 
         _ref = self.refs[:, i] if self.refs.ndim > 1 else self.refs
         # Only select points with valid entries
-        mask = np.isfinite(_ref)
+        mask = np.isfinite(_ref) & (_ref != 0)
         _ref = _ref[mask]
         _ln_values = np.log(
             self.values[mask, i] if self.values.ndim > 1 else self.values[mask]

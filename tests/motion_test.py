@@ -35,6 +35,58 @@ def test_ts_load_at2_file(tsm):
     assert_allclose(tsm.accels[-1], 0.496963e-04)
 
 
+@pytest.mark.parametrize(
+    "line",
+    [
+        # Values preceding their labels
+        "  4096    0.0100    NPTS, DT",
+        "  0.0100    4096    DT, NPTS",
+        "  4096    0.0100    NPTS DT",
+        # Values following their labels
+        "NPTS=   4096, DT=   .0100 SEC,",
+        "DT=   .0100 SEC, NPTS=   4096,",
+        "NPTS=   4096 DT=   .0100 SEC",
+        "NPTS   4096   DT   .0100",
+        # Unlabeled
+        "  4096    0.0100",
+    ],
+)
+def test_parse_at2_header(line):
+    """Test parsing of the NPTS and DT header line variations."""
+    npts, time_step = motion._parse_at2_header(line)
+    assert_equal(npts, 4096)
+    assert_allclose(time_step, 0.01)
+
+
+def test_parse_at2_header_invalid():
+    """Test that an unparsable header line is reported."""
+    with pytest.raises(ValueError):
+        motion._parse_at2_header("NPTS, DT")
+
+
+@pytest.mark.parametrize(
+    "header",
+    ["  8    0.0100    NPTS, DT", "NPTS=      8, DT=   .0100 SEC,"],
+)
+def test_ts_load_at2_file_headers(tmp_path, header):
+    """Test loading of an AT2 file using each header layout."""
+    accels = [0.1, -0.2, 0.3, -0.4, 0.5, -0.6, 0.7, -0.8]
+    fpath = tmp_path / "test.AT2"
+    fpath.write_text(
+        "PEER NGA STRONG MOTION DATABASE RECORD\n"
+        "Imperial Valley-02, 5/19/1940, El Centro Array #9, 270\n"
+        "ACCELERATION TIME SERIES IN UNITS OF G\n"
+        f"{header}\n" + "  ".join(f"{a:.6E}" for a in accels) + "\n"
+    )
+
+    tsm = motion.TimeSeriesMotion.load_at2_file(fpath)
+    assert_equal(
+        tsm.description, "Imperial Valley-02, 5/19/1940, El Centro Array #9, 270"
+    )
+    assert_allclose(tsm.time_step, 0.01)
+    assert_allclose(tsm.accels, accels)
+
+
 def test_ts_times(tsm):
     """Test times."""
     assert_allclose(
