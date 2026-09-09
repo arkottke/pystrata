@@ -334,7 +334,7 @@ class SoilType:
 
     @property
     def density(self) -> float:
-        """Density of the soil in kg/m³."""
+        """Density of the soil in gm/cm³."""
         return self.unit_wt / GRAVITY
 
     @property
