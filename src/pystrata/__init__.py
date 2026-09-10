@@ -26,6 +26,7 @@ from importlib.metadata import version
 from . import (
     constitutive,
     curve_fitting,
+    factories,
     motion,
     output,
     propagation,
@@ -39,6 +40,7 @@ from .units import ureg
 __all__ = [
     "constitutive",
     "curve_fitting",
+    "factories",
     "motion",
     "output",
     "propagation",
