@@ -28,6 +28,8 @@ The examples included here are used to demonstrate the capabilities of
     Quantities, and Imperial Quantities on the same site profile.
 19. Impact of incidence angle and inhomogeneity (general viscoelastic SII-wave
     propagation), swept 30° from vertical.
+20. Generating layers with `LayerFactory`: a power-law velocity model
+    partitioned into sub-layers of equal travel time.
 
 To be added:
 

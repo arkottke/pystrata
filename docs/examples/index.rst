@@ -26,6 +26,7 @@ Example Gallery
    example-16
    example-17
    example-18
+   example-20
 
 Complete Example Index
 ----------------------
@@ -87,6 +88,10 @@ All available examples with brief descriptions:
 **Unit Conversion with Pint** (`example-18.ipynb <../../examples/example-18.ipynb>`__)
     Define the same profile three ways — plain floats, metric pint Quantities, and Imperial
     units — demonstrating transparent unit handling.
+
+**Generating Layers with LayerFactory** (`example-20.ipynb <../../examples/example-20.ipynb>`__)
+    Build a stack of layers whose shear-wave velocity follows a power-law model of depth or
+    mean effective stress, partitioned into sub-layers of equal travel time.
 
 Tips for Using Examples
 ------------------------

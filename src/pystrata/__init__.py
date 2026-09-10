@@ -24,6 +24,7 @@ import sys
 from importlib.metadata import version
 
 from . import (
+    factories,
     motion,
     output,
     propagation,
@@ -35,6 +36,7 @@ from . import (
 from .units import ureg
 
 __all__ = [
+    "factories",
     "motion",
     "output",
     "propagation",
