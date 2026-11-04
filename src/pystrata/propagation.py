@@ -1327,7 +1327,7 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
     def _estimate_strains(self):
         """Estimate the strains by running an EQL site response.
 
-        This step was recommended in Section 8.3.1 of Zalachoris (2014).
+        This step was recommended in Section 8.3.1 of :cite:t:`Zalachoris2014`.
         """
         eql = EquivalentLinearCalculator(
             strain_ratio=self.strain_ratio,
