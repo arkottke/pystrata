@@ -2,6 +2,18 @@
 
 ## 0.6.0 (unreleased)
 
+- Changed: the velocity and soil type variations take a `limit_mode`, which
+  selects how the random variates are limited to 2 standard deviations:
+  `"normal"` (no limit), `"clipped"` (clipped, with the standard deviation of
+  the model), or `"clipped_inflated"` (the default: the standard deviation is
+  increased by 1.042 before clipping, so the clipped variates have the
+  standard deviation of the model). `TruncatedNorm` is now `LimitedNorm`.
+  **Results change.** The realized standard deviation of the ln velocity
+  was 1.08 of the model's, with 4% of the draws on the limit, and the soil type
+  curves varied by 0.88 (random mode) and 0.93 (fixed percentiles) of the
+  model's, so the two modes sampled different distributions and the requested
+  correlation of 0.7 came out as 0.63. All now have the model's standard
+  deviation (0.96 in the `"clipped"` mode) and the requested correlation.
 - Added: `pystrata.dam` for the seismic response of dams modeled as shear wedges
   (Gazetas and Dakoulas, 1992). A `Dam` (layered wedge, optionally with
   `G ~ z**m`) is joined to a site `Profile` as a `DamProfile` and analyzed with

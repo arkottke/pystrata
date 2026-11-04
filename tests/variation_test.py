@@ -28,9 +28,124 @@ def _darendeli(**kw) -> site.SoilType:
     return site.SoilType.from_curves(pygmm.DarendeliSoilType(**kw).curves())
 
 
+def _clipped_std(limit):
+    """Standard deviation of a standard normal that is clipped, by integration."""
+    from scipy import integrate
+
+    inside, _ = integrate.quad(lambda z: z**2 * norm.pdf(z), -limit, limit)
+    left, _ = integrate.quad(lambda z: limit**2 * norm.pdf(z), -np.inf, -limit)
+    right, _ = integrate.quad(lambda z: limit**2 * norm.pdf(z), limit, np.inf)
+    return np.sqrt(inside + left + right)
+
+
 def test_randnorm():
-    # Get some errors of 0.0055
-    assert_allclose(1, np.std(variation.randnorm(size=100000)), rtol=0.007)
+    # The default clips at 2 standard deviations and keeps a unit std
+    assert variation.randnorm.mode == "clipped_inflated"
+    assert_allclose(1, np.std(variation.randnorm(size=200000, rng=3)), rtol=0.007)
+
+
+@pytest.mark.parametrize("mode", variation.LIMIT_MODES)
+def test_limited_norm_scale(mode):
+    limited = variation.LimitedNorm(2, mode)
+    if mode == "clipped_inflated":
+        # The clipped values have a unit standard deviation
+        assert limited.scale == pytest.approx(1 / _clipped_std(2), rel=1e-9)
+        assert limited.scale > 1
+    else:
+        assert limited.scale == 1
+
+
+@pytest.mark.parametrize(
+    "mode,expected_std,max_abs",
+    [
+        ("normal", 1.0, None),
+        ("clipped", _clipped_std(2), 2.0),
+        ("clipped_inflated", 1.0, 2.0 / _clipped_std(2)),
+    ],
+)
+def test_limited_norm_marginal(mode, expected_std, max_abs):
+    limited = variation.LimitedNorm(2, mode)
+    z = limited(size=400000, rng=11)
+    assert_allclose(np.std(z), expected_std, rtol=0.005)
+    if max_abs is None:
+        # No limit: values beyond 3 standard deviations occur
+        assert np.abs(z).max() > 3
+    else:
+        assert np.abs(z).max() == pytest.approx(max_abs)
+        # Clipping puts the mass beyond the limit on the limit, 4.6% of the draws
+        # for the unincreased distribution and 3.7% for the increased one
+        at_limit = np.mean(np.isclose(np.abs(z), max_abs))
+        assert 0.03 < at_limit < 0.05
+
+
+@pytest.mark.parametrize("mode", variation.LIMIT_MODES)
+@pytest.mark.parametrize("correl", [0.0, 0.7, -0.5])
+def test_limited_norm_correlated(mode, correl):
+    limited = variation.LimitedNorm(2, mode)
+    rng = np.random.default_rng(5)
+    pairs = np.array([limited.correlated(correl, rng=rng) for _ in range(10000)])
+    # Same marginals as the single variates, and the requested correlation
+    marginal = np.std(limited(size=400000, rng=11))
+    assert_allclose(pairs.std(axis=0), marginal, rtol=0.02)
+    assert_allclose(np.corrcoef(pairs.T)[0, 1], correl, atol=0.03)
+
+
+@pytest.mark.parametrize("mode", variation.LIMIT_MODES)
+def test_limited_norm_percentiles_sample_the_same_distribution(mode):
+    """The fixed-percentile mode must agree with the random mode."""
+    limited = variation.LimitedNorm(2, mode)
+    percentiles = (np.arange(4000) + 0.5) / 4000
+    z1 = np.array([limited.correlated_at_percentile(0.0, q)[0] for q in percentiles])
+    assert_allclose(np.std(z1), np.std(limited(size=400000, rng=11)), rtol=0.01)
+
+
+def test_limited_norm_percentile_is_clipped():
+    limited = variation.LimitedNorm(2, "clipped_inflated")
+    z1, z2 = limited.correlated_at_percentile(0.5, 0.9999)
+    assert z1 == pytest.approx(2 * limited.scale)
+    # The conditional median of the second is inside of the limit
+    assert 0 < z2 < z1
+    assert variation.LimitedNorm(2, "normal").correlated_at_percentile(0.5, 0.9999)[
+        0
+    ] == pytest.approx(norm.ppf(0.9999))
+
+
+@pytest.mark.parametrize(
+    "factory",
+    [
+        lambda m: variation.LimitedNorm(2, m),
+        lambda m: variation.SoilTypeVariation(0.5, limit_mode=m),
+        lambda m: variation.ToroVelocityVariation.generic_model("USGS C", limit_mode=m),
+    ],
+)
+def test_invalid_limit_mode(factory):
+    with pytest.raises(ValueError, match="limit_mode"):
+        factory("truncated")
+
+
+@pytest.mark.parametrize(
+    "mode,expected_std",
+    [("normal", 1.0), ("clipped", _clipped_std(2)), ("clipped_inflated", 1.0)],
+)
+def test_velocity_variation_realized_std(mode, expected_std):
+    """The standard deviation of ln Vs is the model's, up to the limit mode."""
+    soil = site.SoilType("S", 18.0, None, 0.02)
+    profile = site.Profile([site.Layer(soil, 10.0, 300.0), site.Layer(soil, 0, 800.0)])
+    var = variation.ToroVelocityVariation.generic_model("USGS C", limit_mode=mode)
+    assert var.limit_mode == mode
+    ln_std = var._calc_ln_std(profile)[0]
+
+    rng = np.random.default_rng(1)
+    ln_vel = np.log([var(profile, rng=rng)[0].initial_shear_vel for _ in range(5000)])
+    assert_allclose(np.std(ln_vel) / ln_std, expected_std, rtol=0.03)
+    if mode == "clipped_inflated":
+        limit = 2 * var._norm.scale
+        assert_allclose(np.abs(ln_vel - np.log(300.0)).max() / ln_std, limit)
+
+
+def test_soil_type_variation_default_mode():
+    assert variation.SoilTypeVariation(0.5).limit_mode == "clipped_inflated"
+    assert variation.SpidVariation(0.5, limit_mode="normal").limit_mode == "normal"
 
 
 class TestSoilTypeVariation:
@@ -560,7 +675,7 @@ if __name__ == "__main__":
 
 
 def test_correlated_at_percentile_uses_conditional_median():
-    randvar = variation.TruncatedNorm(2)
+    randvar = variation.LimitedNorm(2)
     # Uncorrelated: the second variate is at its median, not tied to the first
     z1, z2 = randvar.correlated_at_percentile(0.0, 0.9)
     assert z1 > 0

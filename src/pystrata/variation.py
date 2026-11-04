@@ -74,48 +74,111 @@ def _check_resamplable(profile, name):
         )
 
 
-class TruncatedNorm:
-    """Truncated normal random number generator.
+#: Ways of limiting a normal distribution, see :class:`LimitedNorm`.
+LIMIT_MODES = ("normal", "clipped", "clipped_inflated")
+
+
+def _check_limit_mode(mode):
+    if mode not in LIMIT_MODES:
+        raise ValueError(f"limit_mode must be one of {LIMIT_MODES!r}, got {mode!r}")
+    return mode
+
+
+class LimitedNorm:
+    """Normal random numbers with an optional limit on the standard deviations.
+
+    There are three modes:
+
+    ``"normal"``
+        A standard normal distribution, with no limit.
+    ``"clipped"``
+        A normal distribution with a unit standard deviation whose values
+        beyond ``limit`` standard deviations are set to the limit. Clipping
+        removes variance, so the realized standard deviation is a little
+        below one.
+    ``"clipped_inflated"`` (default)
+        The standard deviation of the normal distribution is increased by
+        :attr:`scale` and its values are clipped at ``limit`` of the increased
+        standard deviations. The increase is such that the clipped values
+        have a unit standard deviation.
 
     Parameters
     ----------
-    limit : float
-        Standard normal limits to impose
+    limit : float, default=2
+        Number of standard deviations at which the values are clipped.
+    mode : {"normal", "clipped", "clipped_inflated"}, default="clipped_inflated"
+        How the distribution is limited.
     """
 
-    def __init__(self, limit):
+    def __init__(self, limit=2.0, mode="clipped_inflated"):
+        self._mode = _check_limit_mode(mode)
         self.limit = limit
 
     @property
     def limit(self):
-        """Limit, in standard deviations, at which the distribution is truncated."""
+        """Limit, in standard deviations, at which the values are clipped."""
         return self._limit
 
     @limit.setter
     def limit(self, value):
         self._limit = value
+        self._scale = self._calc_scale()
 
-        # Need to scale the standard deviation to achieve sample standard
-        # deviation based on the truncation. Given truncation of 2 standard
-        # deviations, the input standard deviation must be increased to
-        # 1.136847 to maintain a unit standard deviation for the random
-        # samples.
-        self._scale = 1 / np.sqrt(stats.truncnorm.stats(-value, value, moments="v"))
+    @property
+    def mode(self):
+        """How the distribution is limited, one of :data:`LIMIT_MODES`."""
+        return self._mode
 
     @property
     def scale(self):
-        """Factor applied to the standard deviation.
+        """Factor by which the standard deviation is increased before clipping.
 
-        It gives the truncated samples a unit standard deviation.
+        It is one except in the ``"clipped_inflated"`` mode.
         """
         return self._scale
 
-    def __call__(self, size=1, rng=None):
-        """Random number generator that follows a truncated normal distribution.
+    def _calc_scale(self):
+        if self._mode != "clipped_inflated":
+            return 1.0
+        # Variance of a standard normal that is clipped at +-limit
+        lim = self._limit
+        var = (
+            (2 * stats.norm.cdf(lim) - 1)
+            - 2 * lim * stats.norm.pdf(lim)
+            + 2 * lim**2 * stats.norm.sf(lim)
+        )
+        return 1 / np.sqrt(var)
 
-        This is the default random number generator used by the program. It
-        generates normally distributed values ranging from -2 to +2 with unit
-        standard deviation.
+    def clip(self, values, center=0.0, std=1.0):
+        """Clip values at the limit, unless the distribution is not limited.
+
+        Parameters
+        ----------
+        values : array_like
+            Values drawn from a normal distribution.
+        center : float or array_like, default=0
+            Mean of the distribution.
+        std : float or array_like, default=1
+            Standard deviation that the values were drawn with, which is
+            already increased by :attr:`scale` in the ``"clipped_inflated"``
+            mode.
+
+        Returns
+        -------
+        np.ndarray
+            Values within ``center +- limit * std``.
+        """
+        values = np.asarray(values, dtype=float)
+        if self._mode == "normal":
+            return values
+        offset = self._limit * np.asarray(std, dtype=float)
+        return np.clip(values, center - offset, center + offset)
+
+    def __call__(self, size=1, rng=None):
+        """Random number generator that follows the limited normal distribution.
+
+        The values have a unit standard deviation in the ``"normal"`` and
+        ``"clipped_inflated"`` modes.
 
         Parameters
         ----------
@@ -130,21 +193,16 @@ class TruncatedNorm:
         rvs : ndarray or scalar
             Random variates of given `size`.
         """
-        return stats.truncnorm.rvs(
-            -self.limit,
-            self.limit,
-            scale=self._scale,
-            size=size,
-            random_state=_as_generator(rng),
-        )
+        values = self._scale * _as_generator(rng).standard_normal(size)
+        return self.clip(values, 0.0, self._scale)
 
     def correlated(self, correl, rng=None):
-        """Draw a pair of correlated, truncated variates.
+        """Draw a pair of correlated variates.
 
         Parameters
         ----------
         correl : float
-            Correlation coefficient between the two variates.
+            Correlation coefficient between the two variates, before clipping.
         rng : None, int, or numpy.random.Generator, optional
             Generator used to draw the variates. Defaults to the module-level
             generator.
@@ -152,38 +210,20 @@ class TruncatedNorm:
         Returns
         -------
         ndarray, shape (2,)
-            The pair of variates, both within the truncation limits.
+            The pair of variates.
         """
-        # Acceptance proportion
-        accept = np.diff(stats.norm.cdf([-self.limit, self.limit]))[0]
-        # The expected number of tries required
-        expected = np.ceil(1 / accept).astype(int)
-
-        generator = _as_generator(rng)
-        while True:
-            # Compute the multivariate normal with a unit variance and
-            # specified standard deviation. Use twice the expected since
-            # this calculation is fast and we don't want to loop.
-            randvar = generator.multivariate_normal(
-                [0, 0], [[1, correl], [correl, 1]], size=(2 * expected)
-            )
-            valid = np.all(np.abs(randvar) < self.limit, axis=1)
-            if np.any(valid):
-                # Return the first valid value
-                return randvar[valid][0]
+        cov = self._scale**2 * np.array([[1.0, correl], [correl, 1.0]])
+        values = _as_generator(rng).multivariate_normal([0.0, 0.0], cov)
+        return self.clip(values, 0.0, self._scale)
 
     def correlated_at_percentile(self, correl, percentile):
         r"""Return a deterministic correlated pair for a given percentile.
 
-        The primary variate ``z1`` is the inverse CDF of the *scaled*
-        truncated normal at ``percentile``.  The secondary variate ``z2``
-        is drawn from the conditional distribution
-        :math:`E[z_2 | z_1] = \rho z_1`, the conditional median,
-        also clipped to ``[-limit, +limit]``.
-
-        Both variates are expressed in the same units as the samples
-        returned by :meth:`correlated` (unit standard deviation, truncated
-        at ``±limit``).
+        The primary variate ``z1`` is the value of the normal distribution at
+        ``percentile``. The secondary variate ``z2`` is the conditional median
+        given ``z1``, :math:`E[z_2 | z_1] = \rho z_1`. Both are then limited
+        like the random variates of :meth:`correlated`, so the two modes sample
+        the same distribution.
 
         Parameters
         ----------
@@ -197,25 +237,19 @@ class TruncatedNorm:
         pair : ndarray, shape (2,)
             Deterministic correlated variate pair.
         """
-        # Map the percentile through the scaled truncated-normal CDF so that
-        # the resulting z1 sits at exactly that percentile of the marginal
-        # distribution used by the random sampler.
-        # stats.truncnorm with scale == self._scale and limits
-        # [-limit/scale, +limit/scale] (un-scaled) matches the marginals.
-        a, b = -self._limit / self._scale, self._limit / self._scale
-        z1 = stats.truncnorm.ppf(percentile, a, b, scale=self._scale)
-        # Conditional mean of z2 given z1 under bivariate normal
-        z2 = correl * z1
-        # Clip both to the truncation window
-        z1 = np.clip(z1, -self._limit, self._limit)
-        z2 = np.clip(z2, -self._limit, self._limit)
-        return np.array([z1, z2])
+        z1 = self._scale * stats.norm.ppf(percentile)
+        pair = np.array([z1, correl * z1])
+        return self.clip(pair, 0.0, self._scale)
 
 
-# Random number generator used for all random number. Limited to +/- 2,
-# and the standard deviation is scaled to maintain the standard deviation
-# FIXME
-randnorm = TruncatedNorm(2)
+#: Previous name of :class:`LimitedNorm`, which truncated rather than clipped.
+TruncatedNorm = LimitedNorm
+
+
+# Default limited normal distribution: clipped at +-2 standard deviations, with
+# the standard deviation increased so that the clipped values keep a unit
+# standard deviation.
+randnorm = LimitedNorm(2)
 
 
 class ToroThicknessVariation:
@@ -478,10 +512,27 @@ class LayerThicknessVariation:
 
 
 class VelocityVariation:
-    """Abstract model for varying the velocity."""
+    """Abstract model for varying the velocity.
 
-    def __init__(self, vary_bedrock=False):
+    Parameters
+    ----------
+    vary_bedrock : bool, optional
+        If the velocity of the bedrock (half-space) should be varied.
+    limit_mode : {"normal", "clipped", "clipped_inflated"}, optional
+        How the variation is limited to 2 standard deviations, see
+        :class:`LimitedNorm`. The default, ``"clipped_inflated"``, increases the
+        standard deviation before clipping so that the realized standard
+        deviation is the one of the model.
+    """
+
+    def __init__(self, vary_bedrock=False, limit_mode="clipped_inflated"):
         self._vary_bedrock = vary_bedrock
+        self._norm = LimitedNorm(2, limit_mode)
+
+    @property
+    def limit_mode(self):
+        """How the variation is limited, see :class:`LimitedNorm`."""
+        return self._norm.mode
 
     def __call__(self, profile: site.Profile, rng=None) -> site.Profile:
         """Calculate a varied shear-wave velocity profile.
@@ -506,9 +557,8 @@ class VelocityVariation:
             mean, covar, check_valid="ignore"
         )
 
-        # Limits based on the number of standard deviations
-        offset = randnorm.limit * np.sqrt(np.diag(covar))
-        ln_vel = np.clip(ln_vel_rand, mean - offset, mean + offset)
+        # Limit the number of standard deviations
+        ln_vel = self._norm.clip(ln_vel_rand, mean, np.sqrt(np.diag(covar)))
         vel = np.exp(ln_vel)
 
         varied = profile.copy()
@@ -534,8 +584,8 @@ class VelocityVariation:
         """
         corr = self._calc_corr(profile)
         std = self._calc_ln_std(profile)
-        # Modify the standard deviation by the truncated norm scale
-        std *= randnorm.scale
+        # Increase the standard deviation, if the limit is applied by clipping
+        std = std * self._norm.scale
 
         var = std**2
         covar = corr * std[:-1] * std[1:]
@@ -604,6 +654,9 @@ class ToroVelocityVariation(VelocityVariation):
         :math:`b` model parameter.
     vary_bedrock: bool, optional
         If the velocity of the bedrock (half-space) should be varied.
+    limit_mode : {"normal", "clipped", "clipped_inflated"}, optional
+        How the variation is limited to 2 standard deviations, see
+        :class:`LimitedNorm`.
     """
 
     PARAMS = {
@@ -682,9 +735,10 @@ class ToroVelocityVariation(VelocityVariation):
         h_0: float,
         b: float,
         vary_bedrock: bool = False,
+        limit_mode: str = "clipped_inflated",
     ):
         """Initialize the model."""
-        super().__init__(vary_bedrock=vary_bedrock)
+        super().__init__(vary_bedrock=vary_bedrock, limit_mode=limit_mode)
 
         self._ln_std = ln_std
         self._rho_0 = rho_0
@@ -874,10 +928,18 @@ class DepthDependToroVelVariation(ToroVelocityVariation):
         b: float,
         vary_bedrock: bool = False,
         ln_std_map: dict[str, float] | None = None,
+        limit_mode: str = "clipped_inflated",
     ):
         """Initialize the model."""
         super().__init__(
-            ln_std, rho_0, delta, rho_200, h_0, b, vary_bedrock=vary_bedrock
+            ln_std,
+            rho_0,
+            delta,
+            rho_200,
+            h_0,
+            b,
+            vary_bedrock=vary_bedrock,
+            limit_mode=limit_mode,
         )
         self.depth = depth
         self.ln_std_map = ln_std_map or dict()
@@ -966,7 +1028,7 @@ class SoilTypeVariation:
         How samples are drawn when :meth:`iter_varied_profiles` iterates:
 
         * ``'random'`` *(default)* — each call draws an independent
-          random realisation from the truncated-normal distribution.
+          random realisation from the limited normal distribution.
         * ``'fixed_percentiles'`` — each call uses a pre-specified
           percentile supplied via ``sample_index`` so that the same
           index always produces an identical realisation.  The percentile
@@ -980,6 +1042,11 @@ class SoilTypeVariation:
         ``'fixed_percentiles'`` mode.  The sequence cycles: iteration *i*
         draws ``percentiles[i % len(percentiles)]``.  Required (and only
         used) when *sample_mode* is ``'fixed_percentiles'``.
+    limit_mode : {"normal", "clipped", "clipped_inflated"}, optional
+        How the variates are limited to 2 standard deviations, see
+        :class:`LimitedNorm`. The default, ``"clipped_inflated"``, increases the
+        standard deviation before clipping so that the realized standard
+        deviation is the one of the model.
     """
 
     def __init__(
@@ -990,6 +1057,7 @@ class SoilTypeVariation:
         vary_bedrock=False,
         sample_mode="random",
         percentiles=None,
+        limit_mode="clipped_inflated",
     ):
         _valid_modes = {"random", "fixed_percentiles"}
         if sample_mode not in _valid_modes:
@@ -1013,6 +1081,7 @@ class SoilTypeVariation:
         self._limits_damping = list(limits_damping)
         self._sample_mode = sample_mode
         self._percentiles = percentiles
+        self._norm = LimitedNorm(2, limit_mode)
 
     def __call__(self, soil_type, sample_index=None, rng=None):
         """Return a single varied realisation of *soil_type*.
@@ -1048,9 +1117,9 @@ class SoilTypeVariation:
                     "sample_index must be provided when sample_mode='fixed_percentiles'"
                 )
             percentile = self._percentiles[sample_index]
-            randvar = randnorm.correlated_at_percentile(self.correlation, percentile)
+            randvar = self._norm.correlated_at_percentile(self.correlation, percentile)
         else:
-            randvar = randnorm.correlated(self.correlation, rng=rng)
+            randvar = self._norm.correlated(self.correlation, rng=rng)
 
         varied_mod_reduc, varied_damping = self._get_varied(randvar, mod_reduc, damping)
 
@@ -1139,6 +1208,11 @@ class SoilTypeVariation:
         return self._vary_bedrock
 
     @property
+    def limit_mode(self):
+        """How the variates are limited, see :class:`LimitedNorm`."""
+        return self._norm.mode
+
+    @property
     def sample_mode(self):
         """Sampling mode: ``'random'`` or ``'fixed_percentiles'``."""
         return self._sample_mode
@@ -1221,6 +1295,7 @@ class SpidVariation(SoilTypeVariation):
         std_damping=0.30,
         sample_mode="random",
         percentiles=None,
+        limit_mode="clipped_inflated",
     ):
         super().__init__(
             correlation,
@@ -1228,6 +1303,7 @@ class SpidVariation(SoilTypeVariation):
             limits_damping,
             sample_mode=sample_mode,
             percentiles=percentiles,
+            limit_mode=limit_mode,
         )
         self._std_mod_reduc = std_mod_reduc
         self._std_damping = std_damping
