@@ -357,3 +357,29 @@ def test_from_curves_warns_when_damping_min_disagrees():
     curves.damping_min = 0.05
     with pytest.warns(UserWarning, match="minimum damping"):
         site.SoilType.from_curves(curves, unit_wt=18.0)
+
+
+def test_hashes_are_stable_and_consistent_with_equality():
+    """Equal objects have the same hash, and it does not change between calls.
+
+    The hash was taken of a temporary view of the attributes, so it depended on the
+    address that the view happened to get and an unchanged soil type could be lost from
+    a set.
+    """
+    soil = site.SoilType("S", 18.0, None, 0.02)
+    twin = site.SoilType("S", 18.0, None, 0.02)
+    layer = site.Layer(soil, 5.0, 200.0)
+
+    first = (hash(soil), hash(layer))
+    squatter = [soil.__dict__.values(), layer.__dict__.values()]  # take freed slots
+    assert (hash(soil), hash(layer)) == first
+    del squatter
+
+    members = {soil}
+    held = [soil.__dict__.values() for _ in range(5)]
+    assert soil in members
+    del held
+
+    assert soil == twin
+    assert hash(soil) == hash(twin)
+    assert hash(layer) == hash(site.Layer(twin, 5.0, 200.0))

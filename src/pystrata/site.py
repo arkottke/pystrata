@@ -443,7 +443,10 @@ class SoilType:
         return type(self) is type(other) and self.__dict__ == other.__dict__
 
     def __hash__(self):
-        return hash(self.__dict__.values())
+        # Soil types that are equal have the same name and unit weight. Hashing
+        # the values view of the attributes would hash a temporary object by its
+        # address, which differs from one call to the next.
+        return hash((type(self), self.name, self.unit_wt))
 
 
 # TODO: for nonlinear site response this class wouldn't be used. Better way
@@ -581,7 +584,9 @@ class Layer:
         )
 
     def __hash__(self):
-        return hash(self.__dict__.values())
+        # Consistent with __eq__, which compares the soil type, thickness and
+        # initial velocity
+        return hash((type(self), self._thickness, self.initial_shear_vel))
 
     def copy(self) -> Layer:
         """Return a copy of the Layer instance with previously defined SoilType."""
