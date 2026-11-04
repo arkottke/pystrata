@@ -190,3 +190,6 @@ working/
 scratch.*
 
 .DS_Store
+
+# Local PyPI credentials file
+.pyirc

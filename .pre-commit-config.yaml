@@ -1,3 +1,6 @@
+# Scientific data files are read with fixed-width or exact parsing, so the
+# whitespace and end-of-file hooks must not rewrite them.
+exclude: '^(data/|tests/data/|src/pystrata/data/|examples/data/)'
 repos:
     - repo: https://github.com/astral-sh/ruff-pre-commit
       # Ruff version.
