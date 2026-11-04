@@ -1362,9 +1362,9 @@ class Profile(collections.abc.Container):
         return 30 / time
 
     def simplified_rayliegh_vel(self):
-        """Simplified Rayliegh velocity of the site.
+        """Simplified Rayleigh velocity of the site.
 
-        This follows the simplifications proposed by Urzua et al. (2017)
+        This follows the simplifications proposed by :cite:t:`Urzua2017`.
 
         Returns
         -------

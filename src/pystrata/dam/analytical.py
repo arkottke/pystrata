@@ -81,11 +81,11 @@ def wedge_natural_freqs(
     -----
     For a homogeneous dam (:math:`m = 0`) the first frequency is
     :math:`f_1 = 2.405 V_{s,base} / (2 \pi H)`, i.e., about
-    :math:`V_s / (2.61 H)`, with a rigid base. Hale and Abrahamson (2019), as
-    implemented in ``pygmm.slope_displacement``, relate the natural frequency
-    of the dam to the shear-wave velocity by :math:`f = V_s / (3 H)`, which is
-    an empirical relation for a dam on a flexible foundation; the two are not
-    expected to agree.
+    :math:`V_s / (2.61 H)`, with a rigid base. Hale and Abrahamson (2019,
+    :cite:p:`Hale2019`), as implemented in ``pygmm.slope_displacement``, relate
+    the natural frequency of the dam to the shear-wave velocity by
+    :math:`f = V_s / (3 H)`, which is an empirical relation for a dam on a
+    flexible foundation; the two are not expected to agree.
     """
     q = wedge_order(m)
     c = 1 - m / 2
