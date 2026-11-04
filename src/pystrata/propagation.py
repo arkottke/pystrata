@@ -738,7 +738,7 @@ class QuarterWaveLenCalculator(AbstractCalculator):
 
 
 class LinearElasticCalculator(AbstractCalculator):
-    """Class for performing linear elastic site response.
+    r"""Class for performing linear elastic site response.
 
     Parameters
     ----------
@@ -773,7 +773,7 @@ class LinearElasticCalculator(AbstractCalculator):
     The layers only transform an incident ``(incidence_angle, inhomogeneity)``
     pair into the per-layer wave field. The physically invariant quantity, held
     continuous across every boundary, is the complex horizontal wave number
-    ``k = k_R - i k_I``; specifying ``(incidence_angle, inhomogeneity)`` is
+    :math:`k = k_R - i k_I`; specifying ``(incidence_angle, inhomogeneity)`` is
     equivalent to specifying ``(k_R, k_I)``, where ``k_R`` is the horizontal
     phase slowness and ``k_I`` is the horizontal amplitude decay
     (Borcherdt eq. 9.1.32). Note that even a homogeneous wave (gamma = 0) at
@@ -792,7 +792,7 @@ class LinearElasticCalculator(AbstractCalculator):
        attenuating layers emerges inhomogeneous. To honor this, extend the
        profile down to where gamma = 0 is defensible and let the propagation
        determine the effective inhomogeneity at your base.
-    3. Invert from measurements. With array data, ``k_R = omega / c_app`` from
+    3. Invert from measurements. With array data, :math:`k_R = \omega / c_{app}` from
        the apparent horizontal phase velocity ``c_app`` (or
        ``incidence_angle = arcsin(v_HS / c_app)`` from source geometry / ray
        tracing) and ``k_I`` from the horizontal amplitude-decay coefficient; then
@@ -1218,7 +1218,7 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
 
     @classmethod
     def calc_strain_ratio(cls, mag):
-        """Compute the effective strain ratio using Idriss and Sun (1992).
+        """Compute the effective strain ratio of :cite:t:`idriss1992shake91`.
 
         Parameters
         ----------
@@ -1229,10 +1229,6 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
         -------
         strain_ratio : float
             Effective strain ratio
-
-        References
-        ----------
-        :cite:t:`idriss1992shake91`
         """
         return (mag - 1) / 10
 
@@ -1247,7 +1243,7 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
 
 
 class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
-    """Equivalent-linear site response with frequency-dependent properties.
+    r"""Equivalent-linear site response with frequency-dependent properties.
 
     The shear modulus and damping vary with frequency.
 
@@ -1256,9 +1252,9 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
     method : str, default="ko:20"
         Method for computing the strain spectrum:
 
-        - ``ka02``: use the shape of Kausel & Assimaki (2002)
-          :cite:p:`kausel2002seismic` for a smooth strain spectrum.
-        - ``zr15``: use the approach of Zalachoris & Rathje (2015) for the
+        - ``ka02``: use the shape of :cite:t:`kausel2002seismic` for a smooth strain
+          spectrum.
+        - ``zr15``: use the approach of :cite:t:`ZalachorisRathje2015` for the
           strain spectrum.
         - ``tan_avg``: loop-averaged tangent strain. Requires the
           `strain_reduc` parameter.
@@ -1283,9 +1279,9 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         Limit of strain in calculations. If this strain is exceed, the
         iterative calculation is ended.
     freq_shift : float, default=1.0
-        η ≥ 1.  The strain spectrum shape is evaluated at f/η, extending
-        nonlinearity to higher frequencies.  η=1 → identical to the parent
-        ``ko:{bw_ko}`` method.
+        :math:`\eta \ge 1`. The strain spectrum shape is evaluated at
+        :math:`f / \eta`, extending nonlinearity to higher frequencies.
+        :math:`\eta = 1` is identical to the parent ``ko:{bw_ko}`` method.
     """
 
     def __init__(
@@ -1325,7 +1321,7 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
 
     @property
     def freq_shift(self) -> float:
-        """Frequency stretch parameter η."""
+        r"""Frequency stretch parameter :math:`\eta`."""
         return self._freq_shift
 
     def _estimate_strains(self):

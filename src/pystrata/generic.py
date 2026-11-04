@@ -22,7 +22,7 @@ def aaa21_profile(
 ) -> pd.DataFrame:
     """Load a generic shear-wave velocity profile.
 
-    The profiles are from Ahdi, Ancheta & Abrahamson (2021).
+    The profiles are from :cite:t:`AlAtikAbrahamson2021`.
 
     Parameters
     ----------
@@ -47,14 +47,6 @@ def aaa21_profile(
     ------
     KeyError
         If *model* or *v_s30* is not found in the data file.
-
-    References
-    ----------
-    Al Atik, L., & Abrahamson, N. (2021). "A methodology for the development
-    of 1D reference VS profiles compatible with ground-motion prediction
-    equations: Application to NGA-West2 GMPEs." *Bulletin of the Seismological
-    Society of America*, 111(4), 1765–1783.
-    https://doi.org/10.1785/0120200312
     """
     fpath = Path(__file__).parent / "data" / "aa21-profiles.json.gz"
     with gzip.open(fpath, "rt") as f:

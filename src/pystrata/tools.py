@@ -371,7 +371,7 @@ def adjust_damping_values(
     exclude: None | str | list[str] | Callable = None,
     inplace: bool = False,
 ) -> tuple[site.Profile, float]:
-    """Adjust the minimum damping of a site profile to match a site attenuation.
+    r"""Adjust the minimum damping of a site profile to match a site attenuation.
 
     The total site attenuation of the adjusted profile matches a specified
     target value. Optionally, certain layers can be excluded from adjustment.
@@ -379,8 +379,9 @@ def adjust_damping_values(
     The function computes the attenuation due to impedance (scattering) effects
     and any excluded layers, then distributes the remaining required attenuation
     among the selected layers by updating their minimum damping values.  The
-    approach  assumes that Q is proportional to Vs (i.e., Q~ γ Vs, in which γ is
-    a proportionality constant; Silva and Darragh, 1995).
+    approach assumes that Q is proportional to :math:`V_s` (i.e.,
+    :math:`Q = \gamma V_s`, in which :math:`\gamma` is a proportionality
+    constant; Silva and Darragh, 1995).
 
     The profile can be modified in-place or a copy can be returned.
 

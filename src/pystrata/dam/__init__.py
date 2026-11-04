@@ -1,4 +1,7 @@
-"""Seismic response of dams modeled as shear wedges (Gazetas and Dakoulas, 1992)."""
+"""Seismic response of dams modeled as shear wedges.
+
+Based on :cite:t:`gazetas1992seismic`.
+"""
 
 from .analytical import (
     wedge_elastic_base_tf,

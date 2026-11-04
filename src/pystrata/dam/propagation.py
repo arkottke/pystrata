@@ -2,8 +2,9 @@ r"""Wave propagation through a shear-wedge dam coupled to a layered site.
 
 Within the dam (a triangular wedge of unit-thickness shear beams whose width
 is proportional to the distance ``r`` from the crest) a homogeneous layer
-satisfies ``(1/r) d/dr (r G du/dr) + rho omega^2 u = 0``. The top layer contains
-the crest, where the solution must be regular, so it is :math:`u = c J_0(k r)`.
+satisfies :math:`(1/r) \, d/dr \, (r G \, du/dr) + \rho \omega^2 u = 0`. The top
+layer contains the crest, where the solution must be regular, so it is
+:math:`u = c J_0(k r)`.
 Below it the solution is written as up- and down-going Hankel waves, each
 referenced to the top of its layer :math:`r_t`,
 
@@ -18,8 +19,8 @@ moderate frequencies in damped, layered dams.
 
 Displacement and shear stress are continuous across every interface; the same
 conditions couple the base of the dam to the first site layer, which is a
-standard plane-wave layer. This is the dam-on-elastic-rock model of Gazetas and
-Dakoulas (1992) generalized to a stack of dam layers and a layered site.
+standard plane-wave layer. This is the dam-on-elastic-rock model of
+:cite:t:`gazetas1992seismic` generalized to a stack of dam layers and a layered site.
 """
 
 from __future__ import annotations

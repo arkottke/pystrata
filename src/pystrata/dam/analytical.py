@@ -1,20 +1,16 @@
-r"""Closed-form shear-wedge solutions of Gazetas and Dakoulas (1992), Table 2.
+r"""Closed-form shear-wedge solutions of :cite:t:`gazetas1992seismic`, Table 2.
 
 The dam is an infinitely long (plane-strain) triangular wedge that deforms as
 a shear beam. With the radial coordinate ``r`` measured from the crest and a
-shear-wave velocity ``Vs = a * r ** (m / 2)`` (shear modulus proportional to
-``r ** m``) the free-vibration modes are
+shear-wave velocity :math:`V_s = a r^{m/2}` (shear modulus proportional to
+:math:`r^m`) the free-vibration modes are
 
 .. math::
     u_n(r) = x^{-q} J_q(x), \quad x = \frac{\omega r^{c}}{a c}, \quad
     q = \frac{m}{2 - m}, \quad c = 1 - \frac{m}{2}.
 
-For the homogeneous wedge (``m = 0``) this reduces to ``J0(omega r / Vs)``.
-
-References
-----------
-Gazetas, G. and Dakoulas, P. (1992). Seismic analysis and design of rockfill
-dams: state-of-the-art. Soil Dynamics and Earthquake Engineering, 11, 27-61.
+For the homogeneous wedge (:math:`m = 0`) this reduces to
+:math:`J_0(\omega r / V_s)`.
 """
 
 from __future__ import annotations
@@ -28,7 +24,10 @@ from .. import site
 
 
 def wedge_order(m: float) -> float:
-    """Order ``q = m / (2 - m)`` of the Bessel function for ``G ~ z ** m``."""
+    r"""Order :math:`q = m / (2 - m)` for :math:`G \propto z^m`.
+
+    This is the order of the Bessel function of the mode shapes.
+    """
     if not 0 <= m < 2:
         raise ValueError("The inhomogeneity parameter m must satisfy 0 <= m < 2.")
     return m / (2 - m)
@@ -74,13 +73,13 @@ def wedge_natural_freqs(
     shear_vel_avg : float
         Area-weighted average shear-wave velocity of the dam [m/s].
     m : float, default=0
-        Shear modulus varies as ``z ** m``.
+        Shear modulus varies as :math:`z^m`.
     n : int, default=3
         Number of modes.
 
     Notes
     -----
-    For a homogeneous dam (``m = 0``) the first frequency is
+    For a homogeneous dam (:math:`m = 0`) the first frequency is
     :math:`f_1 = 2.405 V_{s,base} / (2 \pi H)`, i.e., about
     :math:`V_s / (2.61 H)`, with a rigid base. Hale and Abrahamson (2019), as
     implemented in ``pygmm.slope_displacement``, relate the natural frequency
@@ -101,7 +100,7 @@ def wedge_mode_shape(
     shear_vel_avg: float,
     m: float = 0.0,
 ) -> np.ndarray:
-    """Normalized displacement ``u(r) / u(0)`` at frequency ``freq`` [Hz]."""
+    """Normalized displacement :math:`u(r) / u(0)` at frequency ``freq`` [Hz]."""
     q = wedge_order(m)
     c = 1 - m / 2
     vel_base = wedge_base_vel(shear_vel_avg, m)
@@ -123,7 +122,7 @@ def wedge_rigid_base_tf(
 ) -> np.ndarray:
     """Crest-to-base transfer function of a dam on a rigid base.
 
-    This is ``1 / J0(a0)`` for the homogeneous wedge (Table 2, column I).
+    This is :math:`1 / J_0(a_0)` for the homogeneous wedge (Table 2, column I).
     """
     freqs = np.asarray(freqs, dtype=float)
     q = wedge_order(m)
@@ -143,12 +142,12 @@ def wedge_elastic_base_tf(
     damping: float,
     imped_ratio: float,
 ) -> np.ndarray:
-    """Crest-to-outcrop transfer function of a homogeneous dam on elastic rock.
+    r"""Crest-to-outcrop transfer function of a homogeneous dam on elastic rock.
 
-    Table 2, column II: ``1 / (J0(a0) + i alpha J1(a0))`` where ``alpha`` is the
-    impedance ratio of the dam to the rock, ``(rho V)_dam / (rho V)_rock``, and
-    ``a0 = omega H / V*`` (complex velocity, includes damping). The rock is
-    assumed elastic.
+    Table 2, column II: :math:`1 / (J_0(a_0) + i \alpha J_1(a_0))`, where :math:`\alpha`
+    is the impedance ratio of the dam to the rock, :math:`(\rho V)_{dam} / (\rho
+    V)_{rock}`, and :math:`a_0 = \omega H / V^*` (complex velocity, which includes
+    damping). The rock is assumed elastic.
     """
     freqs = np.asarray(freqs, dtype=float)
     vel = comp_shear_vel(shear_vel, damping)

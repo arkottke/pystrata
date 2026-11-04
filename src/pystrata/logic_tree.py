@@ -239,7 +239,7 @@ class Node:
 
     @classmethod
     def from_miller_rice(cls, name, nbranches):
-        """Create a node from the discretization of Miller and Rice (1983).
+        """Create a node from the discretization of :cite:t:`MillerRice1983`.
 
         The alternatives are the fractions and weights of Table 3 of the paper.
 

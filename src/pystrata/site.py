@@ -703,7 +703,7 @@ class Layer:
 
     @property
     def shear_mod(self) -> np.ndarray | float:
-        """Strain-compatible shear modulus [kN//m²]."""
+        """Strain-compatible shear modulus [kN/m²]."""
         try:
             value = self._shear_mod.value
         except AttributeError:
@@ -811,7 +811,7 @@ class Layer:
         return self.soil_type.unit_wt
 
     def stress_vert(self, depth_within=0, effective=False):
-        """Vertical stress from the top of the layer [kN//m²]."""
+        """Vertical stress from the top of the layer [kN/m²]."""
         assert depth_within <= self.thickness
         stress_vert = self._stress_vert + depth_within * self.unit_wt
         if effective:
@@ -820,7 +820,7 @@ class Layer:
         return stress_vert
 
     def stress_mean(self, depth_within=0, effective=False, k0=0.5):
-        """Mean effective stress from the top of the layer [kN//m²]."""
+        """Mean effective stress from the top of the layer [kN/m²]."""
         stress_vert = self.stress_vert(depth_within, effective)
         return (2 * k0 * stress_vert + stress_vert) / 3.0
 
@@ -1240,7 +1240,7 @@ class Profile(collections.abc.Container):
         return np.arange(count) * spacing
 
     def pore_pressure(self, depth):
-        """Pore pressure at a given depth in [kN//m²].
+        """Pore pressure at a given depth in [kN/m²].
 
         Parameters
         ----------
@@ -1607,7 +1607,7 @@ def layers_from_depth_power_law(
     depth_top: float = 0.0,
     layer_cls: type[Layer] = Layer,
 ) -> list[Layer]:
-    """Create layers with a shear-wave velocity of ``Vs = a * z ** b``.
+    r"""Create layers with a shear-wave velocity of :math:`V_s = a z^b`.
 
     The velocity is evaluated at the mid-depth of each layer.
 
@@ -1620,8 +1620,8 @@ def layers_from_depth_power_law(
     a : float
         Velocity [m/s] at a depth of 1 m.
     b : float
-        Depth exponent. A shear modulus proportional to ``z ** m`` corresponds
-        to ``b = m / 2``.
+        Depth exponent. A shear modulus proportional to :math:`z^m` corresponds
+        to :math:`b = m / 2`.
     depth_top : float, default=0
         Depth [m] to the top of the first layer. ``z`` is measured from the
         same datum as ``depth_top`` (e.g., the crest of a dam).
@@ -1654,7 +1654,7 @@ def layers_from_stress_power_law(
     stress_ref: float = PA,
     layer_cls: type[Layer] = Layer,
 ) -> list[Layer]:
-    r"""Create layers with ``Vs = a * (sigma_m' / stress_ref) ** b``.
+    r"""Create layers with :math:`V_s = a (\sigma_m' / \sigma_{ref})^b`.
 
     The mean effective stress is computed at the mid-depth of each layer from
     a constant unit weight (``soil_type.unit_wt``), the depth to the water
@@ -1680,7 +1680,7 @@ def layers_from_stress_power_law(
         Velocity [m/s] at a mean effective stress of ``stress_ref``.
     b : float
         Stress exponent. A shear modulus proportional to
-        ``sigma_m' ** m`` corresponds to ``b = m / 2``.
+        :math:`(\sigma_m')^m` corresponds to :math:`b = m / 2`.
     wt_depth : float, default=0
         Depth [m] to the water table, measured from the top of the first layer.
         Negative values place the water table above the first layer.

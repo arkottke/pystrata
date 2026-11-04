@@ -27,8 +27,9 @@ class Dam:
     """Triangular (shear-wedge) dam made of stacked layers.
 
     The layers are ordered from the crest down. Each layer is a homogeneous
-    segment of an infinitely long wedge (plane-strain, Gazetas and Dakoulas,
-    1992); inhomogeneity is represented by layers with increasing velocity.
+    segment of an infinitely long wedge (plane-strain,
+    :cite:p:`gazetas1992seismic`); inhomogeneity is represented by layers with
+    increasing velocity.
 
     Parameters
     ----------
@@ -61,7 +62,7 @@ class Dam:
         m: float = 0.0,
         n_layers: int = 20,
     ) -> Dam:
-        """Dam with a shear modulus proportional to ``z ** m``.
+        r"""Dam with a shear modulus proportional to :math:`z^m`.
 
         Parameters
         ----------
@@ -71,8 +72,10 @@ class Dam:
         shear_vel_avg : float
             Area-weighted average shear-wave velocity [m/s].
         m : float, default=0
-            Inhomogeneity parameter, ``G ~ z ** m`` (``Vs ~ z ** (m / 2)``).
-            ``m = 0`` is a homogeneous dam; Gazetas and Dakoulas consider 0 to 2/3.
+            Inhomogeneity parameter, :math:`G \propto z^m`
+            (:math:`V_s \propto z^{m/2}`).
+            :math:`m = 0` is a homogeneous dam; :cite:t:`gazetas1992seismic`
+            consider 0 to 2/3.
         n_layers : int, default=20
             Number of layers of equal thickness.
         """

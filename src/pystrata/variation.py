@@ -253,15 +253,9 @@ randnorm = LimitedNorm(2)
 
 
 class ToroThicknessVariation:
-    """Toro (1995) [T95]_ thickness variation model.
+    """:cite:t:`Toro1995` thickness variation model.
 
     The recommended values are provided as defaults to this model.
-
-    .. rubric:: References
-
-    .. [T95] Toro, G. R. (1995). Probabilistic models of site velocity
-        profiles for generic and site-specific ground-motion amplification
-        studies. Brookhaven National Laboratory Technical Report: 779574.
 
     Parameters
     ----------
@@ -634,7 +628,7 @@ class VelocityVariation:
 
 
 class ToroVelocityVariation(VelocityVariation):
-    r"""Toro (1995) [T95] velocity variation model.
+    r""":cite:t:`Toro1995` velocity variation model.
 
     Default values can be selected with :meth:`.generic_model`.
 
@@ -643,11 +637,11 @@ class ToroVelocityVariation(VelocityVariation):
     ln_std: float, optional
         :math:`\sigma_{ln}` model parameter.
     rho_0: float, optional
-        :math:`ρ_0` model parameter.
+        :math:`\rho_0` model parameter.
     delta: float, optional
         :math:`\Delta` model parameter.
     rho_200: float, optional
-        :math:`ρ_200` model parameter.
+        :math:`\rho_{200}` model parameter.
     h_0: float, optional
         :math:`h_0` model parameter.
     b: float, optional
@@ -887,7 +881,7 @@ class ToroVelocityVariation(VelocityVariation):
 
 
 class DepthDependToroVelVariation(ToroVelocityVariation):
-    r"""Toro (1995) [T95] velocity variation with a depth dependent deviation.
+    r""":cite:t:`Toro1995` velocity variation with a depth dependent deviation.
 
     The standard deviation can be overridden by the soil_type name.
 
@@ -902,11 +896,11 @@ class DepthDependToroVelVariation(ToroVelocityVariation):
         :math:`\sigma_{ln}` model parameter. Default is [0.25, 0.15]
         following the SPID model.
     rho_0: float, optional
-        :math:`ρ_0` model parameter.
+        :math:`\rho_0` model parameter.
     delta: float, optional
         :math:`\Delta` model parameter.
     rho_200: float, optional
-        :math:`ρ_200` model parameter.
+        :math:`\rho_{200}` model parameter.
     h_0: float, optional
         :math:`h_0` model parameter.
     b: float, optional
@@ -1224,7 +1218,7 @@ class SoilTypeVariation:
 
 
 class DarendeliVariation(SoilTypeVariation):
-    """Darendeli (2001) variation of the modulus reduction and damping curves."""
+    """:cite:t:`Darendeli2001` variation of the modulus reduction and damping curves."""
 
     def _get_varied(self, randvar, mod_reduc, damping):
         mod_reduc_means = mod_reduc
@@ -1241,7 +1235,7 @@ class DarendeliVariation(SoilTypeVariation):
     def calc_std_mod_reduc(mod_reduc):
         """Calculate the standard deviation as a function of G/G_max.
 
-        Equation 7.29 from Darendeli (2001).
+        Equation 7.29 from :cite:t:`Darendeli2001`.
 
         Parameters
         ----------
@@ -1263,7 +1257,7 @@ class DarendeliVariation(SoilTypeVariation):
     def calc_std_damping(damping):
         """Calculate the standard deviation as a function of damping in decimal.
 
-        Equation 7.30 from Darendeli (2001).
+        Equation 7.30 from :cite:t:`Darendeli2001`.
 
         Parameters
         ----------
