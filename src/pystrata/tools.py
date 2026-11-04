@@ -19,6 +19,8 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+"""Utilities to read profiles and to compute the attenuation and stresses of one."""
+
 import collections
 import os
 import re
@@ -207,6 +209,7 @@ def _parse_output_spectra(block):
 
 
 def load_shake_inp(fname):
+    """Read a SHAKE input file and return its contents."""
     with open(fname) as fp:
         lines = fp.readlines()
 
@@ -286,6 +289,7 @@ def read_nrattle_ctl(fpath):
 
 
 def profile_from_nrattle_ctl(ctl):
+    """Create a profile from the control file of nrattle."""
     df = pd.DataFrame(ctl["profile"]).set_index("layer")
     # Here the index is based on layer number which starts at 1 in Fortran
     # convention.

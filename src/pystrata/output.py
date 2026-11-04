@@ -19,6 +19,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+"""Outputs that are collected from site response calculations."""
 
 from __future__ import annotations
 
@@ -56,6 +57,7 @@ def plot_amplification_evolv(
     ax=None,
     **kwds,
 ):
+    """Plot the evolution of the amplification with depth, against frequency."""
     # Default plotting kwds. Combine both set of plot keywords and prefer the provided
     kwds = {
         "cmap": "RdBu" if diverging_cmap else "magma_r",

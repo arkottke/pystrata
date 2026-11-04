@@ -86,10 +86,12 @@ class Dam:
 
     @property
     def thicknesses(self) -> np.ndarray:
+        """Thickness [m] of each layer."""
         return np.array([layer.thickness for layer in self.layers])
 
     @property
     def shear_vels(self) -> np.ndarray:
+        """Initial shear-wave velocity [m/s] of each layer."""
         return np.array([layer.initial_shear_vel for layer in self.layers])
 
     @property
@@ -263,13 +265,16 @@ class DamProfile(Profile):
 
     @property
     def n_dam_layers(self) -> int:
+        """Number of layers of the dam; the site layers follow them."""
         return self._n_dam
 
     @property
     def dam_height(self) -> float:
+        """Height of the dam [m]: the total thickness of the dam layers."""
         return float(sum(layer.thickness for layer in self.layers[: self._n_dam]))
 
     def copy(self) -> DamProfile:
+        """Return a copy of the profile with new layers."""
         n = self.n_dam_layers
         dam = Dam([layer.copy() for layer in self.layers[:n]])
         site = Profile(

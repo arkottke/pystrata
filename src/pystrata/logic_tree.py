@@ -1,3 +1,5 @@
+"""Logic trees: weighted branching for epistemic uncertainty."""
+
 from __future__ import annotations
 
 import gzip
@@ -237,6 +239,17 @@ class Node:
 
     @classmethod
     def from_miller_rice(cls, name, nbranches):
+        """Create a node from the discretization of Miller and Rice (1983).
+
+        The alternatives are the fractions and weights of Table 3 of the paper.
+
+        Parameters
+        ----------
+        name : str
+            Name of the node.
+        nbranches : int
+            Number of branches, from 2 to 10.
+        """
         # Values from Table 3 in Miller and Rice (1983)
         DATA = {
             2: [(0.166667, 0.500000), (0.833333, 0.500000)],
@@ -445,6 +458,13 @@ class LogicTree:
 
     @classmethod
     def from_json(cls, fname: str | Path) -> LogicTree:
+        """Create a logic tree from a JSON file.
+
+        Parameters
+        ----------
+        fname : str or Path
+            Name of the file. It is read as gzip if the name ends with ``.gz``.
+        """
         _open = gzip.open if str(fname).endswith(".gz") else open
 
         with _open(fname) as fp:

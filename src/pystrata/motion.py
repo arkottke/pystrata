@@ -103,10 +103,12 @@ class Motion:
 
     @property
     def freqs(self) -> np.ndarray:
+        """Frequencies [Hz] of the motion."""
         return self._freqs
 
     @property
     def angular_freqs(self) -> np.ndarray:
+        """Angular frequencies [rad/s] of the motion."""
         return 2 * np.pi * self.freqs
 
     @property
@@ -138,6 +140,7 @@ class Motion:
         return self._cav
 
     def calc_peak(self, tf: npt.ArrayLike | None = None, **kwargs) -> float:
+        """Compute the peak of the motion; implemented by the subclasses."""
         raise NotImplementedError
 
 
@@ -190,22 +193,27 @@ class TimeSeriesMotion(Motion):
 
     @property
     def accels(self) -> np.ndarray:
+        """Acceleration time series [g]."""
         return self._accels
 
     @property
     def filename(self) -> str:
+        """Name of the file that the motion was read from."""
         return self._filename
 
     @property
     def description(self) -> str:
+        """Description of the motion."""
         return self._description
 
     @property
     def time_step(self) -> float:
+        """Time step of the time series [s]."""
         return self._time_step
 
     @property
     def times(self) -> np.ndarray:
+        """Times [s] of the time series."""
         return self._time_step * np.arange(self._accels.size)
 
     @property
@@ -226,6 +234,13 @@ class TimeSeriesMotion(Motion):
         return self.time_step * self._fourier_amps
 
     def calc_time_series(self, tf: npt.ArrayLike | None = None) -> np.ndarray:
+        """Compute the acceleration time series [g] with a transfer function applied.
+
+        Parameters
+        ----------
+        tf : array_like, optional
+            Transfer function to apply to the motion. If ``None``, none is applied.
+        """
         if tf is None:
             ts = np.fft.irfft(self.fourier_amps / self.time_step)
         else:
@@ -233,6 +248,13 @@ class TimeSeriesMotion(Motion):
         return ts
 
     def calc_pgv(self, tf: npt.ArrayLike | None = None) -> float:
+        """Compute the peak ground velocity [cm/s].
+
+        Parameters
+        ----------
+        tf : array_like, optional
+            Transfer function to apply to the motion. If ``None``, none is applied.
+        """
         tf = 1 if tf is None else np.asarray(tf)
         # Compute transfer function from acceleration to velocity
         # only over non-zero frequencies
@@ -242,18 +264,46 @@ class TimeSeriesMotion(Motion):
         return GRAVITY * 100 * self.calc_peak(tf_av * tf)
 
     def calc_pga(self, tf: npt.ArrayLike | None = None) -> float:
+        """Compute the peak ground acceleration [g].
+
+        Parameters
+        ----------
+        tf : array_like, optional
+            Transfer function to apply to the motion. If ``None``, none is applied.
+        """
         return self.calc_peak(tf)
 
     def calc_peak(self, tf: npt.ArrayLike | None = None, **kwargs) -> float:
+        """Compute the peak absolute acceleration [g].
+
+        Parameters
+        ----------
+        tf : array_like, optional
+            Transfer function to apply to the motion. If ``None``, none is applied.
+        """
         ts = self.calc_time_series(tf)
         return np.abs(ts).max()
 
     def calc_arias_intensity(self, tf: npt.ArrayLike | None = None) -> float:
+        """Compute the Arias intensity [m/s].
+
+        Parameters
+        ----------
+        tf : array_like, optional
+            Transfer function to apply to the motion. If ``None``, none is applied.
+        """
         tf = 1 if tf is None else np.asarray(tf)
         ts = self.calc_time_series(tf)
         return np.pi * GRAVITY / 2 * np.trapezoid(ts**2, dx=self.time_step)
 
     def calc_cav(self, tf: npt.ArrayLike | None = None) -> float:
+        """Compute the cumulative absolute velocity [m/s].
+
+        Parameters
+        ----------
+        tf : array_like, optional
+            Transfer function to apply to the motion. If ``None``, none is applied.
+        """
         tf = 1 if tf is None else np.asarray(tf)
         ts = self.calc_time_series(tf)
         return GRAVITY * np.trapezoid(np.abs(ts), dx=self.time_step)
