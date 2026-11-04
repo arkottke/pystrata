@@ -3,6 +3,13 @@ Motion Module
 
 The motion module provides classes for representing and manipulating ground motion data used in site response analysis.
 
+A recorded motion is a :class:`~pystrata.motion.TimeSeriesMotion`, which is read
+from a file with :meth:`~pystrata.motion.TimeSeriesMotion.load_at2_file` or
+:meth:`~pystrata.motion.TimeSeriesMotion.load_smc_file`. Random vibration theory
+motions are an :class:`~pystrata.motion.RvtMotion`, from Fourier amplitudes and a
+duration, or a :class:`~pystrata.motion.CompatibleRvtMotion`, from a target
+acceleration-response spectrum. See the :doc:`../user-guide/motions` for examples.
+
 .. currentmodule:: pystrata.motion
 
 Classes
