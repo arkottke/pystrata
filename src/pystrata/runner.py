@@ -253,6 +253,11 @@ def run_ensemble(
     results = copy.deepcopy(outputs)
     if not isinstance(results, OutputCollection):
         results = OutputCollection([results])
+    # Start from empty outputs, whatever state the template was left in: stale
+    # columns or a reserved buffer would otherwise offset the new results
+    for out in results:
+        out._buffer = None
+        out.reset()
 
     # Flatten the axes into one task list, so that the work is spread evenly
     # and no pool is nested inside another

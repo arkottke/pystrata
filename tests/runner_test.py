@@ -243,3 +243,21 @@ def test_worker_error_is_propagated(profile, rvt_motion):
         runner.run_ensemble(
             profile, rvt_motion, Boom(), _outputs(), count=2, seed=1, n_jobs=2
         )
+
+
+@pytest.mark.parametrize("prepare", ["used", "reserved"])
+def test_template_state_does_not_leak_into_results(profile, rvt_motion, calc, prepare):
+    """A template that was used, or reserved, still yields a clean ensemble."""
+    kwds = dict(count=2, seed=5, **_variations())
+    expected = runner.run_ensemble(profile, rvt_motion, calc, _outputs(), **kwds)
+
+    template = _outputs()
+    if prepare == "used":
+        runner.run_realization(profile.copy(), rvt_motion, calc, template)
+    else:
+        template.reserve(2)
+    result = runner.run_ensemble(profile, rvt_motion, calc, template, **kwds)
+
+    assert result[0].values.shape == expected[0].values.shape
+    assert result[0].names == expected[0].names
+    assert_allclose(result[0].values, expected[0].values)
