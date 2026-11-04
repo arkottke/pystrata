@@ -93,3 +93,43 @@ def test_ts_load_smc_file(fname):
         [2.3489e-2, -1.6646e-2, 3.4990e-3],
         rtol=1e-4,
     )
+
+
+@pytest.mark.parametrize(
+    "header,time_step",
+    [
+        ("NPTS=  6000, DT= .0100 SEC", 0.01),
+        ("NPTS=  16396, DT= 0.005 SEC", 0.005),
+        ("NPTS=6000, DT=0.0100 SEC", 0.01),
+        ("   4096   0.0100   NPTS, DT", 0.01),
+    ],
+)
+def test_load_at2_file_header_formats(tmp_path, header, time_step):
+    fpath = tmp_path / "test.AT2"
+    fpath.write_text(
+        "PEER NGA\nEVENT\nACCELERATION TIME SERIES IN UNITS OF G\n"
+        f"{header}\n 0.1 0.2 0.3\n"
+    )
+    ts = motion.TimeSeriesMotion.load_at2_file(fpath)
+    assert_allclose(ts.time_step, time_step)
+    assert_allclose(ts.accels, [0.1, 0.2, 0.3])
+
+
+def test_rvt_from_fas_returns_the_pystrata_class():
+    class Fas:
+        freqs = np.logspace(-1, 2, 50)
+        fourier_amps = 0.01 / (1 + (freqs / 5) ** 2)
+        duration = 10.0
+
+    rvt = motion.RvtMotion.from_fas(Fas())
+    assert type(rvt) is motion.RvtMotion
+    assert isinstance(rvt, motion.Motion)
+
+
+def test_sdof_tf_is_the_pyrvt_one(tsm):
+    import pyrvt
+
+    assert_allclose(
+        tsm._calc_sdof_tf(2.0, 0.03),
+        pyrvt.motions.calc_sdof_tf(tsm.freqs, 2.0, 0.03),
+    )

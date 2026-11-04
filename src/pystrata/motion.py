@@ -302,26 +302,22 @@ class TimeSeriesMotion(Motion):
     def _calc_sdof_tf(self, osc_freq: float, damping: float = 0.05) -> np.ndarray:
         """Compute the transfer function for a single-degree-of-freedom oscillator.
 
-        The transfer function computes the pseudo-spectral acceleration.
+        The transfer function computes the pseudo-spectral acceleration. See
+        :func:`pyrvt.motions.calc_sdof_tf`.
 
         Parameters
         ----------
         osc_freq : float
-            natural frequency of the oscillator [Hz]
-        damping : float, optional
-            damping ratio of the oscillator in decimal. Default value is
-            0.05, or 5%.
+            Natural frequency of the oscillator [Hz].
+        damping : float, default=0.05
+            Damping ratio of the oscillator [decimal].
 
         Returns
         -------
         tf : :class:`numpy.ndarray`
             Complex-valued transfer function with length equal to `self.freq`.
         """
-        return -(osc_freq**2.0) / (
-            np.square(self.freqs)
-            - np.square(osc_freq)
-            - 2.0j * damping * osc_freq * self.freqs
-        )
+        return pyrvt.motions.calc_sdof_tf(self.freqs, osc_freq, damping)
 
     @classmethod
     def load_at2_file(cls, filename: str, scale: float = 1.0) -> TimeSeriesMotion:
@@ -338,8 +334,13 @@ class TimeSeriesMotion(Motion):
             next(fp)
             description = next(fp).strip()
             next(fp)
-            parts = next(fp).split()
-            time_step = float(parts[1])
+            header = next(fp)
+            # NGA-West2: "NPTS= 6000, DT= .0100 SEC"; NGA-West1: "6000 0.0100 NPTS, DT"
+            match = re.search(r"DT\s*=\s*([0-9.eE+-]+)", header, re.IGNORECASE)
+            if match:
+                time_step = float(match.group(1))
+            else:
+                time_step = float(header.replace(",", " ").split()[1])
 
             accels = np.array([float(part) for line in fp for part in line.split()])
 
@@ -407,9 +408,9 @@ class TimeSeriesMotion(Motion):
 class RvtMotion(pyrvt.motions.RvtMotion, Motion):
     """RVT motion based on a user-specified Fourier amplitude spectrum + duration.
 
-    Wraps :class:`pyrvt.motions.RvtMotion` to add pystrata's :class:`Motion`
-    bookkeeping (cached PGA/PGV/Arias/CAV) and pint-based unit conversion.
-    Construct directly with arrays, or use :meth:`from_fas` to build from any
+    Wraps :class:`pyrvt.motions.RvtMotion` to add pint-based unit conversion
+    and the pystrata :class:`Motion` interface. Construct directly with
+    arrays, or use :meth:`from_fas` (inherited from pyrvt) to build from any
     FAS-producing object (e.g. ``pygmm.fourier_spectrum.SourceTheoryModel``).
     """
 
@@ -428,27 +429,6 @@ class RvtMotion(pyrvt.motions.RvtMotion, Motion):
             np.asarray(freqs),
             np.asarray(fourier_amps),
             duration=duration,
-            peak_calculator=peak_calculator,
-            calc_kwds=calc_kwds,
-        )
-
-    @classmethod
-    def from_fas(
-        cls,
-        fas,
-        peak_calculator=None,
-        calc_kwds: dict | None = None,
-    ) -> RvtMotion:
-        """Build from any object exposing ``freqs`` / ``fourier_amps`` / ``duration``.
-
-        Mirrors :meth:`pyrvt.motions.RvtMotion.from_fas` but returns this
-        pystrata wrapper so the :class:`Motion` interface (PGA/PGV caching,
-        Arias, CAV) is available.
-        """
-        return cls(
-            freqs=np.asarray(fas.freqs),
-            fourier_amps=np.asarray(fas.fourier_amps),
-            duration=float(fas.duration),
             peak_calculator=peak_calculator,
             calc_kwds=calc_kwds,
         )
