@@ -423,6 +423,40 @@ class SoilType:
 
 # TODO: for nonlinear site response this class wouldn't be used. Better way
 # to do this? Maybe have the calculator create it?
+def calc_comp_factor(damping: npt.ArrayLike) -> np.ndarray:
+    """Factor that turns a shear modulus into a complex shear modulus.
+
+    The model is selected with the module-level ``COMP_MODULUS_MODEL``.
+
+    Parameters
+    ----------
+    damping : array_like
+        Damping ratio [decimal]; less than 0.5.
+
+    Returns
+    -------
+    :class:`numpy.ndarray`
+        Complex factor, :math:`G^* = G` times this value.
+    """
+    damping = np.asarray(damping)
+    if COMP_MODULUS_MODEL == "seed":
+        # Frequency independent model (Seed et al., 1970)
+        # Correct dissipated energy
+        # Incorrect shear modulus: G * \sqrt{1 + 4 \beta^2 }
+        return 1 + 2j * damping
+    elif COMP_MODULUS_MODEL == "kramer":
+        # Simplifed shear modulus (Kramer, 1996)
+        # Correct dissipated energy
+        # Incorrect shear modulus: G * \sqrt{1 + 2 \beta^2 + \beta^4 }
+        return 1 - damping**2 + 2j * damping
+    elif COMP_MODULUS_MODEL == "dormieux":
+        # Dormieux and Canou (1990)
+        # Correct dissipated energy
+        # Correct shear modulus:
+        return np.sqrt(1 - 4 * damping**2) + 2j * damping
+    raise NotImplementedError(COMP_MODULUS_MODEL)
+
+
 class IterativeValue:
     def __init__(self, value: float | npt.ArrayLike):
         self._value = value
@@ -615,23 +649,7 @@ class Layer:
         # Maximum damping value of less than 0.5
         damping = np.clip(self.damping, 0, 0.49)
 
-        if COMP_MODULUS_MODEL == "seed":
-            # Frequency independent model (Seed et al., 1970)
-            # Correct dissipated energy
-            # Incorrect shear modulus: G * \sqrt{1 + 4 \beta^2 }
-            comp_factor = 1 + 2j * damping
-        elif COMP_MODULUS_MODEL == "kramer":
-            # Simplifed shear modulus (Kramer, 1996)
-            # Correct dissipated energy
-            # Incorrect shear modulus: G * \sqrt{1 + 2 \beta^2 + \beta^4 }
-            comp_factor = 1 - damping**2 + 2j * damping
-        elif COMP_MODULUS_MODEL == "dormieux":
-            # Dormieux and Canou (1990)
-            # Correct dissipated energy
-            # Correct shear modulus:
-            comp_factor = np.sqrt(1 - 4 * damping**2) + 2j * damping
-        else:
-            raise NotImplementedError
+        comp_factor = calc_comp_factor(damping)
         comp_shear_mod = self.shear_mod * comp_factor
         return comp_shear_mod
 

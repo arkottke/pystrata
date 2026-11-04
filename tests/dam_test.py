@@ -377,3 +377,10 @@ def test_resampling_variations_reject_dam_profiles():
     p = _layered_dam_profile()
     with pytest.raises(NotImplementedError, match="dam profiles"):
         variation.ToroThicknessVariation()(p)
+
+
+@pytest.mark.parametrize("model", ["seed", "kramer", "dormieux"])
+def test_analytical_complex_velocity_follows_the_modulus_model(monkeypatch, model):
+    monkeypatch.setattr(site, "COMP_MODULUS_MODEL", model)
+    layer = site.Layer(site.SoilType("S", 20.0, None, 0.05), 10.0, 250.0)
+    assert_allclose(analytical.comp_shear_vel(250.0, 0.05), layer.comp_shear_vel)

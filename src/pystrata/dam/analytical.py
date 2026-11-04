@@ -24,6 +24,8 @@ import numpy.typing as npt
 from scipy.optimize import brentq
 from scipy.special import gamma, jv
 
+from .. import site
+
 
 def wedge_order(m: float) -> float:
     """Order ``q = m / (2 - m)`` of the Bessel function for ``G ~ z ** m``."""
@@ -33,10 +35,11 @@ def wedge_order(m: float) -> float:
 
 
 def comp_shear_vel(shear_vel: npt.ArrayLike, damping: float) -> np.ndarray:
-    """Complex shear-wave velocity with the default pyStrata modulus model."""
-    # Dormieux and Canou (1990), consistent with site.COMP_MODULUS_MODEL
-    comp_mod = np.sqrt(1 - 4 * damping**2) + 2j * damping
-    return np.asarray(shear_vel) * np.sqrt(comp_mod)
+    """Complex shear-wave velocity with the pyStrata complex modulus model.
+
+    Uses ``site.COMP_MODULUS_MODEL``, so it matches the layers of a profile.
+    """
+    return np.asarray(shear_vel) * np.sqrt(site.calc_comp_factor(damping))
 
 
 def wedge_base_vel(shear_vel_avg: float, m: float = 0.0) -> float:
@@ -74,6 +77,16 @@ def wedge_natural_freqs(
         Shear modulus varies as ``z ** m``.
     n : int, default=3
         Number of modes.
+
+    Notes
+    -----
+    For a homogeneous dam (``m = 0``) the first frequency is
+    :math:`f_1 = 2.405 V_{s,base} / (2 \\pi H)`, i.e., about
+    :math:`V_s / (2.61 H)`, with a rigid base. Hale and Abrahamson (2019), as
+    implemented in ``pygmm.slope_displacement``, relate the natural frequency
+    of the dam to the shear-wave velocity by :math:`f = V_s / (3 H)`, which is
+    an empirical relation for a dam on a flexible foundation; the two are not
+    expected to agree.
     """
     q = wedge_order(m)
     c = 1 - m / 2
