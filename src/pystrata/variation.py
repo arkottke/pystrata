@@ -762,7 +762,7 @@ class ToroVelocityVariation(VelocityVariation):
             classication. USGS site classification is based on :math:`V_{s30}`:
 
             =========== =====================
-            Site Class  :math:`V_{s30}` (m/s)
+            Site Class  :math:`V_{s30}` [m/s]
             =========== =====================
             A           >750 m/s
             B           360 to 750 m/s
@@ -873,7 +873,7 @@ class DepthDependToroVelVariation(ToroVelocityVariation):
             classication. USGS site classification is based on :math:`V_{s30}`:
 
             =========== =====================
-            Site Class  :math:`V_{s30}` (m/s)
+            Site Class  :math:`V_{s30}` [m/s]
             =========== =====================
             A           >750 m/s
             B           360 to 750 m/s

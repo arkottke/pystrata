@@ -258,9 +258,9 @@ class TimeSeriesMotion(Motion):
         Parameters
         ----------
         osc_freq : float
-            Frequency of the oscillator (Hz).
+            Frequency of the oscillator [Hz].
         osc_damping : float
-            Fractional damping of the oscillator (dec). For example, 0.05 for a
+            Fractional damping of the oscillator [dec]. For example, 0.05 for a
             damping ratio of 5%.
         tf : array_like, optional
             Transfer function to be applied to motion prior calculation of the
