@@ -43,6 +43,11 @@ logger = logging.getLogger(__name__)
 
 
 class AbstractCalculator:
+    """Base class for site response calculators.
+
+    Calling an instance runs the calculation for a motion and a profile.
+    """
+
     def __init__(self):
         self._loc_input: None | Location = None
         self._motion: None | Motion = None

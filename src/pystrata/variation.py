@@ -441,6 +441,8 @@ class HalfSpaceDepthVariation:
 
 
 class LayerThicknessVariation:
+    """Variation of the layer thicknesses, with a distribution for each layer."""
+
     def __init__(
         self,
         models: list[stats.rv_continuous] | dict[int, stats.rv_continuous],
@@ -1098,6 +1100,8 @@ class SoilTypeVariation:
 
 
 class DarendeliVariation(SoilTypeVariation):
+    """Darendeli (2001) variation of the modulus reduction and damping curves."""
+
     def _get_varied(self, randvar, mod_reduc, damping):
         mod_reduc_means = mod_reduc
         mod_reduc_stds = self.calc_std_mod_reduc(mod_reduc_means)

@@ -37,6 +37,12 @@ logger = logging.getLogger(__name__)
 
 
 class WaveField(enum.Enum):
+    """Wave field at a location in the soil column.
+
+    ``outcrop`` is twice the up-going wave, ``within`` the sum of the up- and
+    down-going waves, and ``up_going`` and ``down_going`` the individual waves.
+    """
+
     outcrop = 0
     within = 1
     up_going = 2
@@ -79,6 +85,13 @@ _WAVE_FIELD_ALIASES = {
 
 
 class Motion:
+    """Base class for input motions defined on a frequency grid.
+
+    Caches the peak ground acceleration and velocity, the Arias intensity and
+    the cumulative absolute velocity, which subclasses compute with the
+    ``calc_*`` methods.
+    """
+
     def __init__(self, freqs: npt.ArrayLike | None = None) -> None:
         object.__init__(self)
 

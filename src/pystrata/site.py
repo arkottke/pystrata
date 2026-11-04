@@ -457,6 +457,8 @@ def calc_comp_factor(damping: npt.ArrayLike) -> np.ndarray:
 
 
 class IterativeValue:
+    """A value that is iterated, which keeps the previous value to compute the error."""
+
     def __init__(self, value: float | npt.ArrayLike):
         self._value = value
         self._previous = 1e-9

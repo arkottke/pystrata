@@ -120,6 +120,8 @@ def plot_amplification_evolv(
 
 
 class OutputCollection(collections.abc.Collection):
+    """Collection of outputs that are populated together after each calculation."""
+
     def __init__(self, outputs: list[Output]) -> None:
         super().__init__()
         self.outputs = outputs
@@ -220,6 +222,12 @@ def stack_columns(columns: list[np.ndarray]) -> np.ndarray:
 
 
 class Output:
+    """Base class for results collected from a calculator.
+
+    Values are stored against a reference variable (for example time, frequency or
+    depth), with one column per realization.
+    """
+
     _const_ref = False
 
     xscale = "log"
@@ -567,6 +575,11 @@ class Output:
 
 
 class OutputLocation:
+    """Location in the profile at which an output is computed.
+
+    The location is a wave field at a depth or at the top of a layer index.
+    """
+
     @convert_units(depth="meter")
     def __init__(
         self,
@@ -596,6 +609,8 @@ class OutputLocation:
 
 
 class LocationBasedOutput(Output):
+    """Base class for outputs computed at a single location."""
+
     def __init__(self, ref: npt.ArrayLike | None, location: OutputLocation) -> None:
         super().__init__(ref)
         self._location = location
@@ -613,6 +628,8 @@ class LocationBasedOutput(Output):
 
 
 class TimeSeriesOutput(LocationBasedOutput):
+    """Base class for outputs that are time series."""
+
     xlabel = "Time (sec)"
     xscale = "linear"
     ylabel = NotImplemented
@@ -652,6 +669,8 @@ class TimeSeriesOutput(LocationBasedOutput):
 
 
 class AccelerationTSOutput(TimeSeriesOutput):
+    """Acceleration time series [g] at a location."""
+
     ylabel = "Acceleration (g)"
 
     def _get_trans_func(self, calc, location) -> np.ndarray:
@@ -659,6 +678,8 @@ class AccelerationTSOutput(TimeSeriesOutput):
 
 
 class AriasIntensityTSOutput(AccelerationTSOutput):
+    """Arias intensity time series [m/s] at a location."""
+
     ylabel = "Arias Intensity (m/s)"
 
     def _modify_values(self, calc, location, values: np.ndarray) -> np.ndarray:
@@ -669,6 +690,8 @@ class AriasIntensityTSOutput(AccelerationTSOutput):
 
 
 class StrainTSOutput(TimeSeriesOutput):
+    """Shear strain time series at a location within the profile."""
+
     def __init__(self, location: OutputLocation, in_percent: bool = False) -> None:
         super().__init__(location)
         self._in_percent = in_percent
@@ -690,6 +713,8 @@ class StrainTSOutput(TimeSeriesOutput):
 
 
 class StressTSOutput(TimeSeriesOutput):
+    """Shear stress time series at a location within the profile."""
+
     def __init__(
         self,
         location: OutputLocation,
@@ -725,6 +750,8 @@ class StressTSOutput(TimeSeriesOutput):
 
 
 class FourierAmplitudeSpectrumOutput(LocationBasedOutput):
+    """Fourier amplitude spectrum [cm/s] of the acceleration at a location."""
+
     _const_ref = True
     xlabel = "Frequency (Hz)"
     ylabel = "Fourier Ampl. (cm/s)"
@@ -772,6 +799,8 @@ class FourierAmplitudeSpectrumOutput(LocationBasedOutput):
 
 
 class ResponseSpectrumOutput(LocationBasedOutput):
+    """Pseudo-spectral acceleration response spectrum at a location."""
+
     _const_ref = True
     xlabel = "Frequency (Hz)"
 
@@ -812,6 +841,8 @@ class ResponseSpectrumOutput(LocationBasedOutput):
 
 
 class RatioBasedOutput(Output):
+    """Base class for outputs that are a ratio between two locations."""
+
     _const_ref = True
 
     def __init__(
@@ -841,6 +872,8 @@ class RatioBasedOutput(Output):
 
 
 class AccelTransferFunctionOutput(RatioBasedOutput):
+    """Acceleration transfer function between two locations."""
+
     xlabel = "Frequency (Hz)"
     ylabel = "Accel. Transfer Func."
 
@@ -885,6 +918,8 @@ class AccelTransferFunctionOutput(RatioBasedOutput):
 
 
 class ResponseSpectrumRatioOutput(RatioBasedOutput):
+    """Ratio of the response spectra at two locations."""
+
     xlabel = "Frequency (Hz)"
 
     ref_name = "freq"
@@ -1201,6 +1236,8 @@ class _LayerMidProfile(ProfileBasedOutput):
 
 
 class MaxStrainProfile(_LayerMidProfile):
+    """Maximum shear strain [decimal] at the middle of each layer."""
+
     xlabel = "Max. Strain (dec)"
 
     def _surface_value(self, values):
@@ -1212,6 +1249,8 @@ class MaxStrainProfile(_LayerMidProfile):
 
 
 class DampingProfile(_LayerTopProfile):
+    """Damping [decimal] of each layer."""
+
     xlabel = "Damping (dec)"
 
     def _layer_values(self, calc):
@@ -1219,6 +1258,8 @@ class DampingProfile(_LayerTopProfile):
 
 
 class ShearModReducProfile(_LayerTopProfile):
+    """Shear modulus reduction, :math:`G / G_{max}`, of each layer."""
+
     xlabel = "G/Gmax"
 
     def _layer_values(self, calc):
@@ -1226,6 +1267,8 @@ class ShearModReducProfile(_LayerTopProfile):
 
 
 class InitialVelProfile(_LayerTopProfile):
+    """Initial shear-wave velocity [m/s] of each layer."""
+
     xlabel = "Initial Velocity (m/s)"
 
     def _layer_values(self, calc):
@@ -1233,6 +1276,8 @@ class InitialVelProfile(_LayerTopProfile):
 
 
 class CompatVelProfile(_LayerTopProfile):
+    """Strain-compatible shear-wave velocity [m/s] of each layer."""
+
     xlabel = "Strain-Compatible Velocity (m/s)"
 
     def _layer_values(self, calc):
@@ -1240,6 +1285,8 @@ class CompatVelProfile(_LayerTopProfile):
 
 
 class CyclicStressRatioProfile(_LayerMidProfile):
+    """Cyclic stress ratio at the middle of each layer."""
+
     xlabel = "Cyclic Stress Ratio"
 
     # From Idriss and Boulanger (2008, pg. 70):
@@ -1259,6 +1306,8 @@ class CyclicStressRatioProfile(_LayerMidProfile):
 
 
 class MaxAccelProfile(_LayerTopProfile):
+    """Maximum acceleration [g] with depth."""
+
     xlabel = "Max. Accel. (g)"
 
     # Acceleration is a continuous field rather than a layer property, so it is
