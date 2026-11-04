@@ -86,6 +86,7 @@ class TruncatedNorm:
 
     @property
     def limit(self):
+        """Limit, in standard deviations, at which the distribution is truncated."""
         return self._limit
 
     @limit.setter
@@ -101,6 +102,10 @@ class TruncatedNorm:
 
     @property
     def scale(self):
+        """Factor applied to the standard deviation.
+
+        It gives the truncated samples a unit standard deviation.
+        """
         return self._scale
 
     def __call__(self, size=1, rng=None):
@@ -132,6 +137,21 @@ class TruncatedNorm:
         )
 
     def correlated(self, correl, rng=None):
+        """Draw a pair of correlated, truncated variates.
+
+        Parameters
+        ----------
+        correl : float
+            Correlation coefficient between the two variates.
+        rng : None, int, or numpy.random.Generator, optional
+            Generator used to draw the variates. Defaults to the module-level
+            generator.
+
+        Returns
+        -------
+        ndarray, shape (2,)
+            The pair of variates, both within the truncation limits.
+        """
         # Acceptance proportion
         accept = np.diff(stats.norm.cdf([-self.limit, self.limit]))[0]
         # The expected number of tries required
@@ -224,14 +244,17 @@ class ToroThicknessVariation:
 
     @property
     def c_3(self):
+        """Parameter ``c_3`` of the thickness model."""
         return self._c_3
 
     @property
     def c_2(self):
+        """Parameter ``c_2`` of the thickness model."""
         return self._c_2
 
     @property
     def c_1(self):
+        """Parameter ``c_1`` of the thickness model."""
         return self._c_1
 
     def iter_thickness(self, depth_total, rng=None):
@@ -554,6 +577,7 @@ class VelocityVariation:
 
     @property
     def vary_bedrock(self):
+        """If the velocity of the bedrock (half-space) is varied."""
         return self._vary_bedrock
 
 
@@ -717,30 +741,37 @@ class ToroVelocityVariation(VelocityVariation):
 
     @property
     def ln_std(self):
+        """Natural log standard deviation of the shear-wave velocity."""
         return self._ln_std
 
     @property
     def rho_0(self):
+        """Parameter ``rho_0`` of the velocity model."""
         return self._rho_0
 
     @property
     def delta(self):
+        """Parameter ``delta`` of the velocity model."""
         return self._delta
 
     @property
     def rho_200(self):
+        """Parameter ``rho_200`` of the velocity model."""
         return self._rho_200
 
     @property
     def h_0(self):
+        """Parameter ``h_0`` of the velocity model."""
         return self._h_0
 
     @property
     def b(self):
+        """Parameter ``b`` of the velocity model."""
         return self._b
 
     @classmethod
     def site_classes(cls):
+        """Names of the site classes that have default parameters."""
         return cls.PARAMS.keys()
 
     @classmethod
@@ -783,6 +814,19 @@ class ToroVelocityVariation(VelocityVariation):
 
     @staticmethod
     def usgs_site_class(vs30):
+        """Name of the USGS site class for a time-average shear-wave velocity.
+
+        Parameters
+        ----------
+        vs30 : float or array_like
+            Time-averaged shear-wave velocity of the upper 30 m [m/s].
+
+        Returns
+        -------
+        str or ndarray
+            ``"USGS A"`` to ``"USGS D"``, with the class limits at 180, 360 and
+            750 m/s.
+        """
         return "USGS " + np.array(list("DCBA"))[np.searchsorted([180, 360, 750], vs30)]
 
 
@@ -1074,18 +1118,22 @@ class SoilTypeVariation:
 
     @property
     def correlation(self):
+        """Correlation coefficient between the modulus reduction and damping."""
         return self._correlation
 
     @property
     def limits_damping(self):
+        """``[min, max]`` clipping bounds for damping."""
         return self._limits_damping
 
     @property
     def limits_mod_reduc(self):
+        """``[min, max]`` clipping bounds for modulus reduction."""
         return self._limits_mod_reduc
 
     @property
     def vary_bedrock(self):
+        """If the half-space is included in the variation."""
         return self._vary_bedrock
 
     @property
@@ -1207,10 +1255,12 @@ class SpidVariation(SoilTypeVariation):
 
     @property
     def std_damping(self):
+        """Standard deviation of the damping."""
         return self._std_damping
 
     @property
     def std_mod_reduc(self):
+        """Standard deviation of the modulus reduction."""
         return self._std_mod_reduc
 
 
@@ -1264,6 +1314,19 @@ class DispersionCheck:
         self.dc_type = dc_type
 
     def __call__(self, profile: site.Profile) -> bool:
+        """Check if a profile is accepted.
+
+        Parameters
+        ----------
+        profile : site.Profile
+            Profile to check.
+
+        Returns
+        -------
+        bool
+            ``True`` if the largest absolute z-score is at most ``max_z_score``.
+            Profiles for which the dispersion curve cannot be computed are rejected.
+        """
         try:
             velocity = profile.calc_dispersion(
                 self.freqs, wave=self.wave, mode=self.mode, dc_type=self.dc_type

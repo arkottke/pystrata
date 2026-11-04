@@ -62,6 +62,19 @@ class AbstractCalculator:
         reset_layers=True,
         **kwds,
     ):
+        """Store the inputs and prepare the layers for a calculation.
+
+        Parameters
+        ----------
+        motion : Motion
+            Input motion.
+        profile : Profile
+            Site profile.
+        loc_input : Location
+            Location at which the motion is defined.
+        reset_layers : bool, default=True
+            If the layers are reset to their initial properties.
+        """
         self._start_time = time.perf_counter()
         self._motion = motion
         self._profile = profile
@@ -89,14 +102,17 @@ class AbstractCalculator:
 
     @property
     def motion(self):
+        """Input motion of the last calculation."""
         return self._motion
 
     @property
     def profile(self):
+        """Profile of the last calculation."""
         return self._profile
 
     @property
     def loc_input(self):
+        """Location of the input motion."""
         return self._loc_input
 
 
@@ -519,6 +535,19 @@ class QuarterWaveLenCalculator(AbstractCalculator):
 
     @staticmethod
     def correction_ba23(x):
+        """Exponent applied to the amplification by the ``"ba23"`` method.
+
+        Parameters
+        ----------
+        x : float or array_like
+            Base 10 logarithm of the frequency over the lowest frequency of the
+            method.
+
+        Returns
+        -------
+        float or ndarray
+            Exponent, which is 0.5 for the ``"standard"`` method.
+        """
         a = 0.560
         b = -1.301
         s = 1.398
@@ -537,18 +566,22 @@ class QuarterWaveLenCalculator(AbstractCalculator):
 
     @property
     def method(self) -> str:
+        """Method of computing the amplification: ``"standard"`` or ``"ba23"``."""
         return self._method
 
     @property
     def crustal_amp(self) -> np.ndarray:
+        """Crustal amplification of the profile."""
         return self._crustal_amp
 
     @property
     def site_term(self) -> np.ndarray:
+        """Site term: the crustal amplification with the site attenuation applied."""
         return self._site_term
 
     @property
     def site_atten(self) -> float | None:
+        """Site attenuation [s]; ``None`` if it is not applied."""
         return self._site_atten
 
     def _calc_amp(
@@ -1164,18 +1197,22 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
 
     @property
     def strain_ratio(self):
+        """Ratio between the effective and maximum strain."""
         return self._strain_ratio
 
     @property
     def tolerance(self):
+        """Tolerance of the iterated properties at which the iterations stop."""
         return self._tolerance
 
     @property
     def max_iterations(self):
+        """Maximum number of iterations."""
         return self._max_iterations
 
     @property
     def strain_limit(self):
+        """Strain [decimal] above which the iterations stop."""
         return self._strain_limit
 
     @classmethod
@@ -1277,10 +1314,12 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
 
     @property
     def name(self):
+        """Name of the calculator, including the strain spectrum method."""
         return f"FDM-{self.method}"
 
     @property
     def method(self):
+        """Method of computing the strain spectrum."""
         return self._method
 
     @property
