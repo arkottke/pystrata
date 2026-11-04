@@ -243,6 +243,7 @@ class ModulusReductionCurve(NonlinearCurve):
 
     @property
     def param(self) -> str:
+        """Name of the property that the curve describes, ``"mod_reduc"``."""
         return "mod_reduc"
 
     @property
@@ -268,6 +269,7 @@ class DampingCurve(NonlinearCurve):
 
     @property
     def param(self) -> str:
+        """Name of the property that the curve describes, ``"damping"``."""
         return "damping"
 
     @property
@@ -313,6 +315,25 @@ class SoilType:
         model: str = "",
         model_damping: str | None = None,
     ) -> SoilType:
+        """Create a soil type from published nonlinear curves.
+
+        Parameters
+        ----------
+        name : str, optional
+            Name of the soil type.
+        unit_wt : float, optional
+            Unit weight [kN/m³].
+        model : str
+            Name of the published modulus reduction curve. The curves are loaded
+            from ``published_curves.toml``.
+        model_damping : str, optional
+            Name of the published damping curve. Defaults to `model`.
+
+        Returns
+        -------
+        SoilType
+            Soil type with the published modulus reduction and damping curves.
+        """
         if not PUBLISHED_CURVES:
             _load_published_curves()
 
@@ -327,6 +348,7 @@ class SoilType:
         )
 
     def copy(self) -> SoilType:
+        """Return a copy of the soil type."""
         return SoilType(self.name, self.unit_wt, self.mod_reduc, self.damping)
 
     @classmethod
@@ -400,6 +422,7 @@ class SoilType:
 
     @property
     def quality(self) -> float:
+        """Quality factor, :math:`Q = 1 / (2 D_{min})`, of the small-strain damping."""
         return 1 / (2 * self.damping_min)
 
     @property
@@ -466,6 +489,7 @@ class IterativeValue:
 
     @property
     def value(self) -> float | np.ndarray:
+        """Current value."""
         return self._value
 
     @value.setter
@@ -475,6 +499,7 @@ class IterativeValue:
 
     @property
     def previous(self):
+        """Value of the previous iteration."""
         return self._previous
 
     @property
@@ -491,6 +516,7 @@ class IterativeValue:
         return err
 
     def reset(self):
+        """Forget the previous value."""
         self._previous = None
 
 
@@ -661,9 +687,11 @@ class Layer:
 
     @property
     def max_error(self) -> float:
+        """Largest relative error of the iterated shear modulus and damping."""
         return max(self._shear_mod.relative_error, self._damping.relative_error)
 
     def reset(self):
+        """Reset the shear modulus, damping and strain to their initial values."""
         self._shear_mod = IterativeValue(self.initial_shear_mod)
         self._damping = IterativeValue(self.damping_min)
         # Use a small initial value
@@ -682,6 +710,7 @@ class Layer:
 
     @property
     def shear_mod_reduc(self):
+        """Shear modulus reduction: strain-compatible over initial shear modulus."""
         return self.shear_mod / self.initial_shear_mod
 
     @property
@@ -701,6 +730,7 @@ class Layer:
 
     @property
     def strain(self):
+        """Shear strain of the layer [decimal]."""
         try:
             value = self._strain.value
         except AttributeError:
@@ -755,10 +785,12 @@ class Layer:
 
     @property
     def soil_type(self):
+        """Soil type of the layer."""
         return self._soil_type
 
     @property
     def thickness(self):
+        """Thickness of the layer [m]."""
         return self._thickness
 
     @thickness.setter
@@ -773,6 +805,7 @@ class Layer:
 
     @property
     def unit_wt(self):
+        """Unit weight of the soil [kN/m³]."""
         return self.soil_type.unit_wt
 
     def stress_vert(self, depth_within=0, effective=False):
@@ -791,6 +824,7 @@ class Layer:
 
     @property
     def incr_site_atten(self):
+        """Site attenuation contributed by the layer [s]."""
         return (2 * self.damping_min * self._thickness) / self.initial_shear_vel
 
 
@@ -809,21 +843,32 @@ class Location:
 
     @property
     def depth_within(self):
+        """Depth within the layer [m]."""
         return self._depth_within
 
     @property
     def layer(self):
+        """Layer that contains the location."""
         return self._layer
 
     @property
     def index(self):
+        """Index of the layer in the profile."""
         return self._index
 
     @property
     def wave_field(self):
+        """Wave field of the location."""
         return self._wave_field
 
     def stress_vert(self, effective=False):
+        """Vertical stress at the location [kN/m²].
+
+        Parameters
+        ----------
+        effective : bool, default=False
+            If the effective, rather than the total, stress is returned.
+        """
         return self._layer.stress_vert(self.depth_within, effective=effective)
 
     def __repr__(self):
@@ -940,6 +985,14 @@ class Profile(collections.abc.Container):
         return cls(layers, wt_depth)
 
     def to_dataframe(self):
+        """Return the profile as a table with a row per layer.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Columns are ``soil_type``, ``unit_wt``, ``damping``, ``thickness``,
+            ``shear_vel`` and ``depth``.
+        """
         records = []
         for layer in self:
             st = layer.soil_type
@@ -983,11 +1036,13 @@ class Profile(collections.abc.Container):
         raise ValueError(f"{layer!r} is not in the profile")
 
     def append(self, layer):
+        """Add a layer to the base of the profile."""
         last = len(self.layers)
         self.layers.append(layer)
         self.update_layers(last)
 
     def insert(self, index, layer):
+        """Insert a layer at an index."""
         self.layers.insert(index, layer)
         self.update_layers(index)
 
@@ -997,6 +1052,13 @@ class Profile(collections.abc.Container):
             layer.reset()
 
     def update_layers(self, start_layer=0):
+        """Update the depth and vertical stress at the top of the layers.
+
+        Parameters
+        ----------
+        start_layer : int, default=0
+            Index of the first layer to update; the layers above it are unchanged.
+        """
         if start_layer < 1:
             depth = 0
             stress_vert = 0
@@ -1016,6 +1078,7 @@ class Profile(collections.abc.Container):
                 stress_vert = layer.stress_vert(layer.thickness, effective=False)
 
     def iter_soil_types(self):
+        """Iterate over the unique soil types of the profile."""
         yielded = set()
         for layer in self:
             if layer.soil_type in yielded:
@@ -1188,6 +1251,7 @@ class Profile(collections.abc.Container):
         return GRAVITY * max(depth - self.wt_depth, 0)
 
     def site_attenuation(self):
+        """Site attenuation [s] of the profile: the sum over the layers."""
         return sum(layer.incr_site_atten for layer in self)
 
     def lookup_depth(self, depth: float) -> tuple[int, float]:
@@ -1397,6 +1461,24 @@ class Profile(collections.abc.Container):
         return velocity * 1e3
 
     def plot(self, prop, ax=None, plot_kwds=None, axis_kwds=None):
+        """Plot a property of the layers against depth.
+
+        Parameters
+        ----------
+        prop : str
+            Name of the property, e.g., ``"shear_vel"`` or ``"damping"``.
+        ax : matplotlib.axes.Axes, optional
+            Axes to plot on. A new figure is created if not provided.
+        plot_kwds : dict, optional
+            Keywords passed to :meth:`matplotlib.axes.Axes.step`.
+        axis_kwds : dict, optional
+            Keywords passed to :meth:`matplotlib.axes.Axes.set`.
+
+        Returns
+        -------
+        matplotlib.axes.Axes
+            Axes with the plot.
+        """
         # Defaults
         xlabels = {
             "damping": "Damping (dec)",
@@ -1429,66 +1511,82 @@ class Profile(collections.abc.Container):
 
     @property
     def damping(self):
+        """Damping [decimal] of each layer."""
         return self._get_values("damping")
 
     @property
     def density(self):
+        """Density [kg/m³] of each layer."""
         return self._get_values("density")
 
     @property
     def depth(self):
+        """Depth [m] to the top of each layer."""
         return self._get_values("depth")
 
     @property
     def depth_mid(self):
+        """Depth [m] to the middle of each layer."""
         return self._get_values("depth_mid")
 
     @property
     def thickness(self):
+        """Thickness [m] of each layer."""
         return self._get_values("thickness")
 
     @property
     def max_error(self):
+        """Largest relative error of the iterated properties of each layer."""
         return self._get_values("max_error")
 
     @property
     def travel_time(self):
+        """Travel time [s] through each layer."""
         return self._get_values("travel_time")
 
     @property
     def slowness(self):
+        """Slowness [s/m] of each layer, from the initial shear-wave velocity."""
         return 1 / self.initial_shear_vel
 
     @property
     def initial_shear_vel(self):
+        """Initial shear-wave velocity [m/s] of each layer."""
         return self._get_values("initial_shear_vel")
 
     @property
     def shear_vel(self):
+        """Strain-compatible shear-wave velocity [m/s] of each layer."""
         return self._get_values("shear_vel")
 
     @property
     def comp_vel(self):
+        """Compression-wave velocity [m/s] of each layer."""
         return self._get_values("comp_vel")
 
     @property
     def poissons_ratio(self):
+        """Poisson's ratio of each layer."""
         return self._get_values("poissons_ratio")
 
     @property
     def strain(self):
+        """Shear strain [decimal] of each layer."""
         return self._get_values("strain")
 
     @property
     def unit_wt(self):
+        """Unit weight [kN/m³] of each layer."""
         return self._get_values("unit_wt")
 
     @property
     def comp_shear_mod(self):
+        """Strain-compatible complex shear modulus [kN/m²] of each layer."""
         return self._get_values("comp_shear_mod")
 
     @property
     def comp_shear_vel(self):
+        """Strain-compatible complex shear-wave velocity [m/s] of each layer."""
         return self._get_values("comp_shear_vel")
 
     def _get_values(self, attr):
