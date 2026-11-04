@@ -381,7 +381,7 @@ def adjust_damping_values(
     among the selected layers by updating their minimum damping values.  The
     approach assumes that Q is proportional to :math:`V_s` (i.e.,
     :math:`Q = \gamma V_s`, in which :math:`\gamma` is a proportionality
-    constant; Silva and Darragh, 1995).
+    constant) :cite:p:`SilvaDarragh1995`.
 
     The profile can be modified in-place or a copy can be returned.
 
