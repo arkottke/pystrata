@@ -7,7 +7,7 @@ Development Setup
 -----------------
 
 **Prerequisites**
-    * Python 3.8 or higher
+    * Python 3.13 or higher
     * Git for version control
     * UV for dependency management
 

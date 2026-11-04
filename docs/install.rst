@@ -3,7 +3,7 @@
 Installation
 ============
 
-PyStrata can be installed using pip, conda, or built from source. Python 3.10 or higher is required.
+PyStrata can be installed using pip, conda, or built from source. Python 3.13 or higher is required.
 
 Quick Install
 -------------
@@ -69,7 +69,7 @@ For the fastest development setup, use UV:
 System Requirements
 -------------------
 
-* **Python**: 3.10 or higher
+* **Python**: 3.13 or higher
 * **Operating System**: Windows, macOS, or Linux
 * **Memory**: 4GB RAM minimum, 8GB recommended for large analyses
 * **Storage**: 1GB free space for installation and examples

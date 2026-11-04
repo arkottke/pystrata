@@ -9,14 +9,14 @@ authors = [{ name = "Albert Kottke", email = "albert.kottke@gmail.com" }]
 description = "Site response analysis with Python."
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 # Lower bounds follow SPEC 0: the oldest minor released within the last
 # 24 months. See the SPEC 0 note below for the review schedule.
 # `tomli` is gone -- `tomllib` is stdlib from Python 3.11.
 dependencies = [
     "matplotlib>=3.10",
     "numba>=0.61",
-    "numpy>=2.1",
+    "numpy>=2.2",
     "pandas>=2.2",
     "pint>=0.25",
     "pykooh>=0.5",
@@ -28,7 +28,7 @@ dependencies = [
     # until then pystrata's CI cannot pass against a PyPI pyrvt.
     "pyrvt>=0.8",
     "scipy>=1.15",
-    "xarray>=2024.9",
+    "xarray>=2024.11",
 ]
 
 # ---------------------------------------------------------------------------
@@ -38,15 +38,15 @@ dependencies = [
 # Python:        support minors released in the last 36 months.
 # Core packages: support minors released in the last 24 months.
 #
-# Reviewed 2026-08-03. Next scheduled changes:
-#   2026-08-18  numpy >=2.2       (2.1 released 2024-08-18)
-#   2026-09-11  xarray >=2024.10  (2024.9 released 2024-09-11)
-#   2026-10-01  drop Python 3.12  -> requires-python >=3.13
+# Reviewed 2026-11-03. Next scheduled changes:
+#   2026-11-22  xarray >=2025.1   (2024.11 released 2024-11-22)
+#   2026-12-08  numpy >=2.3       (2.2 released 2024-12-08)
 #   2026-12-14  matplotlib >=3.11 (3.10 released 2024-12-14)
 #   2027-01-03  scipy >=1.16      (1.15 released 2025-01-03)
 #   2027-01-20  numba >=0.62      (0.61 released 2025-01-20)
 #   2027-05-24  pykooh >=0.6      (0.5 released 2025-05-24)
 #   2027-08-15  pint >=0.26       (0.25 released 2025-08-15)
+#   2027-10-07  drop Python 3.13  -> requires-python >=3.14
 #
 # pyrvt >=0.9 is required by the code today; see the note on the dependency
 # itself. It is an API requirement, not a SPEC 0 schedule item.
@@ -59,7 +59,7 @@ Documentation = "https://pystrata.readthedocs.io"
 [project.optional-dependencies]
 dispersion = ["disba"]
 test = [
-    "numpy>=2.1",
+    "numpy>=2.2",
     "coverage[toml]",
     "nbformat",
     "nbconvert",
@@ -93,7 +93,7 @@ exclude = ["docs"]
 line-length = 88
 indent-width = 4
 
-target-version = "py312"
+target-version = "py313"
 
 extend-include = ["*.ipynb"]
 

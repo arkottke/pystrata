@@ -6,16 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Run all tests
-/home/albert/envs/py312/bin/python -m pytest tests/
+/home/albert/envs/py313/bin/python -m pytest tests/
 
 # Run a single test file
-/home/albert/envs/py312/bin/python -m pytest tests/propagation_test.py
+/home/albert/envs/py313/bin/python -m pytest tests/propagation_test.py
 
 # Run a specific test
-/home/albert/envs/py312/bin/python -m pytest tests/propagation_test.py::test_name
+/home/albert/envs/py313/bin/python -m pytest tests/propagation_test.py::test_name
 
 # Run with coverage
-/home/albert/envs/py312/bin/python -m pytest --cov=pystrata tests/
+/home/albert/envs/py313/bin/python -m pytest --cov=pystrata tests/
 
 # Lint and format
 uv run ruff check src/
@@ -77,7 +77,7 @@ This repo follows [SPEC 0](https://scientific-python.org/specs/spec-0000/):
 - **Python** — support the minors released in the last **36 months**.
 - **Core dependencies** — support the minors released in the last **24 months**.
 
-Floor as of 2026-08-03: **Python 3.12**; CI runs 3.12, 3.13, 3.14.
+Floor as of 2026-11-03: **Python 3.13**; CI runs 3.13, 3.14.
 
 The dated drop schedule lives in `pyproject.toml` next to `[project.urls]`.
 When advancing a floor, update all four in step: `requires-python`, the
