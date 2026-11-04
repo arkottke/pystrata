@@ -139,11 +139,23 @@ class OutputCollection(collections.abc.Collection):
         return self.outputs[key]
 
     def __call__(self, calc, name=None, index: int | None = None) -> None:
+        """Compute every output for a calculation.
+
+        Parameters
+        ----------
+        calc : AbstractCalculator
+            Calculator that has been run.
+        name : str, optional
+            Name of the realization.
+        index : int, optional
+            Column to write, for outputs with pre-allocated storage.
+        """
         # Save results
         for o in self:
             o(calc, name=name, index=index)
 
     def reset(self) -> None:
+        """Clear the results of every output."""
         for o in self:
             o.reset()
 
@@ -281,6 +293,18 @@ class Output:
         self._names = [None] * count
 
     def __call__(self, calc, name=None, index: int | None = None) -> None:
+        """Compute the output for a calculation and store the result.
+
+        Parameters
+        ----------
+        calc : AbstractCalculator
+            Calculator that has been run.
+        name : str, optional
+            Name of the realization. Defaults to ``r{index + 1}``.
+        index : int, optional
+            Column to write, for outputs with pre-allocated storage. Defaults to
+            the next column.
+        """
         if index is None:
             index = (
                 len(self._value_cols) if self._buffer is None else self._next_index()
@@ -302,6 +326,7 @@ class Output:
 
     @property
     def refs(self) -> np.ndarray:
+        """Reference values (time, frequency or depth) of the results."""
         if self._ref_cols:
             if self._refs_cache is None:
                 self._refs_cache = (
@@ -314,6 +339,7 @@ class Output:
 
     @property
     def values(self) -> np.ndarray | None:
+        """Results, with a column per realization; ``None`` before any are stored."""
         if self._buffer is not None:
             return self._buffer
         if not self._value_cols:
@@ -328,9 +354,11 @@ class Output:
 
     @property
     def names(self) -> list:
+        """Names of the realizations."""
         return self._names
 
     def reset(self) -> None:
+        """Clear the stored results."""
         self._names = []
         self._value_cols = []
         self._values_cache = None
@@ -371,6 +399,13 @@ class Output:
         self._refs_cache = None
 
     def iter_results(self):
+        """Iterate over the realizations.
+
+        Yields
+        ------
+        name, refs, values
+            Name, reference values and values of each realization.
+        """
         shared_ref = len(self.refs.shape) == 1
         for i, name in enumerate(self.names):
             refs = self.refs if shared_ref else self.refs[:, i]
@@ -390,6 +425,19 @@ class Output:
             self._buffer[:, self._index] = values
 
     def calc_stats(self, as_dataframe: bool = False):
+        """Compute the statistics of the realizations.
+
+        Parameters
+        ----------
+        as_dataframe : bool, default=False
+            If the statistics are returned as a :class:`pandas.DataFrame`.
+
+        Returns
+        -------
+        dict or pandas.DataFrame
+            The reference values (``ref``), the median (``median``) and the natural
+            log standard deviation (``ln_std``).
+        """
         ln_values = np.log(self.values)
         median = np.exp(np.nanmean(ln_values, axis=1))
         ln_std = np.nanstd(ln_values, axis=1)
@@ -402,6 +450,7 @@ class Output:
         return stats
 
     def to_dataframe(self):
+        """Return the results as a table with a column per realization."""
         if not pd:
             raise RuntimeError("Install `pandas` library.")
 
@@ -526,6 +575,20 @@ class Output:
         return refs, values
 
     def plot(self, ax=None, style: str = "indiv"):
+        """Plot the results.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes, optional
+            Axes to plot on. A new figure is created if not provided.
+        style : {"indiv", "stats"}, default="indiv"
+            Plot the individual realizations or their statistics.
+
+        Returns
+        -------
+        matplotlib.axes.Axes
+            Axes with the plot.
+        """
         assert style in ["stats", "indiv"]
 
         if ax is None:
@@ -593,14 +656,17 @@ class OutputLocation:
 
     @property
     def depth(self) -> float | None:
+        """Depth of the location [m]; ``None`` if it is given by an index."""
         return self._depth
 
     @property
     def index(self) -> int | None:
+        """Index of the layer; ``None`` if the location is given by a depth."""
         return self._index
 
     @property
     def wave_field(self) -> WaveField:
+        """Wave field of the location."""
         return self._wave_field
 
     def __call__(self, profile):
@@ -617,9 +683,11 @@ class LocationBasedOutput(Output):
 
     @property
     def location(self) -> OutputLocation:
+        """Location at which the output is computed."""
         return self._location
 
     def __call__(self, calc, name=None, index: int | None = None):
+        """Compute the output; implemented by the subclasses."""
         raise NotImplementedError
 
     def _get_location(self, calc):
@@ -642,9 +710,11 @@ class TimeSeriesOutput(LocationBasedOutput):
 
     @property
     def times(self) -> np.ndarray:
+        """Times [s] of the time series."""
         return self.refs
 
     def __call__(self, calc, name=None, index: int | None = None) -> None:
+        """Compute the time series; requires a time series motion."""
         if not isinstance(calc.motion, TimeSeriesMotion):
             raise NotImplementedError
         Output.__call__(self, calc, name, index)
@@ -665,6 +735,7 @@ class TimeSeriesOutput(LocationBasedOutput):
         return values
 
     def to_dataframe(self):
+        """Not implemented for time series."""
         raise NotImplementedError
 
 
@@ -708,6 +779,7 @@ class StrainTSOutput(TimeSeriesOutput):
 
     @property
     def ylabel(self):
+        """Label of the strain axis."""
         suffix = "(%)" if self._in_percent else "(dec)"
         return "Shear Strain " + suffix
 
@@ -728,10 +800,12 @@ class StressTSOutput(TimeSeriesOutput):
 
     @property
     def damped(self) -> bool:
+        """If the stress is scaled by the complex shear modulus (includes damping)."""
         return self._damped
 
     @property
     def ylabel(self) -> str:
+        """Label of the stress axis."""
         if self._normalized:
             ylabel = "Stress Ratio (τ/σ`ᵥ)"
         else:
@@ -770,13 +844,16 @@ class FourierAmplitudeSpectrumOutput(LocationBasedOutput):
 
     @property
     def freqs(self) -> np.ndarray:
+        """Frequencies [Hz] of the spectrum."""
         return self._refs
 
     @property
     def ko_bandwidth(self) -> float:
+        """Konno-Ohmachi bandwidth; ``None`` if the spectrum is not smoothed."""
         return self._ko_bandwidth
 
     def __call__(self, calc, name=None, index: int | None = None) -> None:
+        """Compute the Fourier amplitude spectrum at the location."""
         Output.__call__(self, calc, name, index)
         loc = self._get_location(calc)
         tf = calc.calc_accel_tf(calc.loc_input, loc)
@@ -818,21 +895,26 @@ class ResponseSpectrumOutput(LocationBasedOutput):
 
     @property
     def freqs(self) -> np.ndarray:
+        """Oscillator frequencies [Hz] of the spectrum."""
         return self._refs
 
     @property
     def periods(self) -> np.ndarray:
+        """Oscillator periods [s] of the spectrum."""
         return 1.0 / np.asarray(self._refs)
 
     @property
     def osc_damping(self) -> float:
+        """Damping of the oscillators [decimal]."""
         return self._osc_damping
 
     @property
     def ylabel(self) -> str:
+        """Label of the spectral acceleration axis."""
         return f"{100 * self.osc_damping:g}%-Damped, Spec. Accel. (g)"
 
     def __call__(self, calc, name=None, index: int | None = None) -> None:
+        """Compute the response spectrum at the location."""
         Output.__call__(self, calc, name, index)
         loc = self._get_location(calc)
         tf = calc.calc_accel_tf(calc.loc_input, loc)
@@ -857,13 +939,16 @@ class RatioBasedOutput(Output):
 
     @property
     def location_in(self) -> OutputLocation:
+        """Location of the denominator of the ratio."""
         return self._location_in
 
     @property
     def location_out(self) -> OutputLocation:
+        """Location of the numerator of the ratio."""
         return self._location_out
 
     def __call__(self, calc, name=None, index: int | None = None):
+        """Compute the ratio; implemented by the subclasses."""
         raise NotImplementedError
 
     def _get_locations(self, calc):
@@ -896,6 +981,7 @@ class AccelTransferFunctionOutput(RatioBasedOutput):
         self._dtype = float if absolute else complex
 
     def __call__(self, calc, name=None, index: int | None = None) -> None:
+        """Compute the acceleration transfer function between the locations."""
         Output.__call__(self, calc, name, index)
         # Locate position within the profile
         loc_in, loc_out = self._get_locations(calc)
@@ -914,6 +1000,7 @@ class AccelTransferFunctionOutput(RatioBasedOutput):
 
     @property
     def freqs(self) -> np.ndarray:
+        """Frequencies [Hz] of the transfer function."""
         return self._refs
 
 
@@ -937,21 +1024,26 @@ class ResponseSpectrumRatioOutput(RatioBasedOutput):
 
     @property
     def freqs(self) -> np.ndarray:
+        """Oscillator frequencies [Hz] of the ratio."""
         return self._refs
 
     @property
     def periods(self) -> np.ndarray:
+        """Oscillator periods [s] of the ratio."""
         return 1.0 / np.asarray(self._refs)
 
     @property
     def osc_damping(self) -> float:
+        """Damping of the oscillators [decimal]."""
         return self._osc_damping
 
     @property
     def ylabel(self) -> str:
+        """Label of the ratio axis."""
         return f"{100 * self.osc_damping:g}%-Damped, Resp. Spectral Ratio"
 
     def __call__(self, calc, name=None, index: int | None = None) -> None:
+        """Compute the ratio of the response spectra at the locations."""
         Output.__call__(self, calc, name, index)
         loc_in, loc_out = self._get_locations(calc)
         in_ars = calc.motion.calc_osc_accels(
@@ -1034,9 +1126,15 @@ class ProfileBasedOutput(Output):
 
     @property
     def fill_below(self) -> str:
+        """Value reported below the base of a realization's soil column.
+
+        ``'nan'`` excludes those depths from the statistics and ``'hold'``
+        repeats the deepest value.
+        """
         return self._fill_below
 
     def __call__(self, calc, name=None, index: int | None = None) -> None:
+        """Compute the profile, resampled to the reference depths if they are fixed."""
         Output.__call__(self, calc, name, index)
         depths, values = self._calc_profile(calc)
 
@@ -1048,6 +1146,7 @@ class ProfileBasedOutput(Output):
             self._add_values(values)
 
     def reset(self) -> None:
+        """Clear the stored results."""
         super().reset()
         self._warned_extent = False
 
@@ -1116,6 +1215,22 @@ class ProfileBasedOutput(Output):
         return np.linspace(0, np.nanmax(self.refs) * margin, num=self._stats_count)
 
     def calc_stats(self, as_dataframe: bool = False, ref: npt.ArrayLike | None = None):
+        """Compute the statistics of the realizations with depth.
+
+        Parameters
+        ----------
+        as_dataframe : bool, default=False
+            If the statistics are returned as a :class:`pandas.DataFrame`.
+        ref : array_like, optional
+            Depths [m] at which to evaluate the statistics. Defaults to the
+            reference depths of the output.
+
+        Returns
+        -------
+        dict or pandas.DataFrame
+            The depths (``ref``), the median (``median``) and the natural log
+            standard deviation (``ln_std``).
+        """
         if ref is None:
             ref = self._default_ref()
             resampled = self._const_ref
@@ -1166,11 +1281,33 @@ class ProfileBasedOutput(Output):
         return values, refs
 
     def plot(self, ax=None, style: str = "stats"):
+        """Plot the profile with depth increasing downward.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes, optional
+            Axes to plot on. A new figure is created if not provided.
+        style : {"stats", "indiv"}, default="stats"
+            Plot the statistics or the individual realizations.
+
+        Returns
+        -------
+        matplotlib.axes.Axes
+            Axes with the plot.
+        """
         ax = Output.plot(self, ax, style)
         ax.invert_yaxis()
         return ax
 
     def to_dataframe(self, ref: npt.ArrayLike | None = None):
+        """Return the results as a table.
+
+        Parameters
+        ----------
+        ref : array_like, optional
+            Depths [m] at which to evaluate the results. Defaults to the reference
+            depths of the output.
+        """
         if not pd:
             raise RuntimeError("Install `pandas` library.")
 
