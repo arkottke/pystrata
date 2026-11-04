@@ -371,12 +371,13 @@ class SoilType:
         d = DampingCurve(name, curves.strains, curves.damping)
 
         damping_min = getattr(curves, "damping_min", None)
+        curve_damping = float(np.asarray(curves.damping)[0])
         if damping_min is not None and not np.isclose(
-            damping_min, np.asarray(curves.damping)[0], rtol=0.05, atol=1e-4
+            damping_min, curve_damping, rtol=0.05, atol=1e-4
         ):
             warnings.warn(
                 f"The minimum damping of {damping_min:.4g} does not match the "
-                f"small-strain damping of the curve ({np.asarray(curves.damping)[0]:.4g}); "
+                f"small-strain damping of the curve ({curve_damping:.4g}); "
                 "the curve value is used.",
                 stacklevel=2,
             )

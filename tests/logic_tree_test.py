@@ -108,7 +108,7 @@ def test_multiple_alternatives_same_value_different_requires():
             Node(
                 "kappa",
                 [
-                    # These two alternatives have the same value but different requirements
+                    # Same value, but different requirements
                     Alternative(0.05, weight=0.3, requires={"site_class": "D"}),
                     Alternative(0.05, weight=0.7, requires={"site_class": "E"}),
                     # Add another value to make it more interesting

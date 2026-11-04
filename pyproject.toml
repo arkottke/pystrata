@@ -103,7 +103,7 @@ quote-style = "double"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "Q", "I", "UP", "D"]
-ignore = ["E203", "E501", "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107", "D401"]
+ignore = ["E203", "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107", "D401"]
 
 # Docstrings follow the NumPy convention. Missing docstrings (D100-D107) are
 # tracked separately; D401 (imperative mood) is a matter of taste.
