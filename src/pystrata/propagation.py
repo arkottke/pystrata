@@ -625,6 +625,7 @@ class QuarterWaveLenCalculator(AbstractCalculator):
             If the site attenuation is adjusted as well, default: False.
         adjust_source_vel: bool (optional)
             If the source velocity should be adjusted, default: False.
+
         Returns
         -------
         profile: `pyrsa.site.Profile`
@@ -1207,8 +1208,9 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
 
 
 class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
-    """Class for performing equivalent-linear elastic site response with frequency-
-    dependent modulii and damping.
+    """Equivalent-linear site response with frequency-dependent properties.
+
+    The shear modulus and damping vary with frequency.
 
     Parameters
     ----------
@@ -1244,6 +1246,7 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         η ≥ 1.  The strain spectrum shape is evaluated at f/η, extending
         nonlinearity to higher frequencies.  η=1 → identical to the parent
         ``ko:{bw_ko}`` method.
+
     References
     ----------
     .. [1] Kausel, E., & Assimaki, D. (2002). Seismic simulation of inelastic

@@ -151,12 +151,12 @@ class TruncatedNorm:
                 return randvar[valid][0]
 
     def correlated_at_percentile(self, correl, percentile):
-        """Return a deterministic correlated pair for a given percentile.
+        r"""Return a deterministic correlated pair for a given percentile.
 
         The primary variate ``z1`` is the inverse CDF of the *scaled*
         truncated normal at ``percentile``.  The secondary variate ``z2``
         is drawn from the conditional distribution
-        :math:`E[z_2 | z_1] = \\rho z_1`, the conditional median,
+        :math:`E[z_2 | z_1] = \rho z_1`, the conditional median,
         also clipped to ``[-limit, +limit]``.
 
         Both variates are expressed in the same units as the samples
@@ -472,7 +472,6 @@ class VelocityVariation:
         site.Profile
             Varied site profile.
         """
-
         mean = np.log(profile.initial_shear_vel)
         covar = self._calc_covar_matrix(profile)
 
@@ -679,7 +678,6 @@ class ToroVelocityVariation(VelocityVariation):
         corr : :class:`numpy.array`
             Adjacent-layer correlations
         """
-
         # Toro defines the depth as the average midpoint depths of layers i and i-1.
         depths_mid = np.array(profile.depth_mid)
         depth = np.mean(np.c_[depths_mid[:-1], depths_mid[1:]], axis=1)
@@ -787,8 +785,9 @@ class ToroVelocityVariation(VelocityVariation):
 
 
 class DepthDependToroVelVariation(ToroVelocityVariation):
-    r"""Toro (1995) [T95] velocity variation model modified for a depth dependent
-    standard deviation that can be overridden by the soil_type name.
+    r"""Toro (1995) [T95] velocity variation with a depth dependent deviation.
+
+    The standard deviation can be overridden by the soil_type name.
 
     Default values can be selected with :meth:`.generic_model`.
 
@@ -1212,14 +1211,14 @@ class SpidVariation(SoilTypeVariation):
 
 
 class DispersionCheck:
-    """Accept/reject a profile based on its surface-wave dispersion curve.
+    r"""Accept/reject a profile based on its surface-wave dispersion curve.
 
     The check computes a z-score at each frequency assuming a log-normal
     distribution:
 
     .. math::
 
-        z_i = \\frac{\\ln(V_i / V_{\\text{target},i})}{\\sigma_{\\ln,i}}
+        z_i = \frac{\ln(V_i / V_{\text{target},i})}{\sigma_{\ln,i}}
 
     A profile is accepted when ``max(|z|) <= max_z_score``.
 

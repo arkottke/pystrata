@@ -198,7 +198,6 @@ class NonlinearCurve(ABC):
 
     def _update(self):
         """Initialize the interpolation."""
-
         if not self.strains.size:
             self._interpolater = None
             return
@@ -506,7 +505,7 @@ class Layer:
         damping_min: None | float = None,
         poissons_ratio: None | float = None,
     ):
-        """@todo: to be defined!"""
+        """Initialize the layer."""
         self._profile = None
 
         self._soil_type = soil_type
@@ -589,8 +588,9 @@ class Layer:
 
     @property
     def comp_vel(self) -> float | None:
-        """Compression-wave velocity [m/s] derived from shear velocity and Poisson's
-        ratio.
+        """Compression-wave velocity [m/s].
+
+        Derived from the shear velocity and Poisson's ratio.
 
         Returns ``None`` if :attr:`poissons_ratio` is not set.
         """
@@ -606,7 +606,7 @@ class Layer:
 
     @property
     def damping_min(self) -> float:
-        """Minimum damping of the soil [dec]"""
+        """Minimum damping of the soil [dec]."""
         return self._damping_min
 
     @damping_min.setter
@@ -637,7 +637,6 @@ class Layer:
     @initial_shear_vel.setter
     def initial_shear_vel(self, value: float):
         """Set initial (small-strain) shear-wave velocity [m/s]."""
-
         self._initial_shear_vel = value
         # Reset the iterated values
         self.reset()
@@ -645,7 +644,6 @@ class Layer:
     @property
     def comp_shear_mod(self) -> complex:
         """Strain-compatible complex shear modulus [kN/m²]."""
-
         # Maximum damping value of less than 0.5
         damping = np.clip(self.damping, 0, 0.49)
 
@@ -742,7 +740,6 @@ class Layer:
     @property
     def adjusted_damping_curve(self) -> np.recarray:
         """Return the damping curve adjusted by the layer-specific minimum damping."""
-
         if isinstance(self.soil_type.damping, (float, int)):
             # No iteration provided by damping
             strains = np.asarray([np.nan])
@@ -858,13 +855,26 @@ class Profile(collections.abc.Container):
 
     @classmethod
     def from_dataframe(cls, df, wt_depth=0):
-        """Create a profile based on a table with columns:
-        - thickness (m)
-        - vel_shear (m)
-        - unit_wt (kN/m³)
-        - damping (dec)
-        """
+        """Create a profile from a table.
 
+        Parameters
+        ----------
+        df : pandas.DataFrame
+            Table with a row per layer and the columns:
+
+            - ``thickness``: layer thickness [m]
+            - ``vel_shear``: shear-wave velocity [m/s]
+            - ``unit_wt``: unit weight [kN/m³]
+            - ``damping``: damping [decimal]
+            - ``name``: soil type name (optional)
+        wt_depth : float, default=0
+            Depth to the water table [m].
+
+        Returns
+        -------
+        Profile
+            Profile with a linear soil type for each layer.
+        """
         layers = []
         for _, row in df.iterrows():
             layers.append(
@@ -1193,7 +1203,6 @@ class Profile(collections.abc.Container):
         depth_within: float
             Depth from the top of the layer to achieve the specific depth.
         """
-
         # Make sure all of the depths to updated
         self.update_layers()
 
@@ -1542,16 +1551,16 @@ def layers_from_stress_power_law(
     stress_ref: float = PA,
     layer_cls: type[Layer] = Layer,
 ) -> list[Layer]:
-    """Create layers with ``Vs = a * (sigma_m' / stress_ref) ** b``.
+    r"""Create layers with ``Vs = a * (sigma_m' / stress_ref) ** b``.
 
     The mean effective stress is computed at the mid-depth of each layer from
     a constant unit weight (``soil_type.unit_wt``), the depth to the water
     table, and an initial vertical stress at the top of the first layer:
 
     .. math::
-        \\sigma_v = \\sigma_{v,top} + \\gamma z, \\quad
-        u = \\gamma_w \\max(z - z_{wt}, 0), \\quad
-        \\sigma_m' = \\frac{1 + 2 K_0}{3} (\\sigma_v - u)
+        \sigma_v = \sigma_{v,top} + \gamma z, \quad
+        u = \gamma_w \max(z - z_{wt}, 0), \quad
+        \sigma_m' = \frac{1 + 2 K_0}{3} (\sigma_v - u)
 
     Specifying ``stress_vert_top`` allows a profile to be built from several
     calls: the next call uses the vertical stress at the base of the previous

@@ -367,9 +367,10 @@ def adjust_damping_values(
     exclude: None | str | list[str] | Callable = None,
     inplace: bool = False,
 ) -> tuple[site.Profile, float]:
-    """Adjust the minimum damping values of a site profile so that the total site
-    attenuation matches a specified target value. Optionally, certain layers can be
-    excluded from adjustment.
+    """Adjust the minimum damping of a site profile to match a site attenuation.
+
+    The total site attenuation of the adjusted profile matches a specified
+    target value. Optionally, certain layers can be excluded from adjustment.
 
     The function computes the attenuation due to impedance (scattering) effects
     and any excluded layers, then distributes the remaining required attenuation
@@ -410,7 +411,6 @@ def adjust_damping_values(
         If no layers are selected for adjustment or if the target attenuation cannot
         be achieved.
     """
-
     if not inplace:
         profile = profile.copy()
 

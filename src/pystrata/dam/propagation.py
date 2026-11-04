@@ -1,4 +1,4 @@
-"""Wave propagation through a shear-wedge dam coupled to a layered site.
+r"""Wave propagation through a shear-wedge dam coupled to a layered site.
 
 Within the dam (a triangular wedge of unit-thickness shear beams whose width
 is proportional to the distance ``r`` from the crest) a homogeneous layer
@@ -8,7 +8,7 @@ Below it the solution is written as up- and down-going Hankel waves, each
 referenced to the top of its layer :math:`r_t`,
 
 .. math::
-    u(r) = A \\, H^{(1)}_0(k r) e^{-i k r_t} + B \\, H^{(2)}_0(k r) e^{i k r_t},
+    u(r) = A \, H^{(1)}_0(k r) e^{-i k r_t} + B \, H^{(2)}_0(k r) e^{i k r_t},
 
 the wedge analogue of the :math:`A e^{ikz} + B e^{-ikz}` plane waves. These are
 evaluated with the exponentially scaled Hankel functions so that the

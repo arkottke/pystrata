@@ -20,8 +20,9 @@ def aaa21_profile(
     simplify: bool = True,
     simplify_tol: float = 0.02,
 ) -> pd.DataFrame:
-    """Load a generic shear-wave velocity profile from Ahdi, Ancheta & Abrahamson
-    (2021).
+    """Load a generic shear-wave velocity profile.
+
+    The profiles are from Ahdi, Ancheta & Abrahamson (2021).
 
     Parameters
     ----------

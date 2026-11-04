@@ -101,8 +101,16 @@ extend-include = ["*.ipynb"]
 quote-style = "double"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "Q", "I", "UP"]
-ignore = ["E203", "E501"]
+select = ["E", "F", "W", "Q", "I", "UP", "D"]
+ignore = ["E203", "E501", "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107", "D401"]
+
+# Docstrings follow the NumPy convention. Missing docstrings (D100-D107) are
+# tracked separately; D401 (imperative mood) is a matter of taste.
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D"]
 
 # Coverage configuration
 [tool.coverage.run]

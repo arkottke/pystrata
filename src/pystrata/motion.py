@@ -105,7 +105,7 @@ class Motion:
 
     @property
     def pga(self) -> float:
-        """Peak ground acceleration [g]"""
+        """Peak ground acceleration [g]."""
         if self._pga is None:
             self._pga = self.calc_pga()
         return self._pga
@@ -251,8 +251,9 @@ class TimeSeriesMotion(Motion):
         osc_damping: float = 0.05,
         tf: npt.ArrayLike | None = None,
     ) -> np.ndarray:
-        """Compute the pseudo-acceleration spectral response of an oscillator with a
-        specific frequency and damping.
+        """Compute the pseudo-acceleration spectral response of an oscillator.
+
+        The oscillator has a specific frequency and damping.
 
         Parameters
         ----------
@@ -285,7 +286,6 @@ class TimeSeriesMotion(Motion):
 
     def _calc_fourier_spectrum(self, fa_length: int | None = None) -> None:
         """Compute the Fourier Amplitude Spectrum of the time series."""
-
         if fa_length is None:
             # Use the next power of 2 for the length
             n = 1
@@ -435,8 +435,7 @@ class RvtMotion(pyrvt.motions.RvtMotion, Motion):
 
 
 class CompatibleRvtMotion(pyrvt.motions.CompatibleRvtMotion, Motion):
-    """RVT motion based on user specified acceleration response spectrum and
-    duration."""
+    """RVT motion based on a user specified response spectrum and duration."""
 
     @convert_units(osc_accels_target="standard_gravity", duration="second")
     def __init__(

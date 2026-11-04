@@ -1,4 +1,4 @@
-"""Closed-form shear-wedge solutions of Gazetas and Dakoulas (1992), Table 2.
+r"""Closed-form shear-wedge solutions of Gazetas and Dakoulas (1992), Table 2.
 
 The dam is an infinitely long (plane-strain) triangular wedge that deforms as
 a shear beam. With the radial coordinate ``r`` measured from the crest and a
@@ -6,8 +6,8 @@ shear-wave velocity ``Vs = a * r ** (m / 2)`` (shear modulus proportional to
 ``r ** m``) the free-vibration modes are
 
 .. math::
-    u_n(r) = x^{-q} J_q(x), \\quad x = \\frac{\\omega r^{c}}{a c}, \\quad
-    q = \\frac{m}{2 - m}, \\quad c = 1 - \\frac{m}{2}.
+    u_n(r) = x^{-q} J_q(x), \quad x = \frac{\omega r^{c}}{a c}, \quad
+    q = \frac{m}{2 - m}, \quad c = 1 - \frac{m}{2}.
 
 For the homogeneous wedge (``m = 0``) this reduces to ``J0(omega r / Vs)``.
 
@@ -65,7 +65,7 @@ def _bessel_zeros(order: float, count: int) -> np.ndarray:
 def wedge_natural_freqs(
     height: float, shear_vel_avg: float, m: float = 0.0, n: int = 3
 ) -> np.ndarray:
-    """Natural frequencies [Hz] of the first ``n`` modes of the shear wedge.
+    r"""Natural frequencies [Hz] of the first ``n`` modes of the shear wedge.
 
     Parameters
     ----------
@@ -81,7 +81,7 @@ def wedge_natural_freqs(
     Notes
     -----
     For a homogeneous dam (``m = 0``) the first frequency is
-    :math:`f_1 = 2.405 V_{s,base} / (2 \\pi H)`, i.e., about
+    :math:`f_1 = 2.405 V_{s,base} / (2 \pi H)`, i.e., about
     :math:`V_s / (2.61 H)`, with a rigid base. Hale and Abrahamson (2019), as
     implemented in ``pygmm.slope_displacement``, relate the natural frequency
     of the dam to the shear-wave velocity by :math:`f = V_s / (3 H)`, which is
