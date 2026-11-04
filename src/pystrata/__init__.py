@@ -24,6 +24,7 @@ import sys
 from importlib.metadata import version
 
 from . import (
+    dam,
     motion,
     output,
     propagation,
@@ -35,6 +36,7 @@ from . import (
 from .units import ureg
 
 __all__ = [
+    "dam",
     "motion",
     "output",
     "propagation",

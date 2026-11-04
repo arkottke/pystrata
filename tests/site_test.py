@@ -212,3 +212,93 @@ def test_nonlinear_curve_limits_not_too_restrictive(name, soil_type, curve_name)
     assert values.max() <= max_val, (
         f"{name}.{curve_name}: max value {values.max()} above limit {max_val}"
     )
+
+
+def test_depth_power_law_mid_depth():
+    st = site.SoilType("", 20.0, None, 0.02)
+    layers = site.layers_from_depth_power_law(st, [2.0, 4.0], a=100.0, b=0.5)
+    assert_allclose([layer.initial_shear_vel for layer in layers], [100.0, 200.0])
+    assert_allclose([layer.thickness for layer in layers], [2.0, 4.0])
+
+    # Offset datum
+    layers = site.layers_from_depth_power_law(st, [2.0], a=10.0, b=1.0, depth_top=9.0)
+    assert_allclose(layers[0].initial_shear_vel, 100.0)
+
+
+def test_depth_power_law_requires_positive_depth():
+    st = site.SoilType("", 20.0, None, 0.02)
+    with pytest.raises(ValueError):
+        site.layers_from_depth_power_law(st, [2.0], a=100.0, b=0.5, depth_top=-1.0)
+
+
+def test_stress_power_law_values():
+    st = site.SoilType("", 20.0, None, 0.02)
+    layers = site.layers_from_stress_power_law(
+        st, [2.0, 2.0], a=200.0, b=0.25, wt_depth=1.0, k0=0.5
+    )
+    sigma_v = np.array([20.0, 60.0])
+    pore = 9.80665 * np.array([0.0, 2.0])
+    sigma_m = (sigma_v - pore) * 2 / 3
+    expected = 200.0 * (sigma_m / site.PA) ** 0.25
+    assert_allclose([layer.initial_shear_vel for layer in layers], expected, rtol=1e-4)
+
+
+def test_stress_power_law_chaining():
+    """A second segment with an initial stress continues the first."""
+    st = site.SoilType("", 19.0, None, 0.02)
+    one = site.layers_from_stress_power_law(st, [3.0] * 4, 150.0, 0.3, wt_depth=4.0)
+    first = site.layers_from_stress_power_law(st, [3.0] * 2, 150.0, 0.3, wt_depth=4.0)
+    second = site.layers_from_stress_power_law(
+        st, [3.0] * 2, 150.0, 0.3, wt_depth=4.0 - 6.0, stress_vert_top=19.0 * 6.0
+    )
+    assert_allclose(
+        [layer.initial_shear_vel for layer in first + second],
+        [layer.initial_shear_vel for layer in one],
+    )
+
+
+def test_stress_power_law_matches_profile_stress():
+    """Mean effective stress is consistent with Profile / Layer stresses."""
+    st = site.SoilType("", 19.0, None, 0.02)
+    layers = site.layers_from_stress_power_law(st, [2.0] * 5, 150.0, 0.3, wt_depth=3.0)
+    profile = site.Profile(layers + [site.Layer(st, 1.0, 600.0)], wt_depth=3.0)
+    for layer in profile[:-1]:
+        stress = layer.stress_mean(layer.thickness / 2, effective=True)
+        assert_allclose(
+            layer.initial_shear_vel, 150.0 * (stress / site.PA) ** 0.3, rtol=1e-12
+        )
+
+
+def test_stress_power_law_negative_stress():
+    st = site.SoilType("", 19.0, None, 0.02)
+    with pytest.raises(ValueError):
+        # Fully submerged by a water table far above with no overburden
+        site.layers_from_stress_power_law(st, [2.0], 150.0, 0.3, wt_depth=-100.0)
+
+
+def test_layer_copy_preserves_type():
+    class MyLayer(site.Layer):
+        pass
+
+    st = site.SoilType("", 19.0, None, 0.02)
+    assert type(MyLayer(st, 1.0, 100.0).copy()) is MyLayer
+
+
+def test_iterative_value_error_is_two_sided():
+    value = site.IterativeValue(100.0)
+    value.value = 150.0
+    # A rise is as unconverged as a fall
+    assert value.relative_error == pytest.approx(1 / 3)
+    value.value = 100.0
+    assert value.relative_error == pytest.approx(0.5)
+
+
+def test_layer_copy_keeps_initial_shear_vel():
+    layer = site.Layer(site.SoilType("S", 18.0, None, 0.02), 5.0, 200.0)
+    layer._shear_mod.value = 0.5 * layer.initial_shear_mod
+    softened = layer.shear_vel
+    assert softened < 200.0
+
+    copied = layer.copy()
+    assert copied.initial_shear_vel == 200.0
+    assert copied.shear_vel == 200.0

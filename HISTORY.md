@@ -1,6 +1,32 @@
 # History
 
 ## Unreleased — 0.6.0
+- Added: `pystrata.dam` for the seismic response of dams modeled as shear wedges
+  (Gazetas and Dakoulas, 1992). A `Dam` (layered wedge, optionally with
+  `G ~ z**m`) is joined to a site `Profile` as a `DamProfile` and analyzed with
+  `DamLinearElasticCalculator`, `DamEquivalentLinearCalculator`, or
+  `DamFrequencyDependentEqlCalculator`. `Dam.tune()` scales the velocities to a
+  target fixed-base or coupled frequency. Closed-form solutions from Table 2 of
+  the paper are in `pystrata.dam.analytical`. See example 20.
+- Added: `site.layers_from_depth_power_law` (`Vs = a z**b`) and
+  `site.layers_from_stress_power_law` (`Vs = a (sigma_m' / pa)**b`, from a
+  constant unit weight, water-table depth and an initial vertical stress).
+- Changed: `Layer.copy()` and `Profile.auto_discretize()` preserve `Layer` subclasses.
+- Changed: adopted [SPEC 0](https://scientific-python.org/specs/spec-0000/) for
+  version support -- Python minors from the last 36 months, core dependencies
+  from the last 24 months. **Minimum Python is now 3.12** (was 3.10), and
+  dependency lower bounds are declared explicitly: `matplotlib>=3.10`,
+  `numba>=0.61`, `numpy>=2.1`, `pint>=0.25`, `pykooh>=0.5`, `pyrvt>=0.8`,
+  `scipy>=1.15`, `xarray>=2024.9`. CI now runs 3.12, 3.13 and 3.14. The dated
+  drop schedule is in `pyproject.toml`.
+
+  The old `>=3.10` floor was already unmet in practice: numpy, scipy, pandas,
+  matplotlib and pint all require >=3.11, so a 3.10 install silently resolved
+  to a much older stack (pandas 2.3 rather than 3.0, numpy 2.2 rather than
+  2.5). That forced the lockfile to fork on `python_full_version < '3.11'` into 13 duplicated packages.
+- Changed: dropped the `tomli` dependency; `tomllib` has been in the standard
+  library since Python 3.11.
+
 
 **Breaking changes**:
 

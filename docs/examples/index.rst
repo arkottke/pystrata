@@ -88,6 +88,16 @@ All available examples with brief descriptions:
     Define the same profile three ways — plain floats, metric pint Quantities, and Imperial
     units — demonstrating transparent unit handling.
 
+**Dam Response** (`example-20.ipynb <../../examples/example-20.ipynb>`__)
+    Shear-wedge dam of Gazetas and Dakoulas (1992) joined to a layered site: power-law
+    velocity profiles, tuning the dam to a target frequency, and linear and
+    equivalent-linear analyses.
+
+**Dam Response vs. Hale and Abrahamson (2019)** (`example-21.ipynb <../../examples/example-21.ipynb>`__)
+    Compares the transfer function implied by the Hale and Abrahamson flexible
+    sliding-mass model in pygmm with the shear-wedge dam, including nonlinearity for
+    M 6.5 events at 5 and 30 km, and a dam stacked on a site profile.
+
 Tips for Using Examples
 ------------------------
 

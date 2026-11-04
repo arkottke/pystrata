@@ -55,6 +55,8 @@ pyStrata computes seismic site response — specifically, wave propagation throu
 - `_contracts.py` — private dataclasses (`NonlinearSoilCurves`, `VelocityProfile`) mirroring `pygmm.contracts` so pygmm is not a runtime dependency; `SoilType` and `Profile` accept duck-typed inputs matching these contracts.
 - `runner.py` — `run_ensemble()` evaluates realizations × motions × logic-tree branches as one flat task list, serially or across processes; `run_realization()` runs a single one.
 
+- `dam/` — shear-wedge dam response (Gazetas & Dakoulas, 1992). `Dam` is a stack of `WedgeLayer`s (Bessel J0/Y0 propagator); `DamProfile` joins it to a site `Profile`; `Dam*Calculator` classes reuse the LE/EQL/FDM machinery via `_DamWavesMixin`. `dam.analytical` holds the Table 2 closed forms. `site.layers_from_*_power_law` build power-law velocity layers.
+
 ### Time-domain analysis
 
 Time-domain nonlinear wave propagation is **not on this branch**. `TimeDomainCalculator`,
@@ -67,3 +69,18 @@ did. Do not re-add them here.
 - **numba** (required) — JIT-compiles the wave-propagation kernels in `propagation.py`. That module keeps pure-Python twins of its kernels as reference implementations and dispatches via `HAS_NUMBA` (a constant `True`); `tests/propagation_test.py` runs the calculators against both and checks they agree, so the Python versions are not dead code.
 - **disba** (`dispersion` extra) — surface-wave dispersion checks via `variation.DispersionCheck`.
 - **pygmm** — no runtime dependency; interop uses `_contracts.py` duck-typing.
+
+## Version support policy
+
+This repo follows [SPEC 0](https://scientific-python.org/specs/spec-0000/):
+
+- **Python** — support the minors released in the last **36 months**.
+- **Core dependencies** — support the minors released in the last **24 months**.
+
+Floor as of 2026-08-03: **Python 3.12**; CI runs 3.12, 3.13, 3.14.
+
+The dated drop schedule lives in `pyproject.toml` next to `[project.urls]`.
+When advancing a floor, update all four in step: `requires-python`, the
+dependency lower bounds, `[tool.ruff] target-version`, and the CI matrix.
+Then `rm uv.lock && uv lock` — a stale lock is what left this repo pinned to a
+scipy without wheels for the newest Python.

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import collections
 import logging
+import tomllib
 import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -31,7 +32,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-import tomli
 from scipy.interpolate import interp1d
 
 from .motion import WaveField
@@ -50,7 +50,7 @@ def _load_published_curves():
 
     fpath = Path(__file__).parent / "data" / "published_curves.toml"
     with fpath.open("rb") as fp:
-        models = tomli.load(fp)["models"]
+        models = tomllib.load(fp)["models"]
 
     # Count to make sure there aren't repeated names
     counts = collections.Counter([m["name"] for m in models])
@@ -408,7 +408,7 @@ class IterativeValue:
     def relative_error(self) -> float:
         """The relative error, in decimal, between the two iterations."""
         if np.all(self.value > 0):
-            err = np.max((self.previous - self.value) / self.value)
+            err = np.max(np.abs((self.previous - self.value) / self.value))
         elif np.isclose(self.value, self.previous).all():
             # When value is zero and close to previous
             err = 0
@@ -484,10 +484,10 @@ class Layer:
 
     def copy(self) -> Layer:
         """Return a copy of the Layer instance with previously defined SoilType."""
-        return Layer(
+        return type(self)(
             self.soil_type,
             self.thickness,
-            self.shear_vel,
+            self.initial_shear_vel,
             self.damping_min,
             self.poissons_ratio,
         )
@@ -973,16 +973,17 @@ class Profile(collections.abc.Container):
         layers = []
         for layer in self[:-1]:
             if not nonlinear_only or layer.soil_type.is_nonlinear:
-                opt_thickness = layer.shear_vel / max_freq * wave_frac
+                opt_thickness = layer.initial_shear_vel / max_freq * wave_frac
                 count = max(np.ceil(layer.thickness / opt_thickness).astype(int), 1)
                 thickness = layer.thickness / count
                 for _ in range(count):
                     layers.append(
-                        Layer(
+                        type(layer)(
                             layer.soil_type,
                             thickness,
-                            layer.shear_vel,
+                            layer.initial_shear_vel,
                             layer.damping_min,
+                            layer.poissons_ratio,
                         )
                     )
             else:
@@ -1413,3 +1414,124 @@ class Profile(collections.abc.Container):
 
     def _get_values(self, attr):
         return np.array([getattr(layer, attr) for layer in self])
+
+
+#: Reference (atmospheric) stress [kPa] used by the mean-effective-stress power law.
+PA = 101.325
+
+
+def layers_from_depth_power_law(
+    soil_type: SoilType,
+    thicknesses: npt.ArrayLike,
+    a: float,
+    b: float,
+    depth_top: float = 0.0,
+    layer_cls: type[Layer] = Layer,
+) -> list[Layer]:
+    """Create layers with a shear-wave velocity of ``Vs = a * z ** b``.
+
+    The velocity is evaluated at the mid-depth of each layer.
+
+    Parameters
+    ----------
+    soil_type : SoilType
+        Soil type applied to every layer.
+    thicknesses : array_like
+        Thickness of each layer [m].
+    a : float
+        Velocity [m/s] at a depth of 1 m.
+    b : float
+        Depth exponent. A shear modulus proportional to ``z ** m`` corresponds
+        to ``b = m / 2``.
+    depth_top : float, default=0
+        Depth [m] to the top of the first layer. ``z`` is measured from the
+        same datum as ``depth_top`` (e.g., the crest of a dam).
+    layer_cls : type, default=:class:`Layer`
+        Class used to create the layers.
+
+    Returns
+    -------
+    list of :class:`Layer`
+    """
+    thicknesses = np.atleast_1d(np.asarray(thicknesses, dtype=float))
+    depth_mid = depth_top + np.cumsum(thicknesses) - thicknesses / 2
+    if np.any(depth_mid <= 0):
+        raise ValueError("Mid-depth of each layer must be positive.")
+    shear_vels = a * depth_mid**b
+    return [
+        layer_cls(soil_type, float(h), float(vs))
+        for h, vs in zip(thicknesses, shear_vels, strict=True)
+    ]
+
+
+def layers_from_stress_power_law(
+    soil_type: SoilType,
+    thicknesses: npt.ArrayLike,
+    a: float,
+    b: float,
+    wt_depth: float = 0.0,
+    stress_vert_top: float = 0.0,
+    k0: float = 0.5,
+    stress_ref: float = PA,
+    layer_cls: type[Layer] = Layer,
+) -> list[Layer]:
+    """Create layers with ``Vs = a * (sigma_m' / stress_ref) ** b``.
+
+    The mean effective stress is computed at the mid-depth of each layer from
+    a constant unit weight (``soil_type.unit_wt``), the depth to the water
+    table, and an initial vertical stress at the top of the first layer:
+
+    .. math::
+        \\sigma_v = \\sigma_{v,top} + \\gamma z, \\quad
+        u = \\gamma_w \\max(z - z_{wt}, 0), \\quad
+        \\sigma_m' = \\frac{1 + 2 K_0}{3} (\\sigma_v - u)
+
+    Specifying ``stress_vert_top`` allows a profile to be built from several
+    calls: the next call uses the vertical stress at the base of the previous
+    one, ``stress_vert_top + unit_wt * sum(thicknesses)``, together with a
+    ``wt_depth`` relative to its own top.
+
+    Parameters
+    ----------
+    soil_type : SoilType
+        Soil type applied to every layer.
+    thicknesses : array_like
+        Thickness of each layer [m].
+    a : float
+        Velocity [m/s] at a mean effective stress of ``stress_ref``.
+    b : float
+        Stress exponent. A shear modulus proportional to
+        ``sigma_m' ** m`` corresponds to ``b = m / 2``.
+    wt_depth : float, default=0
+        Depth [m] to the water table, measured from the top of the first layer.
+        Negative values place the water table above the first layer.
+    stress_vert_top : float, default=0
+        Total vertical stress [kN/m²] at the top of the first layer.
+    k0 : float, default=0.5
+        Coefficient of lateral earth pressure at rest.
+    stress_ref : float, default=101.325
+        Reference stress [kN/m²].
+    layer_cls : type, default=:class:`Layer`
+        Class used to create the layers.
+
+    Returns
+    -------
+    list of :class:`Layer`
+
+    Raises
+    ------
+    ValueError
+        If the mean effective stress is not positive at a layer mid-depth.
+    """
+    thicknesses = np.atleast_1d(np.asarray(thicknesses, dtype=float))
+    depth_mid = np.cumsum(thicknesses) - thicknesses / 2
+    stress_vert = stress_vert_top + soil_type.unit_wt * depth_mid
+    pore_pressure = GRAVITY * np.maximum(depth_mid - wt_depth, 0)
+    stress_mean = (1 + 2 * k0) / 3 * (stress_vert - pore_pressure)
+    if np.any(stress_mean <= 0):
+        raise ValueError("Mean effective stress must be positive in every layer.")
+    shear_vels = a * (stress_mean / stress_ref) ** b
+    return [
+        layer_cls(soil_type, float(h), float(vs))
+        for h, vs in zip(thicknesses, shear_vels, strict=True)
+    ]
