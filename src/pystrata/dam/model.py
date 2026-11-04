@@ -10,7 +10,6 @@ import numpy.typing as npt
 from scipy.optimize import brentq
 
 from ..site import Layer, Profile, SoilType, layers_from_depth_power_law
-from . import analytical
 
 logger = logging.getLogger(__name__)
 
@@ -31,17 +30,43 @@ class Dam:
     :cite:p:`gazetas1992seismic`); inhomogeneity is represented by layers with
     increasing velocity.
 
+    The cross-section is a trapezoid with a symmetric slope and an optional
+    crest width. The width at a depth :math:`y` below the crest is
+    :math:`b + 2 s y`, which is the width :math:`2 s r` of the wedge at a
+    distance :math:`r` from its apex, :math:`r = y + r_0`, with the crest at
+    :math:`r_0 = b / (2 s)`. A crest width truncates the wedge, and the crest is
+    a free surface. Without a slope the crest is the apex of the wedge.
+
     Parameters
     ----------
     layers : list of :class:`Layer`
         Layers from the crest to the base. Plain layers are converted to
         :class:`WedgeLayer`.
+    slope : float, optional
+        Horizontal run per unit height of each of the two slopes, e.g., 2.5 for
+        2.5H:1V. Required to draw the section, to define a failure surface and
+        for a crest width.
+    crest_width : float, default=0
+        Width of the crest [m]. It requires `slope`.
     """
 
-    def __init__(self, layers: list[Layer]):
+    def __init__(
+        self,
+        layers: list[Layer],
+        slope: float | None = None,
+        crest_width: float = 0.0,
+    ):
         if not layers:
             raise ValueError("A dam requires at least one layer.")
+        if slope is not None and not slope > 0:
+            raise ValueError("The slope must be positive, e.g., 2.5 for 2.5H:1V.")
+        if crest_width < 0:
+            raise ValueError("The crest width cannot be negative.")
+        if crest_width > 0 and slope is None:
+            raise ValueError("A crest width requires a slope.")
         self.layers = [self._as_wedge(layer) for layer in layers]
+        self._slope = slope
+        self._crest_width = float(crest_width)
 
     @staticmethod
     def _as_wedge(layer: Layer) -> WedgeLayer:
@@ -61,6 +86,8 @@ class Dam:
         shear_vel_avg: float,
         m: float = 0.0,
         n_layers: int = 20,
+        slope: float | None = None,
+        crest_width: float = 0.0,
     ) -> Dam:
         r"""Dam with a shear modulus proportional to :math:`z^m`.
 
@@ -78,14 +105,66 @@ class Dam:
             consider 0 to 2/3.
         n_layers : int, default=20
             Number of layers of equal thickness.
+        slope : float, optional
+            Horizontal run per unit height of the slopes, see :class:`Dam`.
+        crest_width : float, default=0
+            Width of the crest [m], see :class:`Dam`.
         """
-        vel_base = analytical.wedge_base_vel(shear_vel_avg, m)
-        a = vel_base / height ** (m / 2)
+        # The velocity is a r^{m/2} at a distance r from the apex of the wedge,
+        # and `shear_vel_avg` averages over the area of the cross-section
+        crest_offset = crest_width / (2 * slope) if slope else 0.0
+        r_base = crest_offset + height
+        power = m / 2 + 2
+        a = (
+            shear_vel_avg
+            * power
+            * (r_base**2 - crest_offset**2)
+            / (2 * (r_base**power - crest_offset**power))
+        )
         thicknesses = np.full(n_layers, height / n_layers)
         layers = layers_from_depth_power_law(
-            soil_type, thicknesses, a, m / 2, layer_cls=WedgeLayer
+            soil_type,
+            thicknesses,
+            a,
+            m / 2,
+            depth_top=crest_offset,
+            layer_cls=WedgeLayer,
         )
-        return cls(layers)
+        return cls(layers, slope=slope, crest_width=crest_width)
+
+    @property
+    def slope(self) -> float | None:
+        """Horizontal run per unit height of each slope; ``None`` if not given."""
+        return self._slope
+
+    @property
+    def crest_width(self) -> float:
+        """Width of the crest [m]."""
+        return self._crest_width
+
+    @property
+    def crest_offset(self) -> float:
+        """Distance [m] from the apex of the wedge to the crest, ``b / (2 s)``."""
+        return self._crest_width / (2 * self._slope) if self._slope else 0.0
+
+    def _require_slope(self) -> float:
+        if self._slope is None:
+            raise ValueError("The dam geometry requires a slope.")
+        return self._slope
+
+    def width(self, depth: npt.ArrayLike) -> np.ndarray:
+        """Width [m] of the cross-section at a depth [m] below the crest."""
+        return self._crest_width + 2 * self._require_slope() * np.asarray(depth)
+
+    @property
+    def base_width(self) -> float:
+        """Width [m] of the base of the dam."""
+        return float(self.width(self.height))
+
+    @property
+    def area(self) -> float:
+        """Area [m²] of the cross-section."""
+        return float(0.5 * (self._crest_width + self.base_width) * self.height)
 
     @property
     def thicknesses(self) -> np.ndarray:
@@ -105,9 +184,11 @@ class Dam:
     @property
     def shear_vel_avg(self) -> float:
         """Area-weighted average shear-wave velocity [m/s]."""
-        depth_base = self.thicknesses.cumsum()
-        depth_top = depth_base - self.thicknesses
-        weights = (depth_base**2 - depth_top**2) / depth_base[-1] ** 2
+        # Areas are proportional to the difference of the squared distances from
+        # the apex of the wedge
+        r_base = self.thicknesses.cumsum() + self.crest_offset
+        r_top = r_base - self.thicknesses
+        weights = (r_base**2 - r_top**2) / (r_base[-1] ** 2 - r_top[0] ** 2)
         return float(np.sum(weights * self.shear_vels))
 
     def scaled(self, factor: float) -> Dam:
@@ -122,7 +203,9 @@ class Dam:
                     layer.poissons_ratio,
                 )
                 for layer in self.layers
-            ]
+            ],
+            slope=self._slope,
+            crest_width=self._crest_width,
         )
 
     def fixed_base_freqs(self, n: int = 1) -> np.ndarray:
@@ -131,10 +214,12 @@ class Dam:
         Computed for the undamped layered dam from the roots of the displacement at the
         base.
         """
-        from .propagation import _calc_wedge_waves, _wedge_state
+        from .propagation import _calc_wedge_waves, _top_of_layer, _wedge_state
 
         thick = self.thicknesses
-        depths_base = thick.cumsum()
+        crest_offset = self.crest_offset
+        # Distances from the apex of the wedge
+        depths_base = thick.cumsum() + crest_offset
         vels = self.shear_vels
         mods = np.array([layer.initial_shear_mod for layer in self.layers])
         height = depths_base[-1]
@@ -142,14 +227,17 @@ class Dam:
         def base_disp(freqs):
             wn = 2 * np.pi * np.asarray(freqs)[None, :] / vels[:, None]
             coeff_a, coeff_b = _calc_wedge_waves(
-                wn + 0j, np.repeat(mods[:, None], wn.shape[1], 1) + 0j, depths_base
+                wn + 0j,
+                np.repeat(mods[:, None], wn.shape[1], 1) + 0j,
+                depths_base,
+                crest_offset,
             )
             disp, _ = _wedge_state(
                 wn[-1] + 0j,
                 coeff_a[-1],
                 coeff_b[-1],
                 height,
-                depths_base[-2] if len(depths_base) > 1 else None,
+                _top_of_layer(depths_base, len(depths_base) - 1, crest_offset),
             )
             return disp.real
 
@@ -246,6 +334,8 @@ class DamProfile(Profile):
     def __init__(self, dam: Dam, site: Profile, wt_depth: float | None = None):
         self._n_dam = len(dam.layers)
         self._site_wt_depth = site.wt_depth
+        self._slope = dam.slope
+        self._crest_width = dam.crest_width
         if wt_depth is None:
             wt_depth = dam.height + site.wt_depth
         layers = [layer.copy() for layer in dam.layers] + [
@@ -256,7 +346,11 @@ class DamProfile(Profile):
     @property
     def dam(self) -> Dam:
         """The dam layers as they are now, e.g. after the velocities are varied."""
-        return Dam(self.layers[: self._n_dam])
+        return Dam(
+            self.layers[: self._n_dam],
+            slope=self._slope,
+            crest_width=self._crest_width,
+        )
 
     @property
     def site(self) -> Profile:
@@ -272,6 +366,11 @@ class DamProfile(Profile):
         return self._n_dam
 
     @property
+    def crest_offset(self) -> float:
+        """Distance [m] from the apex of the wedge to the crest."""
+        return self._crest_width / (2 * self._slope) if self._slope else 0.0
+
+    @property
     def dam_height(self) -> float:
         """Height of the dam [m]: the total thickness of the dam layers."""
         return float(sum(layer.thickness for layer in self.layers[: self._n_dam]))
@@ -279,7 +378,11 @@ class DamProfile(Profile):
     def copy(self) -> DamProfile:
         """Return a copy of the profile with new layers."""
         n = self.n_dam_layers
-        dam = Dam([layer.copy() for layer in self.layers[:n]])
+        dam = Dam(
+            [layer.copy() for layer in self.layers[:n]],
+            slope=self._slope,
+            crest_width=self._crest_width,
+        )
         site = Profile(
             [layer.copy() for layer in self.layers[n:]],
             wt_depth=self._site_wt_depth,

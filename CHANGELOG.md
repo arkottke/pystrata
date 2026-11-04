@@ -2,6 +2,16 @@
 
 ## 0.6.0 (unreleased)
 
+- Added: `Dam` takes a `slope` (horizontal run per unit height of each slope) and
+  a `crest_width`. A crest width truncates the shear wedge, with a free surface
+  at the crest, so the dynamics are for the trapezoidal section; without a slope
+  the crest is the apex of the wedge, as before. `Dam.width`, `area`, `base_width`
+  and `crest_offset` describe the section, and `Dam.from_inhomogeneity` takes the
+  geometry (its `shear_vel_avg` is the average over the area of the section).
+  For a 10 m crest on a 100 m dam the first-mode frequency is 1.7% lower than
+  for the pure wedge, and 6.5% lower for a 40 m crest.
+  `dam.analytical.wedge_truncated_*` give the closed forms of a truncated,
+  homogeneous dam, which the numerical solution matches to 1e-8 up to 80 Hz.
 - Changed: the velocity and soil type variations take a `limit_mode`, which
   selects how the random variates are limited to 2 standard deviations:
   `"normal"` (no limit), `"clipped"` (clipped, with the standard deviation of

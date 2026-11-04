@@ -60,3 +60,16 @@ Table 2 of Gazetas and Dakoulas (1992), for a homogeneous or power-law dam.
 .. autofunction:: pystrata.dam.analytical.wedge_rigid_base_tf
 
 .. autofunction:: pystrata.dam.analytical.wedge_elastic_base_tf
+
+Truncated Wedge
+~~~~~~~~~~~~~~~
+
+A dam with a crest width is a wedge that is cut off below its apex, and the crest
+is a free surface. These are the solutions for a homogeneous dam, which tend to
+the ones above as the crest width goes to zero.
+
+.. autofunction:: pystrata.dam.analytical.wedge_truncated_natural_freqs
+
+.. autofunction:: pystrata.dam.analytical.wedge_truncated_rigid_base_tf
+
+.. autofunction:: pystrata.dam.analytical.wedge_truncated_elastic_base_tf

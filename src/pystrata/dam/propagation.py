@@ -73,7 +73,17 @@ def _wedge_state(wave_nums, coeff_a, coeff_b, r, r_top=None):
     return disp, strain
 
 
-def _calc_wedge_waves(wave_nums, shear_mods, depths_base):
+def _top_of_layer(depths_base, i, crest_offset):
+    """Distance from the apex to the top of wedge layer ``i``.
+
+    It is ``None`` for the layer at the apex of a wedge that is not truncated.
+    """
+    if i > 0:
+        return depths_base[i - 1]
+    return crest_offset if crest_offset > 0 else None
+
+
+def _calc_wedge_waves(wave_nums, shear_mods, depths_base, crest_offset=0.0):
     """Amplitudes ``(A, B)`` of each wedge layer, see :func:`_wedge_state`.
 
     Parameters
@@ -81,13 +91,21 @@ def _calc_wedge_waves(wave_nums, shear_mods, depths_base):
     wave_nums, shear_mods : np.ndarray, shape (n_dam, n_freqs)
         Complex wave numbers and shear moduli of the wedge layers.
     depths_base : np.ndarray, shape (n_dam,)
-        Distance from the crest to the base of each layer.
+        Distance from the apex of the wedge to the base of each layer.
+    crest_offset : float, default=0
+        Distance from the apex to the crest. If it is positive the wedge is
+        truncated, and the crest is a free surface.
     """
     coeff_a = np.ones_like(wave_nums, dtype=complex)
     coeff_b = np.zeros_like(wave_nums, dtype=complex)
+    if crest_offset > 0:
+        # No shear stress at the crest, du/dr = 0, so the up-going wave is
+        # reflected into a down-going one
+        x_crest = wave_nums[0] * crest_offset
+        coeff_b[0] = -hankel1e(1, x_crest) / hankel2e(1, x_crest)
     for i in range(len(wave_nums) - 1):
         r = depths_base[i]
-        r_top = depths_base[i - 1] if i > 0 else None
+        r_top = _top_of_layer(depths_base, i, crest_offset)
         disp, strain = _wedge_state(wave_nums[i], coeff_a[i], coeff_b[i], r, r_top)
         # Continuity of shear stress -> strain term in the next layer
         strain_next = (
@@ -177,8 +195,15 @@ class _DamWavesMixin:
             comp_mods[i, :] = layer.comp_shear_mod
         wave_nums = freqs_safe / comp_vels
 
-        depths_base = np.array([layer.depth_base for layer in profile[:n_dam]])
-        cj, cy = _calc_wedge_waves(wave_nums[:n_dam], comp_mods[:n_dam], depths_base)
+        # Distances in the solution are from the apex of the wedge, which is above
+        # the crest if the dam has a crest width
+        crest_offset = getattr(profile, "crest_offset", 0.0)
+        depths_base = (
+            np.array([layer.depth_base for layer in profile[:n_dam]]) + crest_offset
+        )
+        cj, cy = _calc_wedge_waves(
+            wave_nums[:n_dam], comp_mods[:n_dam], depths_base, crest_offset
+        )
 
         # Couple the base of the dam to the top of the site
         disp, strain = _wedge_state(
@@ -186,7 +211,7 @@ class _DamWavesMixin:
             cj[-1],
             cy[-1],
             depths_base[-1],
-            depths_base[-2] if n_dam > 1 else None,
+            _top_of_layer(depths_base, n_dam - 1, crest_offset),
         )
         imped = (comp_mods[n_dam - 1] * wave_nums[n_dam - 1]) / (
             comp_mods[n_dam] * wave_nums[n_dam]
@@ -211,15 +236,21 @@ class _DamWavesMixin:
 
         self._waves_a, self._waves_b, self._wave_nums = waves_a, waves_b, wave_nums
         self._zero_freq = zero
+        self._crest_offset = crest_offset
 
     def _wedge_wave(self, loc):
         """Displacement and strain of the wedge solution at a location."""
-        r = loc.layer.depth + loc.depth_within
+        # The location is at a depth below the crest; the solution is in the
+        # distance from the apex
+        r = loc.layer.depth + loc.depth_within + self._crest_offset
         with np.errstate(over="ignore", invalid="ignore", divide="ignore"):
             return self._wedge_wave_at(loc, r)
 
     def _wedge_wave_at(self, loc, r):
-        r_top = loc.layer.depth if loc.index > 0 else None
+        if loc.index > 0:
+            r_top = loc.layer.depth + self._crest_offset
+        else:
+            r_top = self._crest_offset if self._crest_offset > 0 else None
         disp, strain = _wedge_state(
             self._wave_nums[loc.index],
             self._waves_a[loc.index],

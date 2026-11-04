@@ -9,6 +9,9 @@ from .analytical import (
     wedge_natural_freqs,
     wedge_order,
     wedge_rigid_base_tf,
+    wedge_truncated_elastic_base_tf,
+    wedge_truncated_natural_freqs,
+    wedge_truncated_rigid_base_tf,
 )
 from .model import Dam, DamProfile, WedgeLayer
 from .propagation import (
@@ -29,4 +32,7 @@ __all__ = [
     "wedge_natural_freqs",
     "wedge_order",
     "wedge_rigid_base_tf",
+    "wedge_truncated_elastic_base_tf",
+    "wedge_truncated_natural_freqs",
+    "wedge_truncated_rigid_base_tf",
 ]

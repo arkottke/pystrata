@@ -384,3 +384,142 @@ def test_analytical_complex_velocity_follows_the_modulus_model(monkeypatch, mode
     monkeypatch.setattr(site, "COMP_MODULUS_MODEL", model)
     layer = site.Layer(site.SoilType("S", 20.0, None, 0.05), 10.0, 250.0)
     assert_allclose(analytical.comp_shear_vel(250.0, 0.05), layer.comp_shear_vel)
+
+
+# Truncated wedge: a dam with a crest width
+
+
+def truncated_dam(n_layers=1, height=100.0, vel=300.0, slope=2.5, crest_width=10.0):
+    layers = [site.Layer(SOIL, height / n_layers, vel) for _ in range(n_layers)]
+    return dam.Dam(layers, slope=slope, crest_width=crest_width)
+
+
+WIDE_FREQS = np.linspace(0.1, 80, 300)
+
+
+def test_geometry_of_the_section():
+    d = truncated_dam()
+    assert d.slope == 2.5 and d.crest_width == 10.0
+    assert d.crest_offset == pytest.approx(2.0)
+    assert d.width(0.0) == pytest.approx(10.0)
+    assert d.width(100.0) == pytest.approx(10.0 + 2 * 2.5 * 100.0)
+    assert d.base_width == pytest.approx(510.0)
+    assert d.area == pytest.approx(0.5 * (10.0 + 510.0) * 100.0)
+
+
+def test_pure_wedge_has_no_geometry_to_draw():
+    d = dam.Dam([site.Layer(SOIL, 100.0, 300.0)])
+    assert d.slope is None and d.crest_offset == 0.0
+    with pytest.raises(ValueError, match="requires a slope"):
+        d.width(10.0)
+
+
+@pytest.mark.parametrize(
+    "kwds,match",
+    [
+        (dict(slope=0.0), "slope must be positive"),
+        (dict(slope=-1.0), "slope must be positive"),
+        (dict(slope=2.5, crest_width=-1.0), "cannot be negative"),
+        (dict(crest_width=5.0), "requires a slope"),
+    ],
+)
+def test_invalid_geometry(kwds, match):
+    with pytest.raises(ValueError, match=match):
+        dam.Dam([site.Layer(SOIL, 100.0, 300.0)], **kwds)
+
+
+def test_geometry_is_carried():
+    d = truncated_dam(n_layers=4)
+    for other in (d.scaled(1.1), dam.DamProfile(d, rock_site()).dam):
+        assert other.slope == 2.5 and other.crest_width == 10.0
+    profile = dam.DamProfile(d, rock_site())
+    assert profile.crest_offset == pytest.approx(2.0)
+    assert profile.copy().crest_offset == pytest.approx(2.0)
+    assert profile.copy().dam.slope == 2.5
+
+
+def test_truncated_elastic_base_matches_closed_form():
+    """Numerics against the closed form of a damped dam up to 80 Hz.
+
+    This also guards the precision of the solution at high frequency.
+    """
+    d = truncated_dam()
+    profile = dam.DamProfile(d, rock_site())
+    imped = 20.0 * 300.0 / (25.0 * 1500.0)
+    expected = analytical.wedge_truncated_elastic_base_tf(
+        WIDE_FREQS, 100.0, 300.0, 0.02, imped, d.crest_offset
+    )
+    assert np.all(np.abs(expected) > 0)
+    assert_allclose(profile.transfer_function(WIDE_FREQS), expected, rtol=1e-8)
+
+
+def test_truncated_rigid_base_matches_closed_form():
+    soil = site.SoilType("", 20.0, None, 0.0)
+    d = dam.Dam([site.Layer(soil, 100.0, 300.0)], slope=2.5, crest_width=10.0)
+    profile = dam.DamProfile(d, rock_site(3e8))
+    f = np.array([0.5, 1.0, 2.0, 3.0])
+    expected = analytical.wedge_truncated_rigid_base_tf(f, 100.0, 300.0, d.crest_offset)
+    assert_allclose(profile.transfer_function(f), expected, rtol=1e-4)
+
+
+def test_truncated_natural_frequencies_match_closed_form():
+    soil = site.SoilType("", 20.0, None, 0.0)
+    d = dam.Dam([site.Layer(soil, 100.0, 300.0)], slope=2.5, crest_width=10.0)
+    expected = analytical.wedge_truncated_natural_freqs(100.0, 300.0, d.crest_offset, 3)
+    assert_allclose(d.fixed_base_freqs(3), expected, rtol=1e-8)
+    # Cutting the tip off a wedge that reaches the same base raises the frequency
+    apex = dam.Dam([site.Layer(soil, 100.0 + d.crest_offset, 300.0)])
+    assert d.fixed_base_freq() > apex.fixed_base_freq()
+
+
+def test_truncated_layers_match_one_layer():
+    one = truncated_dam(1)
+    many = truncated_dam(8)
+    tf1 = dam.DamProfile(one, rock_site()).transfer_function(WIDE_FREQS)
+    tf2 = dam.DamProfile(many, rock_site()).transfer_function(WIDE_FREQS)
+    assert_allclose(tf1, tf2, rtol=1e-7)
+
+
+def test_vanishing_crest_recovers_the_pure_wedge():
+    apex = dam.Dam([site.Layer(SOIL, 100.0, 300.0)])
+    thin = dam.Dam([site.Layer(SOIL, 100.0, 300.0)], slope=2.5, crest_width=1e-5)
+    assert_allclose(
+        dam.DamProfile(thin, rock_site()).transfer_function(FREQS),
+        dam.DamProfile(apex, rock_site()).transfer_function(FREQS),
+        rtol=1e-3,
+    )
+    # The closed forms also tend to the apex forms
+    r0 = thin.crest_offset
+    assert_allclose(
+        analytical.wedge_truncated_elastic_base_tf(FREQS, 100.0, 300.0, 0.02, 0.5, r0),
+        analytical.wedge_elastic_base_tf(FREQS, 100.0, 300.0, 0.02, 0.5),
+        rtol=1e-3,
+    )
+    assert_allclose(
+        analytical.wedge_truncated_natural_freqs(100.0, 300.0, r0, 2),
+        analytical.wedge_natural_freqs(100.0, 300.0, 0.0, 2),
+        rtol=1e-4,
+    )
+
+
+def test_truncated_closed_forms_need_a_crest():
+    for func, args in [
+        (analytical.wedge_truncated_rigid_base_tf, (FREQS, 100.0, 300.0, 0.0)),
+        (analytical.wedge_truncated_elastic_base_tf, (FREQS, 100.0, 300.0, 0.0, 1, 0)),
+        (analytical.wedge_truncated_natural_freqs, (100.0, 300.0, 0.0)),
+    ]:
+        with pytest.raises(ValueError, match="crest offset must be positive"):
+            func(*args)
+
+
+def test_inhomogeneous_truncated_dam_keeps_its_average_velocity():
+    """`shear_vel_avg` is the area-weighted average of the actual trapezoid."""
+    d = dam.Dam.from_inhomogeneity(
+        SOIL, 100.0, 300.0, m=2 / 3, n_layers=200, slope=2.5, crest_width=30.0
+    )
+    # Layers sample the velocity at their middle, which gives a small error
+    assert d.shear_vel_avg == pytest.approx(300.0, rel=1e-5)
+    # Velocity increases with distance from the apex, a r^{m/2}
+    r = d.crest_offset + np.cumsum(d.thicknesses) - d.thicknesses / 2
+    ratio = d.shear_vels / r ** (1 / 3)
+    assert_allclose(ratio, ratio[0], rtol=1e-3)
