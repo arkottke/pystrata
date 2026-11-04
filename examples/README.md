@@ -1,34 +1,6 @@
 # Examples
 
-The examples included here are used to demonstrate the capabilities of
-`pystrata`. The following a brief summaries of the examples:
-
-1. Time series analysis to compute surface response spectrum and site
-   amplification functions.
-2. Random vibration theory (RVT) analysis to compute surface response spectrum
-   and site amplification functions.
-3. RVT input motion with a variety of site response calculators.
-4. Generate simulated shear-wave velocity profiles.
-5. Generate simulated nonlinear properties.
-6. Time series analysis to compute surface response spectrum and site
-   amplification functions using velocity profiles from geopsy.
-7. RVT calculation using different peak factor calculators.
-8. RVT calculation using a suite of simulated profiles
-9. Quarter-wave length site amplification
-10. Compute ground motion using a suite of peak factors
-11. Extract soil properties from FDM site response calculations
-12. Show the impact of frequency dependent D_min on FDM methods.
-13. Show the impact of the strain limit on the EQL calculation.
-14. Example with multiple input motions and simulated soil profiles.
-15. List of provided nonlinear curves.
-16. Example of using the logic tree.
-17. Building a site profile from the USGS National Crustal Model with
-    Darendeli nonlinear curves and κ₀-adjusted damping.
-18. Unit conversion with pint – comparing plain floats, metric
-    Quantities, and Imperial Quantities on the same site profile.
-19. Impact of incidence angle and inhomogeneity (general viscoelastic SII-wave
-    propagation), swept 30° from vertical.
-
-To be added:
-
-- Impact of peak factor on site reponse transfer function
+The notebooks in this directory demonstrate the capabilities of `pystrata`. They
+are executed by the test suite (`tests/notebooks_test.py`), and are described by
+topic in the example gallery of the documentation (`docs/examples/index.rst`).
+Data files that the examples read are in `data/`.

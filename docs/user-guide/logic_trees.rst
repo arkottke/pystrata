@@ -126,3 +126,9 @@ between-node (epistemic) and within-node (aleatory) contributions:
     var_between, var_within = separation_of_variance(lt, results)
 
 See :func:`compute_marginals` for computing weighted marginal distributions per node.
+
+Examples
+--------
+
+- :doc:`../examples/example-16`: a logic tree for the profile, the motion and the
+  calculator.

@@ -111,3 +111,9 @@ realization is written to its own column:
 :meth:`~pystrata.output.Output.extend` combines results accumulated separately.
 Columns that are never written stay NaN, so a realization that failed remains
 identifiable instead of shifting the ones after it.
+
+Examples
+--------
+
+- :doc:`../examples/example-08` and :doc:`../examples/example-14`: suites of profiles
+  and motions.

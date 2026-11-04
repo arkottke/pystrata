@@ -3,10 +3,98 @@
 Example Gallery
 ===============
 
+The examples are notebooks in the ``examples`` directory of the repository, and are
+executed by the test suite. They are grouped by the part of pyStrata that they
+use; :doc:`../user-guide/index` describes how the parts fit together, and each page
+of the guide lists its examples.
+
+Analyses
+--------
+
+**Basic Time Series Analysis** (:doc:`example-01`)
+    Time series analysis to compute surface response spectrum and site amplification functions.
+
+**Random Vibration Theory** (:doc:`example-02`)
+    RVT analysis to compute surface response spectrum and site amplification functions.
+
+**Multiple Calculators** (:doc:`example-03`)
+    RVT input motion with a variety of site response calculators.
+
+**Quarter-Wave Analysis** (:doc:`example-09`)
+    Quarter-wave length site amplification.
+
+**Multiple Motions** (:doc:`example-14`)
+    Example with multiple input motions and simulated soil profiles.
+
+Calculator settings
+-------------------
+
+**FDM Properties** (:doc:`example-11`)
+    Extract soil properties from FDM site response calculations.
+
+**Frequency Dependent Damping** (:doc:`example-12`)
+    Show the impact of frequency dependent D_min on FDM methods.
+
+**Strain Limits** (:doc:`example-13`)
+    Show the impact of the strain limit on the EQL calculation.
+
+**Incidence Angle and Inhomogeneity** (:doc:`example-19`)
+    Effect of an obliquely incident or inhomogeneous SH wave, compared with the default vertically incident, homogeneous wave.
+
+Motions and peak factors
+------------------------
+
+**Peak Factor Methods** (:doc:`example-07`)
+    RVT calculation using different peak factor calculators.
+
+**Peak Factor Suites** (:doc:`example-10`)
+    Compute ground motion using a suite of peak factors.
+
+Profiles and soil properties
+----------------------------
+
+**Geopsy Profiles** (:doc:`example-06`)
+    Time series analysis using velocity profiles from geopsy.
+
+**Nonlinear Curves** (:doc:`example-15`)
+    List of provided nonlinear curves.
+
+**USGS National Crustal Model Profile** (:doc:`example-17`)
+    Load a geophysical profile from the USGS NCM, apply Darendeli nonlinear curves, and adjust minimum damping to match a target site kappa (κ₀).
+
+**Unit Conversion with Pint** (:doc:`example-18`)
+    Define the same profile three ways — plain floats, metric pint Quantities, and Imperial units — demonstrating transparent unit handling.
+
+Variability and uncertainty
+---------------------------
+
+**Profile Generation** (:doc:`example-04`)
+    Generate simulated shear-wave velocity profiles.
+
+**Nonlinear Properties** (:doc:`example-05`)
+    Generate simulated nonlinear properties.
+
+**Profile Suites** (:doc:`example-08`)
+    RVT calculation using a suite of simulated profiles.
+
+**Logic Trees** (:doc:`example-16`)
+    Comprehensive example of using logic trees for uncertainty analysis.
+
+Dams
+----
+
+**Dam Response** (:doc:`example-20`)
+    Shear-wedge dam of Gazetas and Dakoulas (1992) joined to a layered site: power-law velocity profiles, tuning the dam to a target frequency, and linear and equivalent-linear analyses.
+
+**Dam Response vs. Hale and Abrahamson (2019)** (:doc:`example-21`)
+    Compares the Hale and Abrahamson sliding-mass transfer function in pygmm with the average acceleration of the sliding mass inside a toe circle of a trapezoidal shear-wedge dam, including nonlinearity for M 6.5 events at 5 and 30 km, the sensitivity to the failure surface, and a dam stacked on a site profile.
+
+**Truncated Wedge vs. the Apex Solution** (:doc:`example-22`)
+    Shows the effect of the crest width on the shear-wedge dam: the natural frequencies, the closed-form and numerical transfer functions of the truncated and apex wedges for a homogeneous dam, and an inhomogeneous dam.
+
 .. toctree::
    :maxdepth: 1
-   :caption: Example Notebooks
-   :glob:
+   :hidden:
 
    example-01
    example-02
@@ -31,95 +119,8 @@ Example Gallery
    example-21
    example-22
 
-Complete Example Index
-----------------------
+Running the examples
+--------------------
 
-All available examples with brief descriptions:
-
-**Basic Time Series Analysis** (`example-01.ipynb <../../examples/example-01.ipynb>`__)
-    Time series analysis to compute surface response spectrum and site amplification functions.
-
-**Random Vibration Theory** (`example-02.ipynb <../../examples/example-02.ipynb>`__)
-    RVT analysis to compute surface response spectrum and site amplification functions.
-
-**Multiple Calculators** (`example-03.ipynb <../../examples/example-03.ipynb>`__)
-    RVT input motion with a variety of site response calculators.
-
-**Profile Generation** (`example-04.ipynb <../../examples/example-04.ipynb>`__)
-    Generate simulated shear-wave velocity profiles.
-
-**Nonlinear Properties** (`example-05.ipynb <../../examples/example-05.ipynb>`__)
-    Generate simulated nonlinear properties.
-
-**Geopsy Profiles** (`example-06.ipynb <../../examples/example-06.ipynb>`__)
-    Time series analysis using velocity profiles from geopsy.
-
-**Peak Factor Methods** (`example-07.ipynb <../../examples/example-07.ipynb>`__)
-    RVT calculation using different peak factor calculators.
-
-**Profile Suites** (`example-08.ipynb <../../examples/example-08.ipynb>`__)
-    RVT calculation using a suite of simulated profiles.
-
-**Quarter-Wave Analysis** (`example-09.ipynb <../../examples/example-09.ipynb>`__)
-    Quarter-wave length site amplification.
-
-**Peak Factor Suites** (`example-10.ipynb <../../examples/example-10.ipynb>`__)
-    Compute ground motion using a suite of peak factors.
-
-**FDM Properties** (`example-11.ipynb <../../examples/example-11.ipynb>`__)
-    Extract soil properties from FDM site response calculations.
-
-**Frequency Dependent Damping** (`example-12.ipynb <../../examples/example-12.ipynb>`__)
-    Show the impact of frequency dependent D_min on FDM methods.
-
-**Strain Limits** (`example-13.ipynb <../../examples/example-13.ipynb>`__)
-    Show the impact of the strain limit on the EQL calculation.
-
-**Multiple Motions** (`example-14.ipynb <../../examples/example-14.ipynb>`__)
-    Example with multiple input motions and simulated soil profiles.
-
-**Nonlinear Curves** (`example-15.ipynb <../../examples/example-15.ipynb>`__)
-    List of provided nonlinear curves.
-
-**Logic Trees** (`example-16.ipynb <../../examples/example-16.ipynb>`__)
-    Comprehensive example of using logic trees for uncertainty analysis.
-
-**USGS National Crustal Model Profile** (`example-17.ipynb <../../examples/example-17.ipynb>`__)
-    Load a geophysical profile from the USGS NCM, apply Darendeli nonlinear curves, and adjust
-    minimum damping to match a target site kappa (κ₀).
-
-**Unit Conversion with Pint** (`example-18.ipynb <../../examples/example-18.ipynb>`__)
-    Define the same profile three ways — plain floats, metric pint Quantities, and Imperial
-    units — demonstrating transparent unit handling.
-
-**Incidence Angle and Inhomogeneity** (`example-19.ipynb <../../examples/example-19.ipynb>`__)
-    Effect of an obliquely incident or inhomogeneous SH wave, compared with the default
-    vertically incident, homogeneous wave.
-
-**Dam Response** (`example-20.ipynb <../../examples/example-20.ipynb>`__)
-    Shear-wedge dam of Gazetas and Dakoulas (1992) joined to a layered site: power-law
-    velocity profiles, tuning the dam to a target frequency, and linear and
-    equivalent-linear analyses.
-
-**Dam Response vs. Hale and Abrahamson (2019)** (`example-21.ipynb <../../examples/example-21.ipynb>`__)
-    Compares the Hale and Abrahamson sliding-mass transfer function in pygmm with the
-    average acceleration of the sliding mass inside a toe circle of a trapezoidal
-    shear-wedge dam, including nonlinearity for M 6.5 events at 5 and 30 km, the
-    sensitivity to the failure surface, and a dam stacked on a site profile.
-
-**Truncated Wedge vs. the Apex Solution** (`example-22.ipynb <../../examples/example-22.ipynb>`__)
-    Shows the effect of the crest width on the shear-wedge dam: the natural
-    frequencies, the closed-form and numerical transfer functions of the
-    truncated and apex wedges for a homogeneous dam, and an inhomogeneous dam.
-
-Tips for Using Examples
-------------------------
-
-**Running Locally**
-    Clone the repository and navigate to the examples directory. Each notebook can be run independently.
-
-**Modifying Examples**
-    The examples are designed to be educational and easily modified. Try changing parameters to see how they affect results.
-
-**Data Files**
-    Example data files are included in the `examples/data/` directory.
+Clone the repository and run a notebook from the ``examples`` directory. The data
+files that the examples read are in ``examples/data``.

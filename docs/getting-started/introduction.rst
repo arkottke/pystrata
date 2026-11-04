@@ -97,9 +97,9 @@ Getting Started
 
 The best way to get started with pyStrata is to:
 
-1. :doc:`Install the package <install>` using pip or conda
+1. :doc:`Install the package <installation>` using pip or conda
 2. Work through the :doc:`quickstart guide <quickstart>` for basic concepts
-3. Explore the :doc:`examples gallery <examples/index>` for real-world applications
-4. Consult the :doc:`API reference <api/index>` for detailed documentation
+3. Explore the :doc:`examples gallery <../examples/index>` for real-world applications
+4. Consult the :doc:`API reference <../api/index>` for detailed documentation
 
-The :doc:`theory section <theory/index>` provides mathematical background, while the :doc:`user guide <user-guide/index>` offers practical guidance for analysis workflows.
+The :doc:`theory section <../theory/index>` provides mathematical background, while the :doc:`user guide <../user-guide/index>` offers practical guidance for analysis workflows.

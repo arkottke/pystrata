@@ -13,11 +13,16 @@ OutputCollection
 
 .. code-block:: python
 
+    import numpy as np
     import pystrata
 
+    freqs = np.geomspace(0.1, 100, 100)
+    loc_in = pystrata.output.OutputLocation("outcrop", index=-1)
+    loc_out = pystrata.output.OutputLocation("outcrop", index=0)
+
     outputs = pystrata.output.OutputCollection([
-        pystrata.output.ResponseSpectrumOutput(),
-        pystrata.output.AccelTransferFunctionOutput(),
+        pystrata.output.ResponseSpectrumOutput(freqs, loc_out, 0.05),
+        pystrata.output.AccelTransferFunctionOutput(freqs, loc_in, loc_out),
         pystrata.output.MaxStrainProfile(),
     ])
 
@@ -241,3 +246,10 @@ Given a logic tree, results are reshaped into one dimension per node instead:
 .. code-block:: python
 
     da = rs.to_xarray(tree)      # dims: (freq, node1, node2, ...)
+
+Examples
+--------
+
+- :doc:`../examples/example-01`, :doc:`../examples/example-02` and
+  :doc:`../examples/example-03`: response spectra and transfer functions.
+- :doc:`../examples/example-08`: outputs over a suite of profiles.

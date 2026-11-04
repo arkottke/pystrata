@@ -251,9 +251,9 @@ Next Steps
 
 Now that you understand the basics, explore:
 
-* :doc:`examples/index` - Real-world analysis examples
-* :doc:`user-guide/index` - Detailed guidance on each component
-* :doc:`theory/index` - Mathematical background and theory
-* :doc:`api/index` - Complete API reference
+* :doc:`../examples/index` - Real-world analysis examples
+* :doc:`../user-guide/index` - Detailed guidance on each component
+* :doc:`../theory/index` - Mathematical background and theory
+* :doc:`../api/index` - Complete API reference
 
 For advanced features like uncertainty analysis with logic trees, see `example-16.ipynb <../examples/example-16.ipynb>`__.

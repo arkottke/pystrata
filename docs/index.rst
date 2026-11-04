@@ -8,7 +8,7 @@ A Python library for 1D equivalent-linear site response analysis.
 .. grid:: 2
 
    .. grid-item-card:: Getting Started
-      :link: quickstart
+      :link: getting-started/quickstart
       :link-type: doc
 
       New to pyStrata? Start here for installation and basic usage.
@@ -48,9 +48,7 @@ Table of Contents
    :caption: Getting Started
    :hidden:
 
-   introduction
-   install
-   quickstart
+   getting-started/index
 
 .. toctree::
    :maxdepth: 2
@@ -58,9 +56,8 @@ Table of Contents
    :hidden:
 
    user-guide/index
-   theory/index
    examples/index
-   usage
+   theory/index
 
 .. toctree::
    :maxdepth: 2

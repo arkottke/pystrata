@@ -155,38 +155,11 @@ AT2 is a text format commonly used in earthquake engineering:
 - **Frequency**: Hz
 - **Fourier Amplitudes**: g·s
 
-Best Practices
---------------
+Examples
+--------
 
-**Motion Selection**
-    * Use motions appropriate for your site's seismic hazard level
-    * Consider frequency content compatibility with site characteristics
-    * For probabilistic analyses, use suites of motions rather than single records
-
-**Quality Control**
-    * Verify motion properties (duration, peak values, frequency content)
-    * Check for processing artifacts (baseline shifts, filtering effects)
-    * Ensure appropriate units and sign conventions
-
-**Computational Efficiency**
-    * Use RVT motions for parametric studies when appropriate
-    * Consider motion truncation for very long records
-    * Pre-compute Fourier spectra for repeated analyses
-
-Common Issues
--------------
-
-**File Format Problems**
-    * Ensure proper line endings (Unix vs. Windows)
-    * Check for missing header information
-    * Verify numerical precision and formatting
-
-**Physical Reasonableness**
-    * Check for realistic peak acceleration values
-    * Verify frequency content is appropriate for earthquake size and distance
-    * Ensure motion duration is consistent with magnitude
-
-**Memory and Performance**
-    * Very long time series can consume significant memory
-    * High sample rates may not be necessary for all analyses
-    * Consider resampling for computational efficiency
+- :doc:`../examples/example-01`: a time series motion.
+- :doc:`../examples/example-02`: an RVT motion.
+- :doc:`../examples/example-07` and :doc:`../examples/example-10`: peak factor
+  calculators.
+- :doc:`../examples/example-14`: several input motions.

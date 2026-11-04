@@ -88,30 +88,35 @@ method. It does not require a full wave-propagation solution and is useful for r
     calc = pystrata.propagation.QuarterWaveLenCalculator(site_atten=0.03)
     calc(motion, profile, profile.location("outcrop", index=-1))
 
-Choosing a Calculator
----------------------
+Comparison
+----------
 
 .. list-table::
    :header-rows: 1
-   :widths: 25 25 25 25
+   :widths: 30 35 35
 
-   * - Scenario
-     - Recommended
-     - Why
-     - Notes
-   * - Stiff site / low shaking
-     - LinearElastic
-     - Fast; exact for linear behavior
-     - No iteration
-   * - General site response
-     - EquivalentLinear
-     - Industry standard
-     - Needs nonlinear curves
-   * - Soft soil / strong shaking
-     - FrequencyDependentEql
-     - Frequency-dependent damping
-     - Slower than basic EQL
-   * - Rapid amplification estimate
-     - QuarterWaveLen
-     - No profile wave propagation
-     - Approximate only
+   * - Calculator
+     - Properties of the profile
+     - Iteration
+   * - ``LinearElasticCalculator``
+     - Initial (small-strain) modulus and damping
+     - None
+   * - ``EquivalentLinearCalculator``
+     - Strain-compatible modulus and damping of each layer
+     - Until the properties converge; needs nonlinear curves
+   * - ``FrequencyDependentEqlCalculator``
+     - Strain-compatible properties that depend on frequency
+     - Until the properties converge; needs nonlinear curves
+   * - ``QuarterWaveLenCalculator``
+     - Velocity and density only; no wave propagation
+     - None
+
+Examples
+--------
+
+- :doc:`../examples/example-03`: several calculators with the same RVT motion.
+- :doc:`../examples/example-09`: the quarter-wavelength calculator.
+- :doc:`../examples/example-11` and :doc:`../examples/example-12`: the frequency-dependent
+  calculator, its properties and the effect of the minimum damping.
+- :doc:`../examples/example-13`: the strain limit of the equivalent-linear calculator.
+- :doc:`../examples/example-19`: incidence angle and inhomogeneity.

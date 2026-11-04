@@ -1,7 +1,12 @@
+.. _usage:
+
 User Guide
 ==========
 
-This guide provides practical information for using pyStrata effectively in your site response analysis workflows.
+pyStrata computes the response of a layered soil column to an input motion.
+Regardless of the analysis, the same four objects are used, and each of the
+pages below describes one of them. This page describes what they are and how they
+fit together.
 
 .. toctree::
    :maxdepth: 2
@@ -10,157 +15,142 @@ This guide provides practical information for using pyStrata effectively in your
    profiles
    calculations
    outputs
+   variation
    logic_trees
    parallel
+   dams
 
-Overview
---------
+The pieces
+----------
 
-pyStrata follows a modular design philosophy where site response analysis is broken down into distinct, interchangeable components:
+**Input motion** (:doc:`motions`)
+    A :class:`~pystrata.motion.TimeSeriesMotion` is a recorded acceleration time
+    series. A :class:`~pystrata.motion.RvtMotion` and a
+    :class:`~pystrata.motion.CompatibleRvtMotion` are defined in the frequency
+    domain (Fourier amplitudes, or a target response spectrum) and use random
+    vibration theory to compute the peak response.
 
-**Input Motion** (:doc:`motions`)
-    Specification of ground motion at the input location (typically bedrock)
-
-**Site Profile** (:doc:`profiles`)
-    Definition of the layered soil model with material properties
+**Site profile** (:doc:`profiles`)
+    A :class:`~pystrata.site.SoilType` holds the unit weight, damping and
+    optional modulus reduction and damping curves. A :class:`~pystrata.site.Layer`
+    is a soil type with a thickness and a shear-wave velocity, and a
+    :class:`~pystrata.site.Profile` is a list of layers, the last of which is the
+    half space. A :class:`~pystrata.site.Location` points to a depth and a wave
+    field (outcrop or within) in a profile.
 
 **Calculator** (:doc:`calculations`)
-    Selection of the analysis method (linear, equivalent linear, nonlinear)
+    A calculator is called with the motion, the profile and the location of the
+    input: ``calc(motion, profile, loc_input)``. It propagates the motion through
+    the profile and keeps the waves, so that any output can be computed afterward.
 
-**Output Specification** (:doc:`outputs`)
-    Definition of desired output quantities and locations
+**Outputs** (:doc:`outputs`)
+    An output is registered in an :class:`~pystrata.output.OutputCollection`
+    with the location it is computed at. Calling the collection with the
+    calculator that has run stores the results, as :class:`xarray.Dataset` objects.
 
-**Uncertainty Handling** (:doc:`logic_trees`)
-    Tools for probabilistic analysis and uncertainty quantification
+**Variability** (:doc:`variation`, :doc:`logic_trees`, :doc:`parallel`)
+    Variation models perturb a profile to give realizations of it. A logic tree
+    holds alternatives for the profile, motion or calculator with weights. The
+    runner evaluates the combinations, in one process or across several.
 
-**Running Ensembles** (:doc:`parallel`)
-    Evaluating many realizations, reproducibly and across processes
+**Dams** (:doc:`dams`)
+    The shear-wedge dam joins a dam to a profile and uses the same calculators
+    and outputs.
 
-This modular approach allows users to mix and match components as needed for their specific analysis requirements.
+How they fit together
+---------------------
 
-Typical Workflow
-----------------
+.. code-block:: text
 
-A typical pyStrata analysis follows these steps:
+   motion ─────────────┐
+                        ├──► calculator(motion, profile, loc_input) ──► outputs(calculator)
+   SoilType ► Layer ► Profile ─┘            ▲                                    │
+                  ▲                         │                                    ▼
+          variation models           logic-tree branch                    OutputCollection
+          (realizations)             (alternatives)                       (xarray datasets)
 
-1. **Load or define input motion**
+A complete analysis with the objects above:
 
-   .. code-block:: python
+.. code-block:: python
 
-      motion = pystrata.motion.TimeSeriesMotion.load_at2_file("motion.at2")
+   import numpy as np
+   import pystrata
 
-2. **Create site profile**
+   motion = pystrata.motion.TimeSeriesMotion.load_at2_file("motion.at2")
 
-   .. code-block:: python
+   soil = pystrata.site.SoilType("soil", 18.0, None, 0.05)
+   rock = pystrata.site.SoilType("rock", 24.0, None, 0.01)
+   profile = pystrata.site.Profile(
+       [
+           pystrata.site.Layer(soil, 10.0, 200.0),
+           pystrata.site.Layer(rock, 0.0, 1000.0),
+       ]
+   )
 
-      profile = pystrata.site.Profile([
-          pystrata.site.Layer(soil_type, thickness, vs),
-          # ... additional layers
-      ])
+   calc = pystrata.propagation.LinearElasticCalculator()
+   osc_freqs = np.geomspace(0.1, 100, 100)
+   loc_in = pystrata.output.OutputLocation("outcrop", index=-1)
+   loc_out = pystrata.output.OutputLocation("outcrop", index=0)
+   outputs = pystrata.output.OutputCollection(
+       [pystrata.output.ResponseSpectrumOutput(osc_freqs, loc_out, 0.05)]
+   )
 
-3. **Select analysis method**
+   calc(motion, profile, profile.location("outcrop", index=-1))
+   outputs(calc)
 
-   .. code-block:: python
+Repeating the last two lines for the profiles that a variation model returns, or
+for the branches of a logic tree, gives the distribution of the outputs;
+:func:`pystrata.runner.run_ensemble` does so for all of the combinations of
+profiles, motions and branches.
 
-      calc = pystrata.propagation.EquivalentLinearCalculator()
-
-4. **Define outputs**
-
-   .. code-block:: python
-
-      outputs = pystrata.output.OutputCollection([
-          pystrata.output.ResponseSpectrumOutput(),
-          # ... additional outputs
-      ])
-
-5. **Run analysis**
-
-   .. code-block:: python
-
-      calc(motion, profile, profile.location("outcrop", index=-1))
-
-6. **Extract and visualize results**
-
-   .. code-block:: python
-
-      for output in outputs:
-          plt.plot(output.x_values, output.values, label=output.name)
-
-Best Practices
---------------
-
-**Profile Definition**
-    * Use appropriate material damping values (typically 2-8% for soil)
-    * Ensure adequate layer resolution for wave propagation
-    * Include realistic property contrasts between layers
-    * Specify bedrock as a half-space (thickness = 0)
-
-**Motion Selection**
-    * Use motions appropriate for the site hazard level
-    * Consider frequency content compatibility with profile resonance
-    * For RVT analysis, ensure adequate frequency range and resolution
-
-**Method Selection**
-    * Linear elastic: preliminary analyses, stiff sites, low ground motion levels
-    * Equivalent linear: most common method, moderate nonlinearity
-    * Frequency domain: strong nonlinearity, advanced applications
-
-**Output Planning**
-    * Select outputs relevant to your engineering application
-    * Consider computational cost for large parametric studies
-    * Use appropriate frequency/period ranges for your needs
-
-Common Pitfalls
+Other libraries
 ---------------
 
-**Insufficient Frequency Resolution**
-    Can lead to aliasing or missing important frequency content
+pyStrata uses the output of the sibling libraries. It has no runtime dependency on pyGMM, which it reads by duck typing; it depends on pyRVT.
 
-**Inappropriate Boundary Conditions**
-    Incorrect specification of input motion type or location
+.. list-table::
+   :header-rows: 1
+   :widths: 25 40 35
 
-**Convergence Issues**
-    Equivalent linear method may not converge for very soft soils or strong motions
+   * - Library
+     - What pyStrata takes from it
+     - Where
+   * - pyGMM
+     - Nonlinear curves (``NonlinearSoilCurves``), shear-wave velocity profiles
+       (``VelocityProfile``) and Fourier amplitude spectrum models
+     - :doc:`profiles`, :doc:`motions`
+   * - pyRVT
+     - The random vibration theory calculation of the peak response, and the peak
+       factor calculators
+     - :doc:`motions`
 
-**Units Consistency**
-    Ensure consistent units throughout (SI or Imperial)
+Examples
+--------
 
-**Profile Truncation**
-    Insufficient depth to bedrock can cause artificial reflections
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
 
-Performance Considerations
---------------------------
-
-**Computational Efficiency**
-    * RVT methods are typically faster than time series
-    * Linear methods are faster than nonlinear
-    * Reduce frequency resolution for parametric studies
-
-**Memory Usage**
-    * Time series analyses require more memory
-    * Profile suites and logic trees can consume significant memory
-    * Consider batch processing for large studies
-
-**Parallel Processing**
-    * An individual analysis is single-threaded
-    * Realizations, motions, and logic-tree branches are independent, so they
-      are distributed across processes by
-      :func:`pystrata.runner.run_ensemble` -- see :doc:`parallel`
-
-Validation and Quality Assurance
---------------------------------
-
-**Check Results Reasonableness**
-    * Verify amplification patterns match expected behavior
-    * Compare with simplified hand calculations where possible
-    * Check for conservation of energy in linear analyses
-
-**Sensitivity Analysis**
-    * Test sensitivity to key parameters
-    * Vary profile properties within reasonable ranges
-    * Assess impact of method selection
-
-**Code Verification**
-    * Compare with other site response codes
-    * Use benchmark problems for validation
-    * Test limiting cases with analytical solutions
+   * - Topic
+     - Examples
+   * - A time-series and an RVT analysis
+     - :doc:`../examples/example-01`, :doc:`../examples/example-02`
+   * - Several calculators on the same input
+     - :doc:`../examples/example-03`, :doc:`../examples/example-09`
+   * - Motions and peak factors
+     - :doc:`../examples/example-07`, :doc:`../examples/example-10`,
+       :doc:`../examples/example-14`
+   * - Profiles and soil properties
+     - :doc:`../examples/example-06`, :doc:`../examples/example-15`,
+       :doc:`../examples/example-17`, :doc:`../examples/example-18`
+   * - Variation of profiles and soil properties
+     - :doc:`../examples/example-04`, :doc:`../examples/example-05`,
+       :doc:`../examples/example-08`
+   * - Logic trees
+     - :doc:`../examples/example-16`
+   * - Calculator settings
+     - :doc:`../examples/example-11`, :doc:`../examples/example-12`,
+       :doc:`../examples/example-13`, :doc:`../examples/example-19`
+   * - Dams
+     - :doc:`../examples/example-20`, :doc:`../examples/example-21`,
+       :doc:`../examples/example-22`

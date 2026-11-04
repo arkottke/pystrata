@@ -11,10 +11,27 @@ Classes
 .. autosummary::
    :nosignatures:
 
+   ToroThicknessVariation
+   HalfSpaceDepthVariation
    ToroVelocityVariation
-   SpidVariation
+   DepthDependToroVelVariation
    SoilTypeVariation
+   DarendeliVariation
+   SpidVariation
    LimitedNorm
+   DispersionCheck
+   iter_varied_profiles
+
+Thickness and Depth Variations
+------------------------------
+
+.. autoclass:: ToroThicknessVariation
+   :members:
+   :show-inheritance:
+
+.. autoclass:: HalfSpaceDepthVariation
+   :members:
+   :show-inheritance:
 
 Velocity Variations
 -------------------
@@ -23,7 +40,7 @@ Velocity Variations
    :members:
    :show-inheritance:
 
-.. autoclass:: SpidVariation
+.. autoclass:: DepthDependToroVelVariation
    :members:
    :show-inheritance:
 
@@ -31,6 +48,23 @@ Soil Type Variations
 --------------------
 
 .. autoclass:: SoilTypeVariation
+   :members:
+   :show-inheritance:
+
+.. autoclass:: DarendeliVariation
+   :members:
+   :show-inheritance:
+
+.. autoclass:: SpidVariation
+   :members:
+   :show-inheritance:
+
+Generating Realizations
+-----------------------
+
+.. autofunction:: iter_varied_profiles
+
+.. autoclass:: DispersionCheck
    :members:
    :show-inheritance:
 

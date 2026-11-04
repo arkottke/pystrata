@@ -156,3 +156,12 @@ Profile Utilities
 single uniform spacing rather than sub-dividing each layer. Pass ``depth_var``
 so that the grid extends past the range a half-space depth variation samples,
 or ``spacing`` to set it directly. See :doc:`outputs` for how the grid is used.
+
+Examples
+--------
+
+- :doc:`../examples/example-06`: velocity profiles from geopsy.
+- :doc:`../examples/example-15`: the provided nonlinear curves.
+- :doc:`../examples/example-17`: a profile from the USGS National Crustal Model, with
+  Darendeli curves and a target :math:`\kappa_0`.
+- :doc:`../examples/example-18`: units.

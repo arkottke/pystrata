@@ -19,11 +19,11 @@ Install the latest release with pip:
 pip install pystrata
 ```
 
-For development or the latest features, see the [installation instructions](docs/install.rst).
+For development or the latest features, see the [installation instructions](docs/getting-started/installation.rst).
 
 ## Usage
 
-See the [Quickstart](docs/quickstart.rst) and [Examples](examples/) for usage examples.
+See the [Quickstart](docs/getting-started/quickstart.rst) and [Examples](examples/) for usage examples.
 
 ## Citation
 
