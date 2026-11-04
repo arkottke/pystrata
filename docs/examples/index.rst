@@ -29,6 +29,7 @@ Example Gallery
    example-19
    example-20
    example-21
+   example-22
 
 Complete Example Index
 ----------------------
@@ -105,6 +106,11 @@ All available examples with brief descriptions:
     average acceleration of the sliding mass inside a toe circle of a trapezoidal
     shear-wedge dam, including nonlinearity for M 6.5 events at 5 and 30 km, the
     sensitivity to the failure surface, and a dam stacked on a site profile.
+
+**Truncated Wedge vs. the Apex Solution** (`example-22.ipynb <../../examples/example-22.ipynb>`__)
+    Shows the effect of the crest width on the shear-wedge dam: the natural
+    frequencies, the closed-form and numerical transfer functions of the
+    truncated and apex wedges for a homogeneous dam, and an inhomogeneous dam.
 
 Tips for Using Examples
 ------------------------

@@ -1363,7 +1363,7 @@ class Profile(collections.abc.Container):
         time = np.interp(30, self.depth, tot_time)
         return 30 / time
 
-    def simplified_rayliegh_vel(self):
+    def simplified_rayleigh_vel(self):
         """Simplified Rayleigh velocity of the site.
 
         This follows the simplifications proposed by :cite:t:`Urzua2017`.
@@ -1396,6 +1396,16 @@ class Profile(collections.abc.Container):
         period_fun = 2 * np.pi / freq_fund
         rayleigh_vel = 4 * thicks.sum() / period_fun
         return rayleigh_vel
+
+    def simplified_rayliegh_vel(self):
+        """Deprecated misspelling of :meth:`simplified_rayleigh_vel`."""
+        warnings.warn(
+            "`simplified_rayliegh_vel` is misspelled and is deprecated; use "
+            "`simplified_rayleigh_vel`.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.simplified_rayleigh_vel()
 
     @convert_units(freqs="hertz")
     def calc_dispersion(

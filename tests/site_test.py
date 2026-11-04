@@ -138,7 +138,7 @@ def test_simplified_rayleigh_vel():
     )
 
     assert_allclose(
-        p.simplified_rayliegh_vel(),
+        p.simplified_rayleigh_vel(),
         1349.076,
         atol=0.001,
     )
@@ -383,3 +383,15 @@ def test_hashes_are_stable_and_consistent_with_equality():
     assert soil == twin
     assert hash(soil) == hash(twin)
     assert hash(layer) == hash(site.Layer(twin, 5.0, 200.0))
+
+
+def test_misspelled_simplified_rayleigh_vel_is_deprecated():
+    p = site.Profile(
+        [
+            site.Layer(site.SoilType(unit_wt=20.0), 10.0, 200.0),
+            site.Layer(site.SoilType(unit_wt=22.0), 0.0, 500.0),
+        ]
+    )
+    with pytest.warns(DeprecationWarning, match="simplified_rayleigh_vel"):
+        old = p.simplified_rayliegh_vel()
+    assert old == p.simplified_rayleigh_vel()

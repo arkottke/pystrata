@@ -2,6 +2,9 @@
 
 ## 0.6.0 (unreleased)
 
+- Added: example 22 compares the truncated wedge with the apex solution.
+- Fixed: `Profile.simplified_rayliegh_vel` is renamed `simplified_rayleigh_vel`; the
+  misspelled name remains as a deprecated alias.
 - Added: failure surfaces and the transfer function of the sliding mass of a dam.
   `dam.CircularSurface(x, y, radius)` is a circle given by its center and radius,
   and `dam.toe_circle(dam, radius_ratio)` is the one through the toe (at least as shallow as the circle tangent to the base) and the far
@@ -46,10 +49,10 @@
 - Changed: `Layer.copy()` and `Profile.auto_discretize()` preserve `Layer` subclasses.
 - Changed: adopted [SPEC 0](https://scientific-python.org/specs/spec-0000/) for
   version support -- Python minors from the last 36 months, core dependencies
-  from the last 24 months. **Minimum Python is now 3.12** (was 3.10), and
+  from the last 24 months. **Minimum Python is now 3.13** (was 3.10), and
   dependency lower bounds are declared explicitly: `matplotlib>=3.10`,
-  `numba>=0.61`, `numpy>=2.1`, `pint>=0.25`, `pykooh>=0.5`, `pyrvt>=0.8`,
-  `scipy>=1.15`, `xarray>=2024.9`. CI now runs 3.12, 3.13 and 3.14. The dated
+  `numba>=0.61`, `numpy>=2.2`, `pint>=0.25`, `pykooh>=0.5`, `pyrvt>=0.8`,
+  `scipy>=1.15`, `xarray>=2024.11`. CI now runs 3.13 and 3.14. The dated
   drop schedule is in `pyproject.toml`.
 
     The old `>=3.10` floor was already unmet in practice: numpy, scipy, pandas,
