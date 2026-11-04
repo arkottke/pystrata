@@ -75,8 +75,8 @@ Generate theoretical motions from earthquake source parameters using
 
     import pygmm.fourier_spectrum as fs
     fas = fs.SourceTheoryModel(
-        mag=6.5,          # Moment magnitude
-        dist=20,          # Source-to-site distance (km)
+        magnitude=6.5,    # Moment magnitude
+        distance=20,      # Source-to-site distance (km)
         region="wna",     # Western North America attenuation
     )
     motion = pystrata.motion.RvtMotion.from_fas(fas)

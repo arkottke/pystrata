@@ -120,7 +120,7 @@ Working with Different Motion Types
 
     # Source-based theoretical motion via pygmm + RvtMotion.from_fas
     import pygmm.fourier_spectrum as fs
-    fas = fs.SourceTheoryModel(mag=6.5, dist=20, region="wna")
+    fas = fs.SourceTheoryModel(magnitude=6.5, distance=20, region="wna")
     motion = pystrata.motion.RvtMotion.from_fas(fas)
 
     # RVT from Fourier amplitude spectrum
