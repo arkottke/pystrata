@@ -16,6 +16,7 @@ Classes
    Dam
    WedgeLayer
    DamProfile
+   CircularSurface
    DamLinearElasticCalculator
    DamEquivalentLinearCalculator
    DamFrequencyDependentEqlCalculator
@@ -33,6 +34,25 @@ Dam and Profile
 .. autoclass:: DamProfile
    :members:
    :show-inheritance:
+
+Failure Surfaces and the Sliding Mass
+-------------------------------------
+
+The transfer function of :cite:t:`Hale2019` is to the average acceleration of the
+mass that slides. A failure surface cuts the sliding mass out of the dam, and its
+acceleration is the average of the accelerations of the shear-beam solution at
+each depth, weighted by the width of the mass. A surface is a circle given by its
+center and radius, or by :func:`~pystrata.dam.toe_circle`, which passes through
+the toe and the far side of the crest.
+
+.. autoclass:: CircularSurface
+   :members:
+
+.. autofunction:: toe_circle
+
+.. autofunction:: plot_failure_surface
+
+.. autofunction:: sliding_mass_transfer_function
 
 Calculators
 -----------

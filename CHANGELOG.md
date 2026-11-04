@@ -2,6 +2,15 @@
 
 ## 0.6.0 (unreleased)
 
+- Added: failure surfaces and the transfer function of the sliding mass of a dam.
+  `dam.CircularSurface(x, y, radius)` is a circle given by its center and radius,
+  and `dam.toe_circle(dam, radius_ratio)` is the one through the toe and the far
+  side of the crest. `dam.plot_failure_surface` draws the section, the surface and
+  the sliding mass. `dam.sliding_mass_transfer_function` (and
+  `DamProfile.sliding_mass_transfer_function` for the linear case) averages the
+  acceleration transfer functions over the mass, weighted by its width, so it
+  applies to the equivalent-linear calculators too. This is the quantity that
+  Hale and Abrahamson (2019) model.
 - Added: `Dam` takes a `slope` (horizontal run per unit height of each slope) and
   a `crest_width`. A crest width truncates the shear wedge, with a free surface
   at the crest, so the dynamics are for the trapezoidal section; without a slope

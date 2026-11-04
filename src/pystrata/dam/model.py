@@ -418,6 +418,34 @@ class DamProfile(Profile):
         loc_out = profile.location("within", depth=depth_out)
         return calc.transfer_function(freqs, profile, loc_in, loc_out)
 
+    def sliding_mass_transfer_function(
+        self, freqs: npt.ArrayLike, surface, n_depths: int = 101
+    ) -> np.ndarray:
+        """Linear transfer function to the average acceleration of a sliding mass.
+
+        It is the transfer function from the half-space outcrop to each depth,
+        averaged over the sliding mass; see
+        :func:`~pystrata.dam.sliding.sliding_mass_transfer_function`, which also
+        applies to equivalent-linear calculators.
+
+        Parameters
+        ----------
+        freqs : array_like
+            Frequencies [Hz].
+        surface : :class:`~pystrata.dam.sliding.CircularSurface`
+            Failure surface; the dam needs a slope.
+        n_depths : int, default=101
+            Number of slices of the dam.
+        """
+        from .propagation import DamLinearElasticCalculator
+        from .sliding import sliding_mass_transfer_function
+
+        calc = DamLinearElasticCalculator()
+        loc_in = self.location("outcrop", index=len(self) - 1)
+        # Computes the waves at the frequencies
+        calc.transfer_function(freqs, self, loc_in, self.location("within", depth=0.0))
+        return sliding_mass_transfer_function(calc, loc_in, self, surface, n_depths)
+
     def peak_freq(
         self, f_guess: float | None = None, f_range: tuple[float, float] | None = None
     ) -> float:
