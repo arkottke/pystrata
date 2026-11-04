@@ -1275,10 +1275,11 @@ class DarendeliVariation(SoilTypeVariation):
 
 
 class SpidVariation(SoilTypeVariation):
-    """Variation defined by the EPRI SPID and documented in PNNL (2014).
+    """Variation defined by the EPRI SPID and documented in the Hanford study.
 
-    The EPRI SPID is :cite:t:`EPRI2012`. A copy is available at
-    https://www.nrc.gov/docs/ML1233/ML12333A170.pdf
+    The EPRI SPID is :cite:t:`EPRI2012`; a copy is available at
+    https://www.nrc.gov/docs/ML1233/ML12333A170.pdf. The Hanford
+    Site-Wide Probabilistic Seismic Hazard Analysis is :cite:t:`Coppersmith2014`.
     """
 
     def __init__(
