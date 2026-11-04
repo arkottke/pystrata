@@ -21,9 +21,9 @@ def _darendeli(unit_wt, stress_mean, **kw):
 
 
 def create_motion():
-    m = pystrata.motion.SourceTheoryRvtMotion(6.0, 30, "wna")
-    m.calc_fourier_amps()
-    return m
+    return pystrata.motion.RvtMotion.from_fas(
+        pygmm.fourier_spectrum.SourceTheoryModel(6.0, 30, "wna")
+    )
 
 
 def create_profile():

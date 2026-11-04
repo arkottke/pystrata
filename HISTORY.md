@@ -46,8 +46,10 @@
 
 - Removed empirical soil-curve classes — now live in `pygmm.soil_curves`:
   `DarendeliSoilType`, `MenqSoilType`, `WangSoilType`, `AlemuEtAlSoilType`,
-  `RollinsEtAlSoilType`, `KishidaSoilType`, `ModifiedHyperbolicSoilType`,
-  `TwoParamModifiedHyperbolicSoilType`.
+  `RollinsEtAlSoilType`, `KishidaSoilType`. The user-parameterized
+  `ModifiedHyperbolicSoilType` and `TwoParamModifiedHyperbolicSoilType` were
+  removed and have no replacement; pygmm has only the private base class
+  `ModifiedHyperbolicBase`.
   **Migration**: `SoilType.from_curves(pygmm.DarendeliSoilType(...).curves())`
 - Removed `kea16_profile()` — now `pygmm.velocity_profile.kea16_profile()`.
   **Migration**: `Profile.from_velocity_profile(pygmm.kea16_profile(...), soil_types=...)`

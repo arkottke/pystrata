@@ -61,8 +61,8 @@ Integration with pygmm
 .. code-block:: python
 
     import pygmm
-    curves = pygmm.DarendeliSoilType(p_atm=1.0, sigma_v0=50.0, PI=0, OCR=1, freq=1, n_cycles=10)
-    soil = pystrata.site.SoilType.from_curves(curves, name="Darendeli Sand", unit_wt=18.0)
+    model = pygmm.DarendeliSoilType(unit_wt=18.0, plas_index=0, ocr=1, stress_mean=50.0)
+    soil = pystrata.site.SoilType.from_curves(model.curves(), name="Darendeli Sand")
 
 Layers
 ------
