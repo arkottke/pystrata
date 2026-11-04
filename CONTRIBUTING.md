@@ -1,105 +1,209 @@
-# Contributing
+# Contributing to pyStrata
 
-Contributions are welcome, and they are greatly appreciated! Every
-little bit helps, and credit will always be given.
+We welcome contributions to pyStrata! This guide will help you get started with contributing code, documentation, or examples.
 
-You can contribute in many ways:
+## Development Setup
 
-## Types of Contributions
+**Prerequisites**
 
-### Report Bugs
+- Python 3.13 or higher
+- Git for version control
+- UV for dependency management
 
-Report bugs at <https://github.com/arkottke/pystrata/issues>.
+**Getting Started**
 
-If you are reporting a bug, please include:
-
-- Your operating system name and version.
-- Any details about your local setup that might be helpful in
-  troubleshooting.
-- Detailed steps to reproduce the bug.
-
-### Fix Bugs
-
-Look through the GitHub issues for bugs. Anything tagged with "bug" is
-open to whoever wants to implement it.
-
-### Implement Features
-
-Look through the GitHub issues for features. Anything tagged with
-"feature" is open to whoever wants to implement it.
-
-### Write Documentation
-
-pyStrata could always use more documentation, whether as part of the
-official pyStrata docs, in docstrings, or even on the web in blog posts,
-articles, and such.
-
-### Submit Feedback
-
-The best way to send feedback is to file an issue at
-<https://github.com/arkottke/pystrata/issues>.
-
-If you are proposing a feature:
-
-- Explain in detail how it would work.
-- Keep the scope as narrow as possible, to make it easier to
-  implement.
-- Remember that this is a volunteer-driven project, and that
-  contributions are welcome :)
-
-## Get Started!
-
-Ready to contribute? Here's how to set up pyStrata for
-local development.
-
-1.  Fork the pyStrata repo on [GitHub](https://github.com/arkottke/pystrata)
+1.  Fork the repository on GitHub
 
 2.  Clone your fork locally:
 
-        $ git clone git@github.com:your_name_here/pystrata.git
+    ```bash
+    git clone https://github.com/yourusername/pystrata.git
+    cd pystrata
+    ```
 
-3.  Install your local copy into a virtualenv. Assuming you have
-    virtualenvwrapper installed, this is how you set up your fork for
-    local development:
+3.  Set up the development environment:
 
-        $ mkvirtualenv pystrata
-        $ cd pystrata/
-        $ python setup.py develop
+    ```bash
+    uv sync
+    uv run pre-commit install
+    ```
 
-4.  Create a branch for local development:
+4.  Create a feature branch:
 
-        $ git checkout -b name-of-your-bugfix-or-feature
+    ```bash
+    git checkout -b feature-name
+    ```
 
-    Now you can make your changes locally.
+## Development Workflow
 
-5.  When you're done making changes, check that your changes pass
-    flake8 and the tests:
+**Environment Management**
 
-        $ pytest
+pyStrata uses UV for fast dependency resolution and environment management:
 
-6.  Commit your changes and push your branch to GitHub:
+```bash
+# Install all dependencies including dev tools
+uv sync
 
-        $ git add .
-        $ git commit -m "Your detailed description of your changes."
-        $ git push origin name-of-your-bugfix-or-feature
+# Run tests
+uv run pytest
 
-7.  Submit a pull request through the GitHub website.
+# Run linting
+uv run ruff check src/ tests/
+uv run ruff format src/ tests/
 
-## Pull Request Guidelines
+# Run type checking
+uv run mypy src/
+```
 
-Before you submit a pull request, check that it meets these guidelines:
+**Code Quality Tools**
 
-1.  The pull request should include tests.
-2.  If the pull request adds functionality, the docs should be updated.
-    Put your new functionality into a function with a docstring, and add
-    the feature to the list in README.md.
-3.  The pull request should work for Python 3.13 and 3.14
-    and for PyPy. Check
-    <https://travis-ci.org/arkottke/pystrata/pull_requests> and make
-    sure that the tests pass for all supported Python versions.
+We use several tools to maintain code quality:
 
-## Tips
+- **Ruff** - Fast Python linter and formatter
+- **MyPy** - Static type checking
+- **pytest** - Testing framework
+- **pre-commit** - Git hooks for automated checks
 
-To run a subset of tests:
+**Testing**
 
-    $ pytest tests/site_test.py
+Run the test suite to ensure your changes don't break existing functionality:
+
+```bash
+# Run all tests
+uv run pytest
+
+# Run with coverage
+uv run pytest --cov=pystrata
+
+# Run specific test file
+uv run pytest tests/test_motion.py
+```
+
+## Contributing Guidelines
+
+**Code Style**
+
+- Follow PEP 8 style guidelines
+- Use descriptive variable and function names
+- Add type hints to all public functions
+- Maximum line length of 88 characters (Black default)
+
+**Documentation**
+
+- All public functions must have docstrings in NumPy format
+- Include examples in docstrings where helpful
+- Update relevant documentation files for new features
+- Add references to scientific literature where appropriate
+
+**Testing**
+
+- Write tests for all new functionality
+- Aim for high test coverage (\>90%)
+- Use descriptive test names
+- Include edge cases and error conditions
+
+**Commit Messages**
+
+Use clear, descriptive commit messages:
+
+```
+Add support for frequency-dependent damping in RVT motions
+
+- Implement FDDampingMixin class
+- Add tests for frequency-dependent behavior
+- Update documentation with new damping options
+
+Closes #123
+```
+
+## Types of Contributions
+
+**Bug Fixes**
+
+- Check existing issues before starting
+- Include a test that reproduces the bug
+- Provide clear description of the fix
+
+**New Features**
+
+- Discuss major features in an issue first
+- Ensure backward compatibility when possible
+- Add comprehensive tests and documentation
+- Follow existing patterns and conventions
+
+**Documentation**
+
+- Fix typos and improve clarity
+- Add examples and tutorials
+- Expand API documentation
+- Improve mathematical explanations
+
+**Examples**
+
+- Create realistic analysis scenarios
+- Include clear explanations and context
+- Test all code in examples
+- Provide appropriate data files
+
+## Pull Request Process
+
+1.  **Before submitting:**
+    - Ensure all tests pass
+    - Run the linting tools
+    - Update documentation as needed
+    - Add appropriate test coverage
+2.  **Creating the PR:**
+    - Use a descriptive title
+    - Reference any related issues
+    - Provide clear description of changes
+    - Include any breaking changes in the description
+3.  **Review process:**
+    - Respond to reviewer feedback promptly
+    - Make requested changes in new commits
+    - Keep the PR focused and reasonably sized
+
+## Code Organization
+
+pyStrata follows a modular architecture:
+
+**Core Modules**
+
+- `pystrata.motion` - Input ground motion handling
+- `pystrata.site` - Site profile and layer definitions
+- `pystrata.propagation` - Wave propagation calculators
+- `pystrata.output` - Output quantity computation
+- `pystrata.variation` - Parameter variation and uncertainty
+
+**Design Principles**
+
+- **Composition over inheritance** - Use mixins and composition
+- **Immutable objects** - Prefer immutable data structures
+- **Clear interfaces** - Well-defined public APIs
+- **Minimal dependencies** - Keep the core lightweight
+
+## Release Process
+
+pyStrata uses semantic versioning (MAJOR.MINOR.PATCH):
+
+- **MAJOR** - Incompatible API changes
+- **MINOR** - New functionality (backward compatible)
+- **PATCH** - Bug fixes (backward compatible)
+
+Releases are automated using GitHub Actions and triggered by version tags.
+
+## Getting Help
+
+- **GitHub Issues** - Bug reports and feature requests
+- **GitHub Discussions** - Questions and general discussion
+- **Documentation** - Comprehensive guides and API reference
+
+## Community Guidelines
+
+We are committed to providing a welcoming and inclusive environment:
+
+- Be respectful and constructive
+- Focus on the technical merits
+- Help newcomers get started
+- Follow the code of conduct
+
+Thank you for contributing to pyStrata!

@@ -28,10 +28,10 @@ Key Physical Processes
 **Resonance Effects**
     The soil column acts as a resonator, with fundamental and higher-mode frequencies determined by layer thicknesses and shear wave velocities. Ground motions are amplified near these resonant frequencies.
 
-PyStrata Capabilities
+pyStrata Capabilities
 ---------------------
 
-PyStrata implements state-of-the-art methods for site response analysis:
+pyStrata implements state-of-the-art methods for site response analysis:
 
 **Analysis Methods**
     * Time series analysis for nonstationary and nonlinear behavior
@@ -60,7 +60,7 @@ PyStrata implements state-of-the-art methods for site response analysis:
 Scientific Foundation
 ---------------------
 
-PyStrata is built on decades of research in computational seismology and geotechnical earthquake engineering. The theoretical foundation draws from:
+pyStrata is built on decades of research in computational seismology and geotechnical earthquake engineering. The theoretical foundation draws from:
 
 * **Wave propagation theory** :cite:p:`Kramer1996` for fundamental wave mechanics
 * **Soil dynamics** :cite:p:`Ishihara1996` for nonlinear soil behavior models
@@ -72,7 +72,7 @@ The library implements peer-reviewed algorithms and has been validated against i
 Applications
 ------------
 
-PyStrata is used for a wide range of applications in earthquake engineering:
+pyStrata is used for a wide range of applications in earthquake engineering:
 
 **Research**
     * Development of new site response methods
@@ -95,7 +95,7 @@ PyStrata is used for a wide range of applications in earthquake engineering:
 Getting Started
 ---------------
 
-The best way to get started with PyStrata is to:
+The best way to get started with pyStrata is to:
 
 1. :doc:`Install the package <install>` using pip or conda
 2. Work through the :doc:`quickstart guide <quickstart>` for basic concepts

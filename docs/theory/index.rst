@@ -1,7 +1,7 @@
 Theory and Methods
 ==================
 
-This section provides the mathematical and theoretical foundation for site response analysis methods implemented in PyStrata.
+This section provides the mathematical and theoretical foundation for site response analysis methods implemented in pyStrata.
 
 .. toctree::
    :maxdepth: 2
@@ -57,7 +57,7 @@ These assumptions are reasonable for most engineering applications but may requi
 Implementation Notes
 --------------------
 
-PyStrata implements these theoretical methods with careful attention to:
+pyStrata implements these theoretical methods with careful attention to:
 
 * **Numerical stability** - Robust algorithms for wave propagation calculations
 * **Frequency resolution** - Adequate sampling for accurate results

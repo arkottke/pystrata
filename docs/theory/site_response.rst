@@ -154,7 +154,7 @@ Standard benchmark problems include:
 
 **Code-to-Code Comparisons**
 
-PyStrata results have been compared against:
+pyStrata results have been compared against:
 - SHAKE :cite:p:`Schnabel1972`
 - DEEPSOIL :cite:p:`Hashash2016`
 - OpenSees :cite:p:`McKenna2000`

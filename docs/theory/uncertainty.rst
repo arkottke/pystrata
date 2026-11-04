@@ -1,7 +1,7 @@
 Uncertainty Analysis
 ====================
 
-Site response analysis involves numerous uncertain parameters. PyStrata provides tools for systematic uncertainty quantification using logic trees and Monte Carlo simulation.
+Site response analysis involves numerous uncertain parameters. pyStrata provides tools for systematic uncertainty quantification using logic trees and Monte Carlo simulation.
 
 Sources of Uncertainty
 -----------------------

@@ -3,12 +3,12 @@
 Installation
 ============
 
-PyStrata can be installed using pip, conda, or built from source. Python 3.13 or higher is required.
+pyStrata can be installed using pip, conda, or built from source. Python 3.13 or higher is required.
 
 Quick Install
 -------------
 
-The easiest way to install PyStrata is using pip:
+The easiest way to install pyStrata is using pip:
 
 .. code-block:: bash
 
@@ -23,7 +23,7 @@ Or using conda:
 Dependencies
 ------------
 
-PyStrata requires the following packages:
+pyStrata requires the following packages:
 
 * **numpy** -- Fast numerical arrays and linear algebra
 * **scipy** -- Scientific computing and signal processing
@@ -38,7 +38,7 @@ These dependencies are automatically installed when using pip or conda.
 Development Installation
 ------------------------
 
-To install PyStrata for development or to get the latest features:
+To install pyStrata for development or to get the latest features:
 
 .. code-block:: bash
 

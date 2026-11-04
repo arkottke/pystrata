@@ -1,12 +1,12 @@
 Quickstart Guide
 ================
 
-This guide will get you up and running with PyStrata for basic site response analysis.
+This guide will get you up and running with pyStrata for basic site response analysis.
 
 Basic Concepts
 --------------
 
-PyStrata models site response using four main components:
+pyStrata models site response using four main components:
 
 1. **Motion** - Input ground motion (time series or frequency domain)
 2. **Profile** - Layered soil model with material properties
@@ -158,7 +158,7 @@ Analysis Methods
 Output Options
 --------------
 
-PyStrata provides many output types for different analysis needs:
+pyStrata provides many output types for different analysis needs:
 
 **Response Spectra**
 

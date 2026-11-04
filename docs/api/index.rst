@@ -1,7 +1,7 @@
 API Reference
 =============
 
-This section provides detailed documentation for all public classes and functions in PyStrata.
+This section provides detailed documentation for all public classes and functions in pyStrata.
 
 .. toctree::
    :maxdepth: 2
@@ -21,7 +21,7 @@ This section provides detailed documentation for all public classes and function
 Overview
 --------
 
-PyStrata's API is organized into the following modules:
+pyStrata's API is organized into the following modules:
 
 **Motion** (:doc:`motion`)
     Classes for representing and manipulating ground motion data

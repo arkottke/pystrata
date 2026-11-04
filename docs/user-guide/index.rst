@@ -1,7 +1,7 @@
 User Guide
 ==========
 
-This guide provides practical information for using PyStrata effectively in your site response analysis workflows.
+This guide provides practical information for using pyStrata effectively in your site response analysis workflows.
 
 .. toctree::
    :maxdepth: 2
@@ -16,7 +16,7 @@ This guide provides practical information for using PyStrata effectively in your
 Overview
 --------
 
-PyStrata follows a modular design philosophy where site response analysis is broken down into distinct, interchangeable components:
+pyStrata follows a modular design philosophy where site response analysis is broken down into distinct, interchangeable components:
 
 **Input Motion** (:doc:`motions`)
     Specification of ground motion at the input location (typically bedrock)
@@ -41,7 +41,7 @@ This modular approach allows users to mix and match components as needed for the
 Typical Workflow
 ----------------
 
-A typical PyStrata analysis follows these steps:
+A typical pyStrata analysis follows these steps:
 
 1. **Load or define input motion**
 

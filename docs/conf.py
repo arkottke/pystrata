@@ -23,7 +23,7 @@ try:
 except ImportError:
     # Fallback values if pystrata cannot be imported
     class MockPystrata:
-        __title__ = "PyStrata"
+        __title__ = "pyStrata"
         __copyright__ = "2016-2026, Albert Kottke"
         __author__ = "Albert Kottke"
         __version__ = "0.5.5"

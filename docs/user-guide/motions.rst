@@ -1,12 +1,12 @@
 Working with Ground Motions
 ===========================
 
-Ground motions are the input to site response analysis, representing the seismic excitation at the base of the soil profile. PyStrata supports several motion types and formats to accommodate different analysis workflows.
+Ground motions are the input to site response analysis, representing the seismic excitation at the base of the soil profile. pyStrata supports several motion types and formats to accommodate different analysis workflows.
 
 Motion Types
 ------------
 
-PyStrata provides several motion classes for different types of seismic input:
+pyStrata provides several motion classes for different types of seismic input:
 
 **Time Series Motions**
     Direct representation of ground motion as acceleration, velocity, or displacement time series
@@ -24,7 +24,7 @@ The most common input format is acceleration time series from recorded or simula
 
 **Loading from Files**
 
-PyStrata supports several standard formats:
+pyStrata supports several standard formats:
 
 .. code-block:: python
 

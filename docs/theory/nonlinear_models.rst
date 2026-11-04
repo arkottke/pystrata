@@ -1,7 +1,7 @@
 Nonlinear Soil Models
 =====================
 
-Soil exhibits nonlinear stress-strain behavior under dynamic loading, with stiffness decreasing and damping increasing as shear strain increases. PyStrata implements several empirical models for capturing this behavior.
+Soil exhibits nonlinear stress-strain behavior under dynamic loading, with stiffness decreasing and damping increasing as shear strain increases. pyStrata implements several empirical models for capturing this behavior.
 
 Equivalent Linear Approach
 ---------------------------
@@ -143,9 +143,9 @@ Parameters depend on:
 
 **User-Defined Curves**
 
-PyStrata allows specification of custom modulus reduction and damping curves from laboratory data.
+pyStrata allows specification of custom modulus reduction and damping curves from laboratory data.
 
-Implementation in PyStrata
+Implementation in pyStrata
 ---------------------------
 
 Nonlinear soil properties are handled through the `SoilType` class with `NonlinearCurve` objects that define the strain-dependent curves.
