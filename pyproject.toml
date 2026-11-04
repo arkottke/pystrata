@@ -112,7 +112,11 @@ ignore = ["E203", "D105", "D107", "D401"]
 convention = "numpy"
 
 [tool.ruff.lint.per-file-ignores]
+# The package is documented; tests, benchmarks, examples and setup.py need not be
 "tests/**" = ["D"]
+"bench/**" = ["D"]
+"examples/**" = ["D"]
+"setup.py" = ["D"]
 
 # Coverage configuration
 [tool.coverage.run]
