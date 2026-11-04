@@ -6,7 +6,6 @@ Functions for loading or generating reference shear-wave velocity profiles.
 .. currentmodule:: pystrata.generic
 
 .. autosummary::
-   :toctree: ../generated/
    :nosignatures:
 
    aaa21_profile

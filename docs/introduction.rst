@@ -102,4 +102,4 @@ The best way to get started with PyStrata is to:
 3. Explore the :doc:`examples gallery <examples/index>` for real-world applications
 4. Consult the :doc:`API reference <api/index>` for detailed documentation
 
-The :doc:`theory section <theory/index>` provides mathematical background, while the :doc:`user guide <user_guide/index>` offers practical guidance for analysis workflows.
+The :doc:`theory section <theory/index>` provides mathematical background, while the :doc:`user guide <user-guide/index>` offers practical guidance for analysis workflows.

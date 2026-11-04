@@ -252,7 +252,7 @@ Next Steps
 Now that you understand the basics, explore:
 
 * :doc:`examples/index` - Real-world analysis examples
-* :doc:`user_guide/index` - Detailed guidance on each component
+* :doc:`user-guide/index` - Detailed guidance on each component
 * :doc:`theory/index` - Mathematical background and theory
 * :doc:`api/index` - Complete API reference
 

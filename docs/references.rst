@@ -95,4 +95,4 @@ If you notice missing or incorrect references, or would like to add citations fo
 2. Update the relevant documentation with ``:cite:p:`key``` citations
 3. Submit a pull request with your changes
 
-For formatting guidelines, see our :doc:`developer/contributing` guide.
+For formatting guidelines, see our :doc:`developer-guide/contributing` guide.

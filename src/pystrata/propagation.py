@@ -720,8 +720,8 @@ class LinearElasticCalculator(AbstractCalculator):
     (inhomogeneous) SII solution. When both are zero the original
     normal-incidence propagator is used and results are unchanged.
 
-    Choosing the degree of inhomogeneity (``inhomogeneity``, gamma)
-    ..............................................................
+    **Choosing the degree of inhomogeneity** (``inhomogeneity``, gamma)
+
     The degree of inhomogeneity gamma is the angle between the wave's
     *propagation* vector P (normal to planes of constant phase) and its
     *attenuation* vector A (normal to planes of constant amplitude). For a
@@ -1214,18 +1214,19 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
 
     Parameters
     ----------
-    method: str
-        method for computing the strain spectrum:
-         - ka02: use the Kausel & Assimaki (2002) defined shape for a  smooth spectrum
-           for the strain.
-         - zr15: use Zalachoris & Rathje (2015) approach of the strain
-         spectrum
-         - tan_avg: Loop-averaged tangent strain. Requires `strain_reduc`
-           parameter
-         - ko:##: use Konno-Omachi with a bandwith of ## to compute the smooth
-         spectrum. The strain is then computed as a running maximum from high
-         to low frequencies. A value of 20 or 30 is recommended based on
-         limited studies.
+    method : str, default="ko:20"
+        Method for computing the strain spectrum:
+
+        - ``ka02``: use the shape of Kausel & Assimaki (2002)
+          :cite:p:`kausel2002seismic` for a smooth strain spectrum.
+        - ``zr15``: use the approach of Zalachoris & Rathje (2015) for the
+          strain spectrum.
+        - ``tan_avg``: loop-averaged tangent strain. Requires the
+          `strain_reduc` parameter.
+        - ``ko:##``: use Konno-Ohmachi smoothing with a bandwidth of ## to
+          compute the smooth spectrum. The strain is then computed as a running
+          maximum from high to low frequencies. A value of 20 or 30 is
+          recommended based on limited studies.
     strain_ratio: float, default=1.00
         ratio between the maximum strain and effective strain used to compute
         strain compatible properties. There is not clear guidance the use of
@@ -1246,12 +1247,6 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         η ≥ 1.  The strain spectrum shape is evaluated at f/η, extending
         nonlinearity to higher frequencies.  η=1 → identical to the parent
         ``ko:{bw_ko}`` method.
-
-    References
-    ----------
-    .. [1] Kausel, E., & Assimaki, D. (2002). Seismic simulation of inelastic
-        soils via frequency-dependent moduli and damping. Journal of
-        Engineering Mechanics, 128(1), 34-47.
     """
 
     def __init__(

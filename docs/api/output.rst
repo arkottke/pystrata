@@ -9,7 +9,6 @@ Classes
 -------
 
 .. autosummary::
-   :toctree: ../generated/
    :nosignatures:
 
    OutputCollection

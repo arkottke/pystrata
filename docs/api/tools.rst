@@ -6,7 +6,6 @@ File I/O and helper utilities.
 .. currentmodule:: pystrata.tools
 
 .. autosummary::
-   :toctree: ../generated/
    :nosignatures:
 
    load_shake_inp

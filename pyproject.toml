@@ -78,13 +78,14 @@ style = [
 docs = [
     "docutils<0.22",
     "sphinx>=8.0",
-    "sphinx-design",
-    "sphinx-rtd-theme>=3.0.2",
-    "sphinx-autobuild>=2024.9.3",
+    "furo",
+    "myst-parser",
     "nbsphinx>=0.9.7",
     "nbsphinx-link",
     "sphinxcontrib-bibtex>=2.6.5",
-    "furo",
+    "sphinx-design",
+    "sphinx-autobuild>=2024.9.3",
+    "ipykernel",
     "matplotlib",
 ]
 
@@ -158,12 +159,4 @@ dev = [
     "pandas",
     "pyexcel",
 ]
-docs = [
-    "nbsphinx>=0.9.7",
-    "nbsphinx-link",
-    "furo",
-    "ipykernel",
-    "sphinx-rtd-theme>=3.0.2",
-    "sphinxcontrib-bibtex>=2.6.5",
-    "sphinx-design",
-]
+docs = ["pyStrata[docs]"]

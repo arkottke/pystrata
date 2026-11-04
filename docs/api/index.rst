@@ -13,8 +13,10 @@ This section provides detailed documentation for all public classes and function
    runner
    variation
    logic_tree
+   dam
    generic
    tools
+   units
 
 Overview
 --------
@@ -45,8 +47,14 @@ PyStrata's API is organized into the following modules:
 **Generic Profiles** (:doc:`generic`)
     Generic shear-wave velocity profiles from published datasets
 
+**Dam** (:doc:`dam`)
+    Seismic response of dams modeled as shear wedges
+
 **Tools** (:doc:`tools`)
     File I/O and miscellaneous utilities
+
+**Units** (:doc:`units`)
+    Unit conversion of inputs
 
 Design Philosophy
 -----------------

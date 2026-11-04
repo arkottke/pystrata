@@ -9,7 +9,6 @@ Classes
 -------
 
 .. autosummary::
-   :toctree: ../generated/
    :nosignatures:
 
    Profile
@@ -19,6 +18,8 @@ Classes
    NonlinearCurve
    ModulusReductionCurve
    DampingCurve
+   layers_from_depth_power_law
+   layers_from_stress_power_law
 
 Site Profile
 ------------
@@ -59,3 +60,15 @@ Nonlinear Curves
 .. autoclass:: DampingCurve
    :members:
    :show-inheritance:
+
+Power-Law Layers
+----------------
+
+.. autofunction:: layers_from_depth_power_law
+
+.. autofunction:: layers_from_stress_power_law
+
+Complex Modulus
+---------------
+
+.. autofunction:: calc_comp_factor

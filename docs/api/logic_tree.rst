@@ -4,7 +4,6 @@ Logic Tree Module
 .. currentmodule:: pystrata.logic_tree
 
 .. autosummary::
-   :toctree: ../generated/
    :nosignatures:
 
    LogicTree

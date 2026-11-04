@@ -10,7 +10,6 @@ Functions
 ---------
 
 .. autosummary::
-   :toctree: ../generated/
    :nosignatures:
 
    run_ensemble

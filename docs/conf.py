@@ -24,7 +24,7 @@ except ImportError:
     # Fallback values if pystrata cannot be imported
     class MockPystrata:
         __title__ = "PyStrata"
-        __copyright__ = "2024, Albert Kottke"
+        __copyright__ = "2016-2026, Albert Kottke"
         __author__ = "Albert Kottke"
         __version__ = "0.5.5"
 
@@ -49,12 +49,27 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinxcontrib.bibtex",
     "sphinx_design",
+    "myst_parser",
 ]
 
 # Minimal extension config
 autodoc_member_order = "bysource"
-autosummary_generate = True
-numpydoc_show_class_members = False
+autodoc_typehints = "description"
+# Show the __init__ docstring (where parameters are often documented) with the class
+autoclass_content = "both"
+autosummary_generate = False
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
+    "numpy": ("https://numpy.org/doc/stable/", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy/", None),
+    "matplotlib": ("https://matplotlib.org/stable/", None),
+    "pandas": ("https://pandas.pydata.org/docs/", None),
+    "xarray": ("https://docs.xarray.dev/en/stable/", None),
+    "pygmm": ("https://pygmm.readthedocs.io/en/latest/", None),
+    "pyrvt": ("https://pyrvt.readthedocs.io/en/latest/", None),
+    "pyrotd": ("https://pyrotd.readthedocs.io/en/latest/", None),
+}
+
 bibtex_bibfiles = ["refs.bib"]
 
 # Templates and static paths

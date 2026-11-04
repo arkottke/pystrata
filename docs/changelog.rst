@@ -195,4 +195,4 @@ When contributing to PyStrata:
 3. Reference issue numbers where applicable
 4. Follow the established format and style
 
-For more details, see our :doc:`developer/contributing` guide.
+For more details, see our :doc:`developer-guide/contributing` guide.

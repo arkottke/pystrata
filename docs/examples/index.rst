@@ -26,6 +26,9 @@ Example Gallery
    example-16
    example-17
    example-18
+   example-19
+   example-20
+   example-21
 
 Complete Example Index
 ----------------------
@@ -87,6 +90,10 @@ All available examples with brief descriptions:
 **Unit Conversion with Pint** (`example-18.ipynb <../../examples/example-18.ipynb>`__)
     Define the same profile three ways — plain floats, metric pint Quantities, and Imperial
     units — demonstrating transparent unit handling.
+
+**Incidence Angle and Inhomogeneity** (`example-19.ipynb <../../examples/example-19.ipynb>`__)
+    Effect of an obliquely incident or inhomogeneous SH wave, compared with the default
+    vertically incident, homogeneous wave.
 
 **Dam Response** (`example-20.ipynb <../../examples/example-20.ipynb>`__)
     Shear-wedge dam of Gazetas and Dakoulas (1992) joined to a layered site: power-law
