@@ -115,7 +115,7 @@ convention = "numpy"
 # The package is documented; tests, benchmarks, examples and setup.py need not be
 "tests/**" = ["D"]
 "bench/**" = ["D"]
-"examples/**" = ["D"]
+"examples/**" = ["D", "E501"]
 "setup.py" = ["D"]
 
 # Coverage configuration
