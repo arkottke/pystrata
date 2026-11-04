@@ -1189,11 +1189,7 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
 
         References
         ----------
-        .. [1] Idriss, I. M., & Sun, J. I. (1992). SHAKE91: A computer program
-            for conducting equivalent linear seismic response analyses of
-            horizontally layered soil deposits. Center for Geotechnical
-            Modeling, Department of Civil and Environmental Engineering,
-            University of California, Davis, CA.
+        :cite:t:`idriss1992shake91`
         """
         return (mag - 1) / 10
 
