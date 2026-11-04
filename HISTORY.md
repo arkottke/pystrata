@@ -1,6 +1,7 @@
 # History
 
 ## Unreleased — 0.6.0
+
 - Added: `pystrata.dam` for the seismic response of dams modeled as shear wedges
   (Gazetas and Dakoulas, 1992). A `Dam` (layered wedge, optionally with
   `G ~ z**m`) is joined to a site `Profile` as a `DamProfile` and analyzed with
@@ -20,13 +21,13 @@
   `scipy>=1.15`, `xarray>=2024.9`. CI now runs 3.12, 3.13 and 3.14. The dated
   drop schedule is in `pyproject.toml`.
 
-  The old `>=3.10` floor was already unmet in practice: numpy, scipy, pandas,
-  matplotlib and pint all require >=3.11, so a 3.10 install silently resolved
-  to a much older stack (pandas 2.3 rather than 3.0, numpy 2.2 rather than
-  2.5). That forced the lockfile to fork on `python_full_version < '3.11'` into 13 duplicated packages.
+    The old `>=3.10` floor was already unmet in practice: numpy, scipy, pandas,
+    matplotlib and pint all require >=3.11, so a 3.10 install silently resolved
+    to a much older stack (pandas 2.3 rather than 3.0, numpy 2.2 rather than
+    2.5). That forced the lockfile to fork on `python_full_version < '3.11'` into 13 duplicated packages.
+
 - Changed: dropped the `tomli` dependency; `tomllib` has been in the standard
   library since Python 3.11.
-
 
 **Breaking changes**:
 
