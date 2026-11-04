@@ -1,0 +1,58 @@
+name: Interop
+
+# Test this package against the development branches of its siblings. They
+# depend on each other (pystrata on pyrvt, pygmm on pyrotd, and their tests on
+# each other), and the locked releases on PyPI lag the development branches.
+on: [push, pull_request]
+
+jobs:
+    interop:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Check out this repository
+              uses: actions/checkout@v7.0.1
+              with:
+                  path: ${{ github.event.repository.name }}
+            - name: Check out pystrata (development branch)
+              if: github.event.repository.name != 'pystrata'
+              uses: actions/checkout@v7.0.1
+              with:
+                  repository: arkottke/pystrata
+                  ref: dev
+                  path: pystrata
+            - name: Check out pygmm (development branch)
+              if: github.event.repository.name != 'pygmm'
+              uses: actions/checkout@v7.0.1
+              with:
+                  repository: arkottke/pygmm
+                  ref: dev
+                  path: pygmm
+            - name: Check out pyrvt (development branch)
+              if: github.event.repository.name != 'pyrvt'
+              uses: actions/checkout@v7.0.1
+              with:
+                  repository: arkottke/pyrvt
+                  ref: dev
+                  path: pyrvt
+            - name: Check out pyrotd (development branch)
+              if: github.event.repository.name != 'pyrotd'
+              uses: actions/checkout@v7.0.1
+              with:
+                  repository: arkottke/pyrotd
+                  ref: dev
+                  path: pyrotd
+            - name: Install uv
+              uses: astral-sh/setup-uv@v9.0.0
+              with:
+                  version: "latest"
+            - name: Install the four packages from source
+              run: |
+                  uv venv --python 3.13 .venv
+                  uv pip install --python .venv/bin/python \
+                    -e "./pyrvt[cli,test]" -e "./pygmm[slope,test]" \
+                    -e "./pystrata[test]" -e ./pyrotd pytest-cov
+            - name: Test
+              # The interop tests are skipped unless the siblings are installed
+              run: |
+                  cd ${{ github.event.repository.name }}
+                  ../.venv/bin/python -m pytest -ra
