@@ -557,3 +557,41 @@ class TestSoilTypeVariationSampleMode:
 
 if __name__ == "__main__":
     test_iter_variations()
+
+
+def test_correlated_at_percentile_uses_conditional_median():
+    randvar = variation.TruncatedNorm(2)
+    # Uncorrelated: the second variate is at its median, not tied to the first
+    z1, z2 = randvar.correlated_at_percentile(0.0, 0.9)
+    assert z1 > 0
+    assert z2 == pytest.approx(0.0)
+    # Negatively correlated variates move in opposite directions
+    z1, z2 = randvar.correlated_at_percentile(-0.5, 0.9)
+    assert z1 > 0 > z2
+    # Perfect correlation reproduces the primary variate
+    z1, z2 = randvar.correlated_at_percentile(1.0, 0.9)
+    assert z2 == pytest.approx(z1)
+
+
+def test_varied_profiles_do_not_share_layers_with_the_original():
+    soil = site.SoilType("S", 18.0, None, 0.02)
+    profile = site.Profile(
+        [
+            site.Layer(soil, 5.0, 200.0),
+            site.Layer(soil, 10.0, 300.0),
+            site.Layer(site.SoilType("R", 22.0, None, 0.01), 0, 800.0, 0.03),
+        ]
+    )
+    varied = next(
+        variation.iter_varied_profiles(
+            profile,
+            1,
+            seed=1,
+            var_thickness=variation.ToroThicknessVariation(),
+        )
+    )
+    assert varied[-1] is not profile[-1]
+    assert varied[-1]._profile is varied
+    assert profile[-1]._profile is profile
+    # The half-space keeps its own minimum damping
+    assert varied[-1].damping_min == 0.03

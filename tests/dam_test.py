@@ -333,3 +333,47 @@ def test_many_layers_match_one_layer_at_high_frequency(damping):
     one, many = tf(1), tf(30)
     assert np.all(np.abs(one) > 0)
     assert_allclose(many, one, rtol=1e-6)
+
+
+def _layered_dam_profile():
+    layers = [site.Layer(SOIL, 25.0, 200.0 + 40 * i) for i in range(4)]
+    return dam.DamProfile(dam.Dam(layers), rock_site())
+
+
+def test_undamped_transfer_function_peaks_higher():
+    p = _layered_dam_profile()
+    freqs = np.linspace(0.5, 8, 400)
+    damped = np.abs(p.transfer_function(freqs, damped=True))
+    undamped = np.abs(p.transfer_function(freqs, damped=False))
+    assert undamped.max() > damped.max()
+    # The profile itself keeps its damping
+    assert p[0].damping_min == SOIL.damping_min
+
+
+def test_dam_follows_the_layers_after_the_velocities_change():
+    from pystrata import variation
+
+    p = _layered_dam_profile()
+    varied = next(
+        variation.iter_varied_profiles(
+            p,
+            1,
+            seed=3,
+            var_velocity=variation.ToroVelocityVariation.generic_model("USGS C"),
+        )
+    )
+    assert isinstance(varied, dam.DamProfile)
+    assert varied.n_dam_layers == 4
+    assert not np.allclose(varied.dam.shear_vels, p.dam.shear_vels)
+    assert_allclose(
+        [layer.initial_shear_vel for layer in varied.dam.layers],
+        [layer.initial_shear_vel for layer in varied.layers[:4]],
+    )
+
+
+def test_resampling_variations_reject_dam_profiles():
+    from pystrata import variation
+
+    p = _layered_dam_profile()
+    with pytest.raises(NotImplementedError, match="dam profiles"):
+        variation.ToroThicknessVariation()(p)

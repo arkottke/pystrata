@@ -239,8 +239,8 @@ class DamProfile(Profile):
     """
 
     def __init__(self, dam: Dam, site: Profile, wt_depth: float | None = None):
-        self._dam = dam
-        self._site = site
+        self._n_dam = len(dam.layers)
+        self._site_wt_depth = site.wt_depth
         if wt_depth is None:
             wt_depth = dam.height + site.wt_depth
         layers = [layer.copy() for layer in dam.layers] + [
@@ -250,25 +250,31 @@ class DamProfile(Profile):
 
     @property
     def dam(self) -> Dam:
-        return self._dam
+        """The dam layers as they are now, e.g. after the velocities are varied."""
+        return Dam(self.layers[: self._n_dam])
 
     @property
     def site(self) -> Profile:
-        return self._site
+        """The site layers as they are now."""
+        return Profile(
+            [layer.copy() for layer in self.layers[self._n_dam :]],
+            wt_depth=self._site_wt_depth,
+        )
 
     @property
     def n_dam_layers(self) -> int:
-        return len(self._dam.layers)
+        return self._n_dam
 
     @property
     def dam_height(self) -> float:
-        return self._dam.height
+        return float(sum(layer.thickness for layer in self.layers[: self._n_dam]))
 
     def copy(self) -> DamProfile:
         n = self.n_dam_layers
         dam = Dam([layer.copy() for layer in self.layers[:n]])
         site = Profile(
-            [layer.copy() for layer in self.layers[n:]], wt_depth=self._site.wt_depth
+            [layer.copy() for layer in self.layers[n:]],
+            wt_depth=self._site_wt_depth,
         )
         return DamProfile(dam, site, self.wt_depth)
 
@@ -283,13 +289,23 @@ class DamProfile(Profile):
             Frequencies [Hz].
         depth_out : float, default=0
             Depth from the crest [m]; 0 is the crest.
+        damped : bool, default=True
+            If the damping of the layers is included. If false, the
+            transfer function of the undamped profile is returned.
         """
         from .propagation import DamLinearElasticCalculator
 
+        profile = self
+        if not damped:
+            profile = self.copy()
+            for layer in profile:
+                layer.damping_min = 0.0
+            profile.reset_layers()
+
         calc = DamLinearElasticCalculator()
-        loc_in = self.location("outcrop", index=len(self) - 1)
-        loc_out = self.location("within", depth=depth_out)
-        return calc.transfer_function(freqs, self, loc_in, loc_out)
+        loc_in = profile.location("outcrop", index=len(profile) - 1)
+        loc_out = profile.location("within", depth=depth_out)
+        return calc.transfer_function(freqs, profile, loc_in, loc_out)
 
     def peak_freq(
         self, f_guess: float | None = None, f_range: tuple[float, float] | None = None
@@ -308,7 +324,7 @@ class DamProfile(Profile):
         f_range : tuple, optional
             Explicit search range [Hz]; overrides the default range.
         """
-        f_guess = f_guess or self._dam.fixed_base_freq()
+        f_guess = f_guess or self.dam.fixed_base_freq()
         if f_range is None:
             f_range = (0.2 * f_guess, 5 * f_guess)
         freqs = np.geomspace(*f_range, 1500)

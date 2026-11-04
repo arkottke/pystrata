@@ -120,3 +120,31 @@ def test_adjust_profile_damping(profile, site_atten):
     assert np.isclose(
         adjusted.site_attenuation() + site_atten_scatter, site_atten, rtol=0.01
     )
+
+
+@pytest.mark.parametrize("exclude", ["Mid", "Rock"])
+def test_adjust_damping_with_excluded_layers(exclude):
+    """The target is met when layers are excluded from the adjustment.
+
+    Differencing the depths of the selected layers spans an excluded middle layer, and
+    gives the last selected layer no thickness if the half-space is excluded; either way
+    the adjusted profile misses the target.
+    """
+
+    def layer(name, thick, vel):
+        soil = pystrata.site.SoilType(name, 18.0, None, 0.02)
+        return pystrata.site.Layer(soil, thick, vel)
+
+    profile = pystrata.site.Profile(
+        [
+            layer("Top", 10.0, 200.0),
+            layer("Mid", 20.0, 350.0),
+            layer("Bot", 30.0, 500.0),
+            layer("Rock", 0.0, 1500.0),
+        ]
+    )
+    target = 0.06
+    adjusted, scatter = pystrata.tools.adjust_damping_values(
+        profile, target, exclude=exclude
+    )
+    assert np.isclose(adjusted.site_attenuation() + scatter, target, rtol=1e-3)

@@ -194,7 +194,13 @@ def _calc_waves_general_python(
     wave_nums = np.empty((n_layers, n_freqs), dtype=complex)
     for i in range(n_layers):
         comp_wave_num = angular_freqs / comp_shear_vels[i, :]
-        wave_nums[i, :] = np.sqrt(comp_wave_num**2 - horiz_wave_nums**2)
+        vert_wave_nums = np.sqrt(comp_wave_num**2 - horiz_wave_nums**2)
+        # Waves must decay away from the source: Im(k) <= 0. Past the critical
+        # angle of a lossless layer the argument is real and negative, and the
+        # branch of the root would otherwise depend on the sign of a zero.
+        wave_nums[i, :] = np.where(
+            vert_wave_nums.imag > 0, -vert_wave_nums, vert_wave_nums
+        )
 
     waves_a = np.ones_like(wave_nums, dtype=complex)
     waves_b = np.ones_like(wave_nums, dtype=complex)
@@ -347,7 +353,10 @@ if HAS_NUMBA:
         for i in range(n_layers):
             for j in range(n_freqs):
                 comp_wave_num = angular_freqs[j] / comp_shear_vels[i, j]
-                wave_nums[i, j] = np.sqrt(comp_wave_num**2 - horiz_wave_nums[j] ** 2)
+                vert_wave_num = np.sqrt(comp_wave_num**2 - horiz_wave_nums[j] ** 2)
+                if vert_wave_num.imag > 0:
+                    vert_wave_num = -vert_wave_num
+                wave_nums[i, j] = vert_wave_num
 
         waves_a = np.ones((n_layers, n_freqs), dtype=np.complex128)
         waves_b = np.ones((n_layers, n_freqs), dtype=np.complex128)
@@ -541,8 +550,12 @@ class QuarterWaveLenCalculator(AbstractCalculator):
         self, density: npt.ArrayLike, thickness: npt.ArrayLike, slowness: npt.ArrayLike
     ) -> tuple[np.ndarray, np.ndarray]:
         freqs = self.motion.freqs
+        # The quarter-wavelength depth is infinite at zero frequency; use the
+        # lowest positive frequency there, which is the limit of the average
+        positive = freqs > 0
+        freqs_calc = np.where(positive, freqs, np.min(freqs[positive]))
         # 1/4 wavelength depth -- estimated for mean slowness
-        qwl_depth = 1 / (4 * np.mean(slowness) * freqs)
+        qwl_depth = 1 / (4 * np.mean(slowness) * freqs_calc)
 
         def qwl_average(param):
             return np.array([my_trapz(thickness, param, qd) for qd in qwl_depth])
@@ -555,7 +568,7 @@ class QuarterWaveLenCalculator(AbstractCalculator):
             # computed depths. If the new value is just taken, then this
             # algorithm can osccilate between two solutions.
             qwl_depth = np.mean(
-                np.c_[prev_qwl_depth, 1 / (4 * qwl_slowness * freqs)], axis=1
+                np.c_[prev_qwl_depth, 1 / (4 * qwl_slowness * freqs_calc)], axis=1
             )
             if np.allclose(prev_qwl_depth, qwl_depth, rtol=0.01):
                 break
@@ -570,7 +583,7 @@ class QuarterWaveLenCalculator(AbstractCalculator):
             total_depth = np.sum(thickness[:-1])
             total_slow = my_trapz(thickness, slowness, total_depth)
             freq_bot = 1.0 / (4 * total_depth * total_slow)
-            eta = self.correction_ba23(np.log10(freqs / freq_bot))
+            eta = self.correction_ba23(np.log10(freqs_calc / freq_bot))
         else:
             raise NotImplementedError
 
@@ -886,7 +899,7 @@ class LinearElasticCalculator(AbstractCalculator):
         gamma = self._inhomogeneity
         vel = half_space.shear_vel
         # Intrinsic absorption Q^-1 = 1 / Q of the half space (~= 2 * damping).
-        inv_q = 1.0 / half_space.soil_type.quality
+        inv_q = 2 * half_space.damping
         chi = np.sqrt(1.0 + inv_q**2)
         chi_su = np.sqrt(1.0 + inv_q**2 / np.cos(gamma) ** 2)
         return (angular_freqs / vel) * (

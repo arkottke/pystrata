@@ -739,3 +739,48 @@ def test_general_equivalent_linear_forwards_kwargs():
 #
 # def test_equiv_linear():
 #     pass
+
+
+def test_quarter_wave_length_with_zero_frequency():
+    """A motion that includes f = 0 (e.g. a time series) must not give NaN."""
+    profile = _general_profile()
+    freqs = np.linspace(0.0, 20.0, 128)
+    motion = pystrata.motion.Motion(freqs=freqs)
+    calc = pystrata.propagation.QuarterWaveLenCalculator()
+    calc(motion, profile, profile.location("outcrop", index=-1))
+    assert np.all(np.isfinite(calc.crustal_amp))
+    assert np.all(np.isfinite(calc.site_term))
+    # The zero-frequency value is the limit from the lowest frequency
+    assert calc.crustal_amp[0] == pytest.approx(calc.crustal_amp[1], rel=0.05)
+
+
+def test_inhomogeneous_incidence_with_undamped_half_space():
+    """A half space with no damping has no intrinsic absorption, not 1/0."""
+    profile = _general_profile(rock_damping=0.0)
+    motion = _general_motion()
+    _, tf = _run_accel_tf(profile, motion, incidence_angle=20, inhomogeneity=10)
+    assert np.all(np.isfinite(tf))
+
+
+def test_inhomogeneous_incidence_uses_the_layer_damping():
+    """The absorption comes from the layer, not from its soil type."""
+    soil = pystrata.site.SoilType("Rock", 22.0, None, 0.01)
+    soft = pystrata.site.Layer(soil, 0, 900, damping_min=0.05)
+    stiff = pystrata.site.Layer(soil, 0, 900)
+    for layer in (soft, stiff):
+        layer._profile = None
+    motion = _general_motion()
+
+    def tf_for(half_space):
+        profile = pystrata.site.Profile(
+            [
+                pystrata.site.Layer(
+                    pystrata.site.SoilType("Soil", 18.0, None, 0.03), 30, 300
+                ),
+                half_space,
+            ]
+        )
+        profile.update_layers()
+        return _run_accel_tf(profile, motion, incidence_angle=20, inhomogeneity=10)[1]
+
+    assert np.any(np.abs(tf_for(soft) - tf_for(stiff)) > 1e-6)

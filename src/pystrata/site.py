@@ -902,7 +902,15 @@ class Profile(collections.abc.Container):
         return Profile([layer.copy() for layer in self], self.wt_depth)
 
     def index(self, layer):
-        return self.layers.index(layer)
+        """Index of `layer` in the profile.
+
+        Layers are matched by identity: equal layers, such as the pieces of an
+        evenly discretized layer, are distinct entries.
+        """
+        for i, other in enumerate(self.layers):
+            if other is layer:
+                return i
+        raise ValueError(f"{layer!r} is not in the profile")
 
     def append(self, layer):
         last = len(self.layers)
@@ -931,7 +939,7 @@ class Profile(collections.abc.Container):
             layer._profile = self
             layer._depth = depth
             layer._stress_vert = stress_vert
-            if layer != self[-1]:
+            if layer is not self[-1]:
                 # Use the layer to compute the values at the base of the
                 # layer, and apply them at the top of the next layer
                 depth = layer.depth_base
@@ -943,7 +951,7 @@ class Profile(collections.abc.Container):
             if layer.soil_type in yielded:
                 continue
             else:
-                yielded.add(layer)
+                yielded.add(layer.soil_type)
                 yield layer.soil_type
 
     def auto_discretize(
@@ -1170,7 +1178,9 @@ class Profile(collections.abc.Container):
             layer = self[i]
         elif index is not None and depth is None:
             layer = self[index]
-            i = self.index(layer)
+            # Normalize negative indices; do not search for the layer, since
+            # equal layers would be found at their first occurrence
+            i = range(len(self))[index]
             depth_within = 0
         else:
             raise NotImplementedError

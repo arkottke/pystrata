@@ -59,6 +59,19 @@ def _as_generator(rng) -> np.random.Generator:
     return np.random.default_rng(rng)
 
 
+def _check_resamplable(profile, name):
+    """Raise if `profile` has layers that cannot be rebuilt by this model.
+
+    A dam is a stack of wedge layers whose type and number are part of the model;
+    rebuilding them as plain layers would silently drop the dam.
+    """
+    if hasattr(profile, "n_dam_layers"):
+        raise NotImplementedError(
+            f"{name} rebuilds the layers and is not supported for dam profiles; "
+            "vary the velocities instead."
+        )
+
+
 class TruncatedNorm:
     """Truncated normal random number generator.
 
@@ -143,7 +156,7 @@ class TruncatedNorm:
         The primary variate ``z1`` is the inverse CDF of the *scaled*
         truncated normal at ``percentile``.  The secondary variate ``z2``
         is drawn from the conditional distribution
-        :math:`z_2 | z_1 = \\rho z_1 + \\sqrt{1 - \\rho^2}\\, z_1`,
+        :math:`E[z_2 | z_1] = \\rho z_1`, the conditional median,
         also clipped to ``[-limit, +limit]``.
 
         Both variates are expressed in the same units as the samples
@@ -170,7 +183,7 @@ class TruncatedNorm:
         a, b = -self._limit / self._scale, self._limit / self._scale
         z1 = stats.truncnorm.ppf(percentile, a, b, scale=self._scale)
         # Conditional mean of z2 given z1 under bivariate normal
-        z2 = correl * z1 + np.sqrt(max(1.0 - correl**2, 0.0)) * z1
+        z2 = correl * z1
         # Clip both to the truncation window
         z1 = np.clip(z1, -self._limit, self._limit)
         z2 = np.clip(z2, -self._limit, self._limit)
@@ -293,6 +306,7 @@ class ToroThicknessVariation:
         site.Profile
             Varied site profile.
         """
+        _check_resamplable(profile, type(self).__name__)
         layers = []
         for thick, depth_mid in self.iter_thickness(profile[-2].depth_base, rng=rng):
             # Locate the proper layer and add it to the model
@@ -318,7 +332,8 @@ class ToroThicknessVariation:
                 hsl.soil_type,
                 0,
                 hsl.initial_shear_vel,
-                poissons_ratio=hsl.poissons_ratio,
+                hsl.damping_min,
+                hsl.poissons_ratio,
             )
         )
 
@@ -383,6 +398,7 @@ class HalfSpaceDepthVariation:
         site.Profile
             Varied site profile.
         """
+        _check_resamplable(profile, type(self).__name__)
         # Update the distribution with the central value of the profile
         varied_depth = self._dist.rvs(random_state=_as_generator(rng))
 
@@ -394,7 +410,8 @@ class HalfSpaceDepthVariation:
 
         # Find the layer
         index, depth_within = profile.lookup_depth(varied_depth)
-        half_space = profile[-1]
+        # A copy: layers belong to a single profile
+        half_space = profile[-1].copy()
 
         if index < (len(profile) - 1):
             # Variation is within the layers
@@ -1025,6 +1042,7 @@ class SoilTypeVariation:
             Generator used to draw the variates. Defaults to the module-level
             generator.
         """
+        _check_resamplable(profile, type(self).__name__)
         # Map of varied soil types
         varied = {
             str(st): self(st, sample_index=sample_index, rng=rng)
@@ -1046,7 +1064,7 @@ class SoilTypeVariation:
 
         # Add the unrandomized bedrock
         if not self.vary_bedrock:
-            layers.append(profile[-1])
+            layers.append(profile[-1].copy())
 
         return site.Profile(layers, profile.wt_depth)
 
@@ -1397,7 +1415,6 @@ def iter_varied_profiles(
 
     yielded = 0
     attempts = 0
-    i = 0
     while yielded < count:
         if check is not None and attempts >= max_attempts:
             raise RuntimeError(
@@ -1417,7 +1434,9 @@ def iter_varied_profiles(
         # Determine the sample_index to forward (None in random mode)
         sample_index = None
         if var_soiltypes and var_soiltypes.sample_mode == "fixed_percentiles":
-            sample_index = i % len(var_soiltypes.percentiles)
+            # Advance only on accepted profiles so that rejections do not
+            # shift the percentile cycle
+            sample_index = yielded % len(var_soiltypes.percentiles)
 
         _profile = _vary(
             profile,
@@ -1429,7 +1448,6 @@ def iter_varied_profiles(
             sample_index,
         )
 
-        i += 1
         attempts += 1
 
         if check is not None and not check(_profile):

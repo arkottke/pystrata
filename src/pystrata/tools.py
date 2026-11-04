@@ -448,8 +448,10 @@ def adjust_damping_values(
 
     # Collect the properties
     vel_shear = np.array([layer.initial_shear_vel for layer in layers])
-    depth = np.array([layer.depth for layer in layers])
-    thick = np.r_[np.diff(depth), 0]
+    # Use the thickness of each layer: the depth differences would span any
+    # excluded layers in between, and give the last selected layer a thickness
+    # of zero when the half-space is excluded
+    thick = np.array([layer.thickness for layer in layers])
 
     gamma = np.sum(thick / vel_shear**2) / remainder
     damping = 1 / (2 * gamma * vel_shear)

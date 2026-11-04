@@ -302,3 +302,29 @@ def test_layer_copy_keeps_initial_shear_vel():
     copied = layer.copy()
     assert copied.initial_shear_vel == 200.0
     assert copied.shear_vel == 200.0
+
+
+def _identical_layers(count):
+    soil = site.SoilType("S", 18.0, None, 0.02)
+    layers = [site.Layer(soil, 5.0, 200.0) for _ in range(count)]
+    layers.append(site.Layer(site.SoilType("R", 22.0, None, 0.01), 0, 800.0))
+    return site.Profile(layers)
+
+
+def test_equal_layers_have_their_own_depth_and_index():
+    profile = _identical_layers(4)
+    assert [layer.depth for layer in profile] == [0, 5, 10, 15, 20]
+    assert [profile.index(layer) for layer in profile] == [0, 1, 2, 3, 4]
+    assert profile.location("within", index=3).index == 3
+    assert profile.location("within", index=-1).index == 4
+
+
+def test_half_space_equal_to_layer_above_gets_its_depth():
+    soil = site.SoilType("S", 18.0, None, 0.02)
+    profile = site.Profile([site.Layer(soil, 5.0, 200.0), site.Layer(soil, 0, 200.0)])
+    assert [layer.depth for layer in profile] == [0, 5]
+
+
+def test_iter_soil_types_is_unique():
+    profile = _identical_layers(4)
+    assert [st.name for st in profile.iter_soil_types()] == ["S", "R"]
