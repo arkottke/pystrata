@@ -110,18 +110,22 @@ def toe_circle(dam: Dam, radius_ratio: float = 1.0) -> CircularSurface:
     The failure surface passes through the toe of the slope that fails and the
     edge of the crest that is furthest from it, so the whole crest moves. Two
     points do not fix a circle; the third condition is the radius, as a multiple
-    of the distance between them, and the center is above the dam.
+    of that of the circle that is tangent to the base of the dam at the toe, and
+    the center is above the dam.
 
     Parameters
     ----------
     dam : Dam
         Dam with a slope and, optionally, a crest width.
     radius_ratio : float, default=1
-        Radius of the circle divided by the distance from the toe to the far
-        side of the crest. It must be at least 0.5, which is the circle that has
-        that distance as its diameter and is the deepest surface. A larger ratio
-        is a flatter, shallower surface, which tends to the straight line from
-        the toe to the far side of the crest.
+        Radius of the circle divided by the radius of the circle that is tangent
+        to the base at the toe, which is :math:`L^2 / (2 H)` for a distance
+        :math:`L` from the toe to the far side of the crest and a height
+        :math:`H`. A ratio of 1 is that circle, which is the deepest that stays
+        inside the dam: a smaller radius would pass below the base before it
+        reaches the toe, so the ratio must be at least 1. A larger ratio is a
+        flatter, shallower surface, which tends to the straight line from the toe
+        to the far side of the crest.
 
     Returns
     -------
@@ -129,15 +133,15 @@ def toe_circle(dam: Dam, radius_ratio: float = 1.0) -> CircularSurface:
         The failure surface.
     """
     slope = dam._require_slope()
-    if not radius_ratio >= 0.5:
-        raise ValueError("The radius ratio must be at least 0.5.")
+    if not radius_ratio >= 1.0:
+        raise ValueError("The radius ratio must be at least 1.")
 
     crest_corner = np.array([-0.5 * dam.crest_width, 0.0])
     toe = np.array([0.5 * dam.crest_width + slope * dam.height, dam.height])
     chord = toe - crest_corner
     length = np.hypot(*chord)
 
-    radius = radius_ratio * length
+    radius = radius_ratio * length**2 / (2.0 * dam.height)
     middle = 0.5 * (crest_corner + toe)
     # Distance of the center from the middle of the chord, perpendicular to it and
     # on the side that is above the dam

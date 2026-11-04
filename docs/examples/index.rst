@@ -101,9 +101,10 @@ All available examples with brief descriptions:
     equivalent-linear analyses.
 
 **Dam Response vs. Hale and Abrahamson (2019)** (`example-21.ipynb <../../examples/example-21.ipynb>`__)
-    Compares the transfer function implied by the Hale and Abrahamson flexible
-    sliding-mass model in pygmm with the shear-wedge dam, including nonlinearity for
-    M 6.5 events at 5 and 30 km, and a dam stacked on a site profile.
+    Compares the Hale and Abrahamson sliding-mass transfer function in pygmm with the
+    average acceleration of the sliding mass inside a toe circle of a trapezoidal
+    shear-wedge dam, including nonlinearity for M 6.5 events at 5 and 30 km, the
+    sensitivity to the failure surface, and a dam stacked on a site profile.
 
 Tips for Using Examples
 ------------------------

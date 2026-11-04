@@ -1,5 +1,6 @@
 """Interop tests: pystrata ↔ pygmm (soil curves + velocity profile + stub objects)."""
 
+import warnings
 from types import SimpleNamespace
 
 import numpy as np
@@ -42,6 +43,19 @@ def test_from_curves_darendeli():
         curves.mod_reduc[len(curves.strains) // 2],
         rtol=0.02,
     )
+
+
+def test_from_curves_frequency_dependent_damping():
+    """Curves with a damping value at each frequency are accepted without a warning."""
+    freqs = np.geomspace(0.1, 20, 8)
+    curves = pygmm.DarendeliSoilType(
+        unit_wt=18.0, stress_mean=50.0, freq=freqs
+    ).curves()
+    assert np.ndim(curves.damping) == 2
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        pystrata.site.SoilType.from_curves(curves)
 
 
 def test_from_curves_stub():

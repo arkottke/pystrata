@@ -394,17 +394,19 @@ class SoilType:
         mr = ModulusReductionCurve(name, curves.strains, curves.mod_reduc)
         d = DampingCurve(name, curves.strains, curves.damping)
 
+        # The minimum damping is frequency independent, so it can only be compared
+        # to curves that are also (not those with a value at each frequency)
         damping_min = getattr(curves, "damping_min", None)
-        curve_damping = float(np.asarray(curves.damping)[0])
-        if damping_min is not None and not np.isclose(
-            damping_min, curve_damping, rtol=0.05, atol=1e-4
-        ):
-            warnings.warn(
-                f"The minimum damping of {damping_min:.4g} does not match the "
-                f"small-strain damping of the curve ({curve_damping:.4g}); "
-                "the curve value is used.",
-                stacklevel=2,
-            )
+        damping = np.asarray(curves.damping, dtype=float)
+        if damping_min is not None and damping.ndim == 1:
+            curve_damping = float(damping[0])
+            if not np.isclose(damping_min, curve_damping, rtol=0.05, atol=1e-4):
+                warnings.warn(
+                    f"The minimum damping of {damping_min:.4g} does not match the "
+                    f"small-strain damping of the curve ({curve_damping:.4g}); "
+                    "the curve value is used.",
+                    stacklevel=2,
+                )
         return cls(name=name, unit_wt=unit_wt, mod_reduc=mr, damping=d)
 
     @property

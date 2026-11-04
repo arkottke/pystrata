@@ -35,7 +35,7 @@ def toe_and_crest_corner(d):
 # toe_circle
 
 
-@pytest.mark.parametrize("radius_ratio", [0.5, 0.75, 1.0, 1.5, 4.0])
+@pytest.mark.parametrize("radius_ratio", [1.0, 1.5, 4.0])
 @pytest.mark.parametrize("slope,crest_width", [(2.5, 10.0), (2.0, 0.0), (3.0, 30.0)])
 def test_toe_circle_passes_through_the_toe_and_the_far_crest_corner(
     radius_ratio, slope, crest_width
@@ -47,19 +47,21 @@ def test_toe_circle_passes_through_the_toe_and_the_far_crest_corner(
 
     assert np.linalg.norm(center - toe) == pytest.approx(surface.radius, rel=1e-12)
     assert np.linalg.norm(center - corner) == pytest.approx(surface.radius, rel=1e-12)
-    # The radius is the ratio of the distance between the two points
+    # The radius is the ratio of that of the circle tangent to the base at the toe
+    length = np.linalg.norm(toe - corner)
     assert surface.radius == pytest.approx(
-        radius_ratio * np.linalg.norm(toe - corner), rel=1e-12
+        radius_ratio * length**2 / (2 * d.height), rel=1e-12
     )
-    # The center is above the crest
-    assert surface.y < 0 or radius_ratio == 0.5
+    # The center is above the crest and the surface stays above the base
+    assert surface.y < 0
+    assert surface.y + surface.radius >= d.height - 1e-9
 
 
-def test_toe_circle_of_ratio_one_half_has_the_chord_as_diameter():
+def test_toe_circle_of_ratio_one_is_tangent_to_the_base_at_the_toe():
     d = make_dam()
-    surface = dam.toe_circle(d, 0.5)
-    toe, corner = toe_and_crest_corner(d)
-    assert_allclose([surface.x, surface.y], 0.5 * (toe + corner))
+    surface = dam.toe_circle(d, 1.0)
+    toe, _ = toe_and_crest_corner(d)
+    assert_allclose([surface.x, surface.y + surface.radius], toe, atol=1e-9)
 
 
 def test_toe_circle_moves_the_whole_crest():
@@ -75,7 +77,7 @@ def test_toe_circle_moves_the_whole_crest():
 def test_flatter_surfaces_hold_less_of_the_dam():
     """A larger radius ratio tends to the straight line from the toe to the crest."""
     d = make_dam()
-    areas = [dam.toe_circle(d, ratio).area(d) for ratio in (0.5, 0.6, 1.0, 2.0, 5.0)]
+    areas = [dam.toe_circle(d, ratio).area(d) for ratio in (1.0, 1.2, 2.0, 5.0)]
     assert np.all(np.diff(areas) < 0)
     # The straight line from the far side of the crest to the toe leaves a triangle
     # with the crest as its base and the height of the dam
@@ -88,8 +90,8 @@ def test_toe_circle_requires_a_slope_and_a_valid_ratio():
     pure = dam.Dam([site.Layer(SOIL, 100.0, 300.0)])
     with pytest.raises(ValueError, match="requires a slope"):
         dam.toe_circle(pure)
-    for ratio in (0.0, 0.4999, -1.0, np.nan):
-        with pytest.raises(ValueError, match="at least 0.5"):
+    for ratio in (0.0, 0.5, 0.9999, -1.0, np.nan):
+        with pytest.raises(ValueError, match="at least 1"):
             dam.toe_circle(make_dam(), ratio)
 
 
