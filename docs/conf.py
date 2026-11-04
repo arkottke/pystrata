@@ -65,8 +65,6 @@ intersphinx_mapping = {
     "matplotlib": ("https://matplotlib.org/stable/", None),
     "pandas": ("https://pandas.pydata.org/docs/", None),
     "xarray": ("https://docs.xarray.dev/en/stable/", None),
-    "pygmm": ("https://pygmm.readthedocs.io/en/latest/", None),
-    "pyrvt": ("https://pyrvt.readthedocs.io/en/latest/", None),
     "pyrotd": ("https://pyrotd.readthedocs.io/en/latest/", None),
 }
 
