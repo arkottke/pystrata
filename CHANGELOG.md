@@ -2,6 +2,10 @@
 
 ## 0.6.0 (unreleased)
 
+- Changed: the documentation is reorganized: the user guide starts with how the
+  motion, profile, calculator and outputs fit together, has pages for variation and
+  dams, and lists the examples of each topic; the example gallery is grouped by
+  topic; and best practices and calculator recommendations are removed.
 - Added: example 22 compares the truncated wedge with the apex solution.
 - Fixed: `Profile.simplified_rayliegh_vel` is renamed `simplified_rayleigh_vel`; the
   misspelled name remains as a deprecated alias.
