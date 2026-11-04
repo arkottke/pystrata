@@ -328,3 +328,32 @@ def test_half_space_equal_to_layer_above_gets_its_depth():
 def test_iter_soil_types_is_unique():
     profile = _identical_layers(4)
     assert [st.name for st in profile.iter_soil_types()] == ["S", "R"]
+
+
+class _Curves:
+    strains = np.array([1e-4, 1e-3, 1e-2])
+    mod_reduc = np.array([1.0, 0.8, 0.4])
+    damping = np.array([0.02, 0.05, 0.1])
+    damping_min = 0.02
+    name = "curves"
+
+
+def test_from_curves_requires_unit_weight():
+    with pytest.raises(ValueError, match="unit weight is required"):
+        site.SoilType.from_curves(_Curves())
+
+
+def test_from_curves_unit_weight_from_either_source():
+    from_arg = site.SoilType.from_curves(_Curves(), unit_wt=18.0)
+    assert from_arg.unit_wt == 18.0
+
+    curves = _Curves()
+    curves.unit_wt = 19.0
+    assert site.SoilType.from_curves(curves).unit_wt == 19.0
+
+
+def test_from_curves_warns_when_damping_min_disagrees():
+    curves = _Curves()
+    curves.damping_min = 0.05
+    with pytest.warns(UserWarning, match="minimum damping"):
+        site.SoilType.from_curves(curves, unit_wt=18.0)

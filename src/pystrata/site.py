@@ -338,12 +338,49 @@ class SoilType:
 
         Duck-typed: accepts ``pygmm.contracts.NonlinearSoilCurves`` or any
         object with the same attributes.
+
+        Parameters
+        ----------
+        curves :
+            Object with ``strains``, ``mod_reduc``, ``damping`` and optionally
+            ``damping_min``, ``unit_wt`` and ``name``.
+        name : str, optional
+            Name of the soil type. Defaults to ``curves.name``.
+        unit_wt : float, optional
+            Unit weight [kN/m³]. Defaults to ``curves.unit_wt``.
+
+        Raises
+        ------
+        ValueError
+            If the unit weight is given neither here nor by the curves.
+
+        Warns
+        -----
+        UserWarning
+            If ``curves.damping_min`` disagrees with the small-strain value of
+            the damping curve, which is what the soil type uses.
         """
         if unit_wt is None:
-            unit_wt = getattr(curves, "unit_wt", None) or 0.0
+            unit_wt = getattr(curves, "unit_wt", None)
+        if unit_wt is None:
+            raise ValueError(
+                "The unit weight is required: pass `unit_wt` or provide it in the "
+                "curves. A soil type without it has no density."
+            )
         name = name or getattr(curves, "name", "") or ""
         mr = ModulusReductionCurve(name, curves.strains, curves.mod_reduc)
         d = DampingCurve(name, curves.strains, curves.damping)
+
+        damping_min = getattr(curves, "damping_min", None)
+        if damping_min is not None and not np.isclose(
+            damping_min, np.asarray(curves.damping)[0], rtol=0.05, atol=1e-4
+        ):
+            warnings.warn(
+                f"The minimum damping of {damping_min:.4g} does not match the "
+                f"small-strain damping of the curve ({np.asarray(curves.damping)[0]:.4g}); "
+                "the curve value is used.",
+                stacklevel=2,
+            )
         return cls(name=name, unit_wt=unit_wt, mod_reduc=mr, damping=d)
 
     @property
@@ -835,10 +872,12 @@ class Profile(collections.abc.Container):
         layer_thickness: float = 1.0,
         wt_depth: float = 0,
     ) -> Profile:
-        """Create from any object with .depth, .vs_median, .std_vs_ln.
+        """Create from any object with .depth and .vs_median.
 
         Duck-typed: accepts ``pygmm.contracts.VelocityProfile`` or any object
-        with the same attributes.
+        with the same attributes. The uncertainty (``std_vs_ln``), ``region``
+        and ``site_class`` of the contract are not used; the layering is
+        randomized with the variation models in :mod:`pystrata.variation`.
 
         Parameters
         ----------
