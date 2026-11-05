@@ -1,0 +1,23 @@
+# Read the Docs configuration file
+# See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
+version: 2
+
+build:
+  os: ubuntu-24.04
+  tools:
+    # The floor of requires-python; see "Version support policy" in CLAUDE.md
+    python: "3.13"
+  apt_packages:
+    # nbsphinx converts the markdown of the example notebooks with pandoc
+    - pandoc
+
+# The notebooks are not executed (nbsphinx_execute = "never" in docs/conf.py)
+sphinx:
+  configuration: docs/conf.py
+
+python:
+  install:
+    - method: pip
+      path: .
+      extra_requirements:
+        - docs

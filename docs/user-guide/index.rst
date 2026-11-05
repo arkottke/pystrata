@@ -154,4 +154,5 @@ Examples
        :doc:`../examples/example-24`
    * - Dams
      - :doc:`../examples/example-20`, :doc:`../examples/example-21`,
-       :doc:`../examples/example-22`
+       :doc:`../examples/example-22`,
+       :doc:`../examples/example-25`

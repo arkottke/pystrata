@@ -10,6 +10,7 @@ import numpy.typing as npt
 from scipy.optimize import brentq
 
 from ..site import Layer, Profile, SoilType, layers_from_depth_power_law
+from .canyon import RectangularCanyon
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,11 @@ class Dam:
         for a crest width.
     crest_width : float, default=0
         Width of the crest [m]. It requires `slope`.
+    canyon : :class:`~pystrata.dam.canyon.RectangularCanyon`, optional
+        Canyon with rigid abutments that confines the dam along its axis. The
+        dam calculators then give the response at a position along the canyon.
+        :meth:`fixed_base_freqs` and :meth:`tune` without a site are for the
+        dam of infinite length.
     """
 
     def __init__(
@@ -55,6 +61,7 @@ class Dam:
         layers: list[Layer],
         slope: float | None = None,
         crest_width: float = 0.0,
+        canyon: RectangularCanyon | None = None,
     ):
         if not layers:
             raise ValueError("A dam requires at least one layer.")
@@ -67,6 +74,7 @@ class Dam:
         self.layers = [self._as_wedge(layer) for layer in layers]
         self._slope = slope
         self._crest_width = float(crest_width)
+        self._canyon = canyon
 
     @staticmethod
     def _as_wedge(layer: Layer) -> WedgeLayer:
@@ -88,6 +96,7 @@ class Dam:
         n_layers: int = 20,
         slope: float | None = None,
         crest_width: float = 0.0,
+        canyon: RectangularCanyon | None = None,
     ) -> Dam:
         r"""Dam with a shear modulus proportional to :math:`z^m`.
 
@@ -109,6 +118,8 @@ class Dam:
             Horizontal run per unit height of the slopes, see :class:`Dam`.
         crest_width : float, default=0
             Width of the crest [m], see :class:`Dam`.
+        canyon : :class:`~pystrata.dam.canyon.RectangularCanyon`, optional
+            Canyon of the dam, see :class:`Dam`.
         """
         # The velocity is a r^{m/2} at a distance r from the apex of the wedge,
         # and `shear_vel_avg` averages over the area of the cross-section
@@ -130,7 +141,7 @@ class Dam:
             depth_top=crest_offset,
             layer_cls=WedgeLayer,
         )
-        return cls(layers, slope=slope, crest_width=crest_width)
+        return cls(layers, slope=slope, crest_width=crest_width, canyon=canyon)
 
     @property
     def slope(self) -> float | None:
@@ -141,6 +152,11 @@ class Dam:
     def crest_width(self) -> float:
         """Width of the crest [m]."""
         return self._crest_width
+
+    @property
+    def canyon(self) -> RectangularCanyon | None:
+        """Canyon of the dam; ``None`` for a dam of infinite length."""
+        return self._canyon
 
     @property
     def crest_offset(self) -> float:
@@ -206,6 +222,7 @@ class Dam:
             ],
             slope=self._slope,
             crest_width=self._crest_width,
+            canyon=self._canyon,
         )
 
     def fixed_base_freqs(self, n: int = 1) -> np.ndarray:
@@ -336,6 +353,7 @@ class DamProfile(Profile):
         self._site_wt_depth = site.wt_depth
         self._slope = dam.slope
         self._crest_width = dam.crest_width
+        self._canyon = dam.canyon
         if wt_depth is None:
             wt_depth = dam.height + site.wt_depth
         layers = [layer.copy() for layer in dam.layers] + [
@@ -350,6 +368,7 @@ class DamProfile(Profile):
             self.layers[: self._n_dam],
             slope=self._slope,
             crest_width=self._crest_width,
+            canyon=self._canyon,
         )
 
     @property
@@ -359,6 +378,11 @@ class DamProfile(Profile):
             [layer.copy() for layer in self.layers[self._n_dam :]],
             wt_depth=self._site_wt_depth,
         )
+
+    @property
+    def canyon(self) -> RectangularCanyon | None:
+        """Canyon of the dam; ``None`` for a dam of infinite length."""
+        return self._canyon
 
     @property
     def n_dam_layers(self) -> int:
@@ -382,6 +406,7 @@ class DamProfile(Profile):
             [layer.copy() for layer in self.layers[:n]],
             slope=self._slope,
             crest_width=self._crest_width,
+            canyon=self._canyon,
         )
         site = Profile(
             [layer.copy() for layer in self.layers[n:]],
@@ -390,7 +415,11 @@ class DamProfile(Profile):
         return DamProfile(dam, site, self.wt_depth)
 
     def transfer_function(
-        self, freqs: npt.ArrayLike, depth_out: float = 0.0, damped: bool = True
+        self,
+        freqs: npt.ArrayLike,
+        depth_out: float = 0.0,
+        damped: bool = True,
+        x: float | None = None,
     ) -> np.ndarray:
         """Linear transfer function from the half-space outcrop to a depth.
 
@@ -403,6 +432,10 @@ class DamProfile(Profile):
         damped : bool, default=True
             If the damping of the layers is included. If false, the
             transfer function of the undamped profile is returned.
+        x : float, optional
+            Position along the canyon [m] if the dam has one; the default is the
+            center. The input is the outcrop of the half space, which is also
+            the motion of the abutments.
         """
         from .propagation import DamLinearElasticCalculator
 
@@ -416,10 +449,10 @@ class DamProfile(Profile):
         calc = DamLinearElasticCalculator()
         loc_in = profile.location("outcrop", index=len(profile) - 1)
         loc_out = profile.location("within", depth=depth_out)
-        return calc.transfer_function(freqs, profile, loc_in, loc_out)
+        return calc.transfer_function(freqs, profile, loc_in, loc_out, x=x)
 
     def sliding_mass_transfer_function(
-        self, freqs: npt.ArrayLike, surface, n_depths: int = 101
+        self, freqs: npt.ArrayLike, surface, n_depths: int = 101, n_x: int = 11
     ) -> np.ndarray:
         """Linear transfer function to the average acceleration of a sliding mass.
 
@@ -436,15 +469,30 @@ class DamProfile(Profile):
             Failure surface; the dam needs a slope.
         n_depths : int, default=101
             Number of slices of the dam.
+        n_x : int, default=11
+            Number of slices along the canyon, if the dam has one. The mass is
+            taken to span the length of the canyon, and the transfer function
+            is averaged over the slices.
         """
         from .propagation import DamLinearElasticCalculator
         from .sliding import sliding_mass_transfer_function
 
         calc = DamLinearElasticCalculator()
         loc_in = self.location("outcrop", index=len(self) - 1)
-        # Computes the waves at the frequencies
-        calc.transfer_function(freqs, self, loc_in, self.location("within", depth=0.0))
-        return sliding_mass_transfer_function(calc, loc_in, self, surface, n_depths)
+        loc_crest = self.location("within", depth=0.0)
+        if self.canyon is None:
+            # Computes the waves at the frequencies
+            calc.transfer_function(freqs, self, loc_in, loc_crest)
+            return sliding_mass_transfer_function(calc, loc_in, self, surface, n_depths)
+
+        xs = (np.arange(n_x) + 0.5) * self.canyon.length / n_x
+        total = 0.0
+        for x in xs:
+            calc.transfer_function(freqs, self, loc_in, loc_crest, x=float(x))
+            total = total + sliding_mass_transfer_function(
+                calc, loc_in, self, surface, n_depths
+            )
+        return total / n_x
 
     def peak_freq(
         self, f_guess: float | None = None, f_range: tuple[float, float] | None = None

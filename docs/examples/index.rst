@@ -101,6 +101,9 @@ Dams
 **Truncated Wedge vs. the Apex Solution** (:doc:`example-22`)
     Shows the effect of the crest width on the shear-wedge dam: the natural frequencies, the closed-form and numerical transfer functions of the truncated and apex wedges for a homogeneous dam, and an inhomogeneous dam.
 
+**Canyon Effects** (:doc:`example-25`)
+    Shows the effect of the canyon length on a shear-wedge dam in a rectangular canyon: the natural frequencies, the transfer function along the crest, the equivalent-linear response with the longitudinal strain, and the transfer function of the sliding mass.
+
 .. toctree::
    :maxdepth: 1
    :hidden:
@@ -129,6 +132,7 @@ Dams
    example-22
    example-23
    example-24
+   example-25
 
 Running the examples
 --------------------
