@@ -19,6 +19,8 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+"""Utilities to read profiles and to compute the attenuation and stresses of one."""
+
 import collections
 import os
 import re
@@ -27,9 +29,9 @@ from collections.abc import Callable
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-import scipy.constants as C
 
 from . import motion, propagation, site
+from .units import GRAVITY, convert_units
 
 
 def to_str(s):
@@ -178,7 +180,7 @@ def _parse_input_loc(block, profile, **kwargs):
     layer, wave_field = parse_fixed_width(2 * [(5, int)], block)
 
     return profile.location(
-        motion.WaveField[wave_field],
+        motion.WaveField(wave_field),
         index=(layer - 1),
     )
 
@@ -207,6 +209,7 @@ def _parse_output_spectra(block):
 
 
 def load_shake_inp(fname):
+    """Read a SHAKE input file and return its contents."""
     with open(fname) as fp:
         lines = fp.readlines()
 
@@ -286,6 +289,7 @@ def read_nrattle_ctl(fpath):
 
 
 def profile_from_nrattle_ctl(ctl):
+    """Create a profile from the control file of nrattle."""
     df = pd.DataFrame(ctl["profile"]).set_index("layer")
     # Here the index is based on layer number which starts at 1 in Fortran
     # convention.
@@ -299,7 +303,7 @@ def profile_from_nrattle_ctl(ctl):
     df["damping"] = df["inv_qual"].apply(
         lambda iq: 0 if np.isclose(iq, 0) else 0.5 * 1 / (iq if iq > 1 else 1 / iq)
     )
-    df["unit_wt"] = C.g * df["density"]
+    df["unit_wt"] = GRAVITY * df["density"]
 
     return site.Profile.from_dataframe(df, 0)
 
@@ -307,9 +311,7 @@ def profile_from_nrattle_ctl(ctl):
 def calc_atten_scatter(
     profile: site.Profile, freqs: npt.ArrayLike | None = None
 ) -> float:
-    """
-    Compute the attenuation due to impedance (scattering) effects of the
-    profile.
+    """Compute the attenuation due to impedance (scattering) effects of the profile.
 
     This is defined as the difference between the attenuation associated with a
     known damping and the attenuation from the transfer function.
@@ -369,16 +371,17 @@ def adjust_damping_values(
     exclude: None | str | list[str] | Callable = None,
     inplace: bool = False,
 ) -> tuple[site.Profile, float]:
-    """
-    Adjust the minimum damping values of a site profile so that the total site
-    attenuation matches a specified target value. Optionally, certain layers can
-    be excluded from adjustment.
+    r"""Adjust the minimum damping of a site profile to match a site attenuation.
+
+    The total site attenuation of the adjusted profile matches a specified
+    target value. Optionally, certain layers can be excluded from adjustment.
 
     The function computes the attenuation due to impedance (scattering) effects
     and any excluded layers, then distributes the remaining required attenuation
     among the selected layers by updating their minimum damping values.  The
-    approach  assumes that Q is proportional to Vs (i.e., Q~ γ Vs, in which γ is
-    a proportionality constant; Silva and Darragh, 1995).
+    approach assumes that Q is proportional to :math:`V_s` (i.e.,
+    :math:`Q = \gamma V_s`, in which :math:`\gamma` is a proportionality
+    constant) :cite:p:`SilvaDarragh1995`.
 
     The profile can be modified in-place or a copy can be returned.
 
@@ -413,7 +416,6 @@ def adjust_damping_values(
         If no layers are selected for adjustment or if the target attenuation cannot
         be achieved.
     """
-
     if not inplace:
         profile = profile.copy()
 
@@ -451,8 +453,10 @@ def adjust_damping_values(
 
     # Collect the properties
     vel_shear = np.array([layer.initial_shear_vel for layer in layers])
-    depth = np.array([layer.depth for layer in layers])
-    thick = np.r_[np.diff(depth), 0]
+    # Use the thickness of each layer: the depth differences would span any
+    # excluded layers in between, and give the last selected layer a thickness
+    # of zero when the half-space is excluded
+    thick = np.array([layer.thickness for layer in layers])
 
     gamma = np.sum(thick / vel_shear**2) / remainder
     damping = 1 / (2 * gamma * vel_shear)
@@ -533,3 +537,27 @@ def calc_mean_eff_stress(
     stress_mean = stress_vert_eff * (1 + 2 * k0) / 3
 
     return stress_mean
+
+
+@convert_units(shear_vel="meter / second", comp_vel="meter / second")
+def calc_poissons_ratio(
+    shear_vel: npt.ArrayLike, comp_vel: npt.ArrayLike
+) -> np.ndarray:
+    """Compute Poisson's ratio from shear- and compression-wave velocities.
+
+    Parameters
+    ----------
+    shear_vel : array_like
+        Shear-wave velocity, Vs [m/s].
+    comp_vel : array_like
+        Compression-wave velocity, Vp [m/s].
+
+    Returns
+    -------
+    np.ndarray
+        Poisson's ratio (dimensionless).
+    """
+    shear_vel = np.asarray(shear_vel, dtype=float)
+    comp_vel = np.asarray(comp_vel, dtype=float)
+    r2 = (comp_vel / shear_vel) ** 2
+    return (r2 - 2) / (2 * (r2 - 1))

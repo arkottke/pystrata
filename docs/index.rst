@@ -8,13 +8,13 @@ A Python library for 1D equivalent-linear site response analysis.
 .. grid:: 2
 
    .. grid-item-card:: Getting Started
-      :link: quickstart
+      :link: getting-started/quickstart
       :link-type: doc
 
       New to pyStrata? Start here for installation and basic usage.
 
    .. grid-item-card:: User Guide
-      :link: user_guide/index
+      :link: user-guide/index
       :link-type: doc
 
       Learn how to use pyStrata for your projects with tutorials and examples.
@@ -26,7 +26,7 @@ A Python library for 1D equivalent-linear site response analysis.
       Complete API documentation for all modules and functions.
 
    .. grid-item-card:: Developer Guide
-      :link: developer/contributing
+      :link: developer-guide/contributing
       :link-type: doc
 
       Contributing guidelines and development information.
@@ -48,19 +48,16 @@ Table of Contents
    :caption: Getting Started
    :hidden:
 
-   introduction
-   install
-   quickstart
+   getting-started/index
 
 .. toctree::
    :maxdepth: 2
    :caption: User Guide
    :hidden:
 
-   user_guide/index
-   theory/index
+   user-guide/index
    examples/index
-   usage
+   theory/index
 
 .. toctree::
    :maxdepth: 2
@@ -75,7 +72,7 @@ Table of Contents
    :caption: Development
    :hidden:
 
-   developer/contributing
+   developer-guide/contributing
    changelog
 
 .. toctree::

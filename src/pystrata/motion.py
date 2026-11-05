@@ -21,80 +21,273 @@
 # SOFTWARE.
 """Classes used to define input motions."""
 
+from __future__ import annotations
+
 import enum
+import logging
 import re
+import warnings
 
 import numpy as np
+import numpy.typing as npt
 import pyrvt
+from scipy import stats
 
-# Gravity in m/sec²
-from scipy.constants import g as GRAVITY
+from .units import GRAVITY, convert_units
 
-_trapezoid = np.trapezoid
+logger = logging.getLogger(__name__)
+
+
+# Integers and floats, including values without a leading digit (e.g., ".0100")
+# and Fortran style exponents (e.g., "1.0D-2").
+_RE_NUMBER = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eEdD][+-]?\d+)?")
+
+
+def _to_float(text: str) -> float:
+    """Convert a string to a float, permitting a Fortran style exponent."""
+    return float(text.replace("D", "E").replace("d", "e"))
+
+
+def _parse_at2_header(line: str) -> tuple[int, float]:
+    """Parse the point count and time step from the header of an AT2 file.
+
+    Both of the PEER NGA layouts are supported::
+
+        4096    0.0100    NPTS, DT
+        NPTS=   5346, DT=   .0100 SEC,
+
+    as are variations that reverse the order of the two values, or that omit the
+    commas separating them.
+
+    Parameters
+    ----------
+    line : str
+        Fourth line of an AT2 file.
+
+    Returns
+    -------
+    npts : int
+        Number of points in the time series.
+    time_step : float
+        Time step of the time series [s].
+
+    Raises
+    ------
+    ValueError
+        If the point count and the time step cannot be found.
+    """
+    # Values that follow their label, e.g., "NPTS= 5346" or "DT .0100". Each value
+    # is located by its own label, so their order does not matter.
+    found = {}
+    for key in ("NPTS", "DT"):
+        match = re.search(
+            r"\b" + key + r"\b\s*[=:]?\s*(" + _RE_NUMBER.pattern + ")",
+            line,
+            re.IGNORECASE,
+        )
+        if match:
+            found[key] = _to_float(match.group(1))
+
+    if len(found) < 2:
+        # Values that precede their labels, e.g., "4096  0.0100  NPTS, DT"
+        values = [_to_float(v) for v in _RE_NUMBER.findall(line)]
+        if len(values) < 2:
+            raise ValueError(f"Unable to parse NPTS and DT from AT2 header: {line!r}")
+
+        values = values[:2]
+        upper = line.upper()
+        pos = {key: upper.find(key) for key in ("NPTS", "DT")}
+        if all(p >= 0 for p in pos.values()):
+            # Pair the values with the labels by order of appearance
+            keys = sorted(pos, key=lambda key: pos[key])
+        else:
+            # Unlabeled, so rely on the magnitude: the time step is the smaller
+            keys = ["DT", "NPTS"] if values[0] < values[1] else ["NPTS", "DT"]
+
+        found = dict(zip(keys, values, strict=True))
+
+    return int(found["NPTS"]), found["DT"]
+
+
+def fit_attenuation(
+    freqs: npt.ArrayLike,
+    amps: npt.ArrayLike,
+    min_freq: float,
+    max_freq: float | None = None,
+) -> tuple[float, float, np.ndarray, np.ndarray]:
+    r"""Compute the site attenuation (:math:`\kappa`) from a log-linear fit.
+
+    The Fourier amplitudes are fit with
+    :math:`a(f) = A_0 \exp(-\pi \kappa f)` for the frequencies in a range
+    (Anderson and Hough, 1984), which is what ``calc_attenuation`` of the motions
+    of pyRVT does. Amplitudes that are not finite and positive are not used.
+
+    Parameters
+    ----------
+    freqs : array_like
+        Frequencies [Hz].
+    amps : array_like
+        Fourier amplitudes at `freqs`. Complex amplitudes are reduced to their
+        magnitude.
+    min_freq : float
+        Minimum frequency of the fit [Hz].
+    max_freq : float, optional
+        Maximum frequency of the fit [Hz]. The maximum frequency is used if
+        ``None``.
+
+    Returns
+    -------
+    atten : float
+        Attenuation, :math:`\kappa` [s].
+    r_sqr : float
+        Squared correlation coefficient of the fit.
+    freqs : np.ndarray
+        Frequencies of the fit [Hz].
+    fitted : np.ndarray
+        Fitted amplitudes at `freqs`.
+
+    Raises
+    ------
+    ValueError
+        If fewer than two amplitudes are usable in the frequency range.
+    """
+    freqs = np.asarray(freqs, dtype=float)
+    amps = np.abs(np.asarray(amps))
+    max_freq = freqs[-1] if max_freq is None else max_freq
+    mask = (min_freq <= freqs) & (freqs <= max_freq) & np.isfinite(amps) & (amps > 0)
+    if mask.sum() < 2:
+        raise ValueError(
+            f"Fewer than two positive amplitudes between {min_freq} and {max_freq} Hz."
+        )
+    fit = stats.linregress(freqs[mask], np.log(amps[mask]))
+    return (
+        -fit.slope / np.pi,
+        fit.rvalue**2,
+        freqs[mask],
+        np.exp(fit.intercept + fit.slope * freqs[mask]),
+    )
 
 
 class WaveField(enum.Enum):
+    """Wave field at a location in the soil column.
+
+    ``outcrop`` is twice the up-going wave, ``within`` the sum of the up- and
+    down-going waves, and ``up_going`` and ``down_going`` the individual waves.
+    """
+
     outcrop = 0
     within = 1
-    incoming_only = 2
+    up_going = 2
+    down_going = 3
+
+    @classmethod
+    def _missing_(cls, value):
+        # Resolve string names and shorthand aliases (e.g. "2A", "A+B", "A",
+        # "B") to their canonical members. Called by ``WaveField(value)`` when
+        # ``value`` is not one of the member values.
+        if isinstance(value, str):
+            key = value.strip()
+            if key in cls._member_map_:
+                return cls._member_map_[key]
+            alias = _WAVE_FIELD_ALIASES.get(key)
+            if alias is not None:
+                return cls._member_map_[alias]
+        return None
+
+
+#: Shorthand aliases for the wave-field conditions. Each maps to the name of a
+#: canonical :class:`WaveField` member:
+#:
+#: - ``"2A"`` -- outcrop (twice the up-going wave)
+#: - ``"A+B"`` -- within (sum of up- and down-going waves)
+#: - ``"A"`` -- up_going (up-going wave only)
+#: - ``"B"`` -- down_going (down-going wave only)
+#:
+#: ``"incoming_only"`` is retained as an alias for ``up_going`` for backwards
+#: compatibility.
+_WAVE_FIELD_ALIASES = {
+    "2A": "outcrop",
+    "A+B": "within",
+    "A": "up_going",
+    "incoming_only": "up_going",
+    "upgoing": "up_going",
+    "B": "down_going",
+    "downgoing": "down_going",
+}
 
 
 class Motion:
-    def __init__(self, freqs=None):
+    """Base class for input motions defined on a frequency grid.
+
+    Caches the peak ground acceleration and velocity, the Arias intensity and
+    the cumulative absolute velocity, which subclasses compute with the
+    ``calc_*`` methods.
+    """
+
+    def __init__(self, freqs: npt.ArrayLike | None = None) -> None:
         object.__init__(self)
 
         self._freqs = np.array([] if freqs is None else freqs)
-        self._pga = None
-        self._pgv = None
-        self._arias_intensity = None
-        self._cav = None
+        self._pga: float | None = None
+        self._pgv: float | None = None
+        self._arias_intensity: float | None = None
+        self._cav: float | None = None
 
     @property
-    def freqs(self):
+    def freqs(self) -> np.ndarray:
+        """Frequencies [Hz] of the motion."""
         return self._freqs
 
     @property
-    def angular_freqs(self):
+    def angular_freqs(self) -> np.ndarray:
+        """Angular frequencies [rad/s] of the motion."""
         return 2 * np.pi * self.freqs
 
     @property
-    def pgv(self):
+    def pgv(self) -> float:
         """Peak ground velocity [cm/sec]."""
         if self._pgv is None:
             self._pgv = self.calc_pgv()
         return self._pgv
 
     @property
-    def pga(self):
-        """Peak ground acceleration [g]"""
+    def pga(self) -> float:
+        """Peak ground acceleration [g]."""
         if self._pga is None:
             self._pga = self.calc_pga()
         return self._pga
 
     @property
-    def arias_intensity(self):
+    def arias_intensity(self) -> float:
         """Arias intensity [m/s]."""
         if self._arias_intensity is None:
             self._arias_intensity = self.calc_arias_intensity()
         return self._arias_intensity
 
     @property
-    def cav(self):
+    def cav(self) -> float:
         """Cumulative absolute velocity [m/s]."""
         if self._cav is None:
             self._cav = self.calc_cav()
         return self._cav
 
-    def calc_peak(self, tf: np.typing.ArrayLike | None = None, **kwargs) -> float:
+    def calc_peak(self, tf: npt.ArrayLike | None = None, **kwargs) -> float:
+        """Compute the peak of the motion; implemented by the subclasses."""
         raise NotImplementedError
 
 
 class TimeSeriesMotion(Motion):
     """Time-series motion for time series based site response analysis."""
 
+    @convert_units(time_step="second", accels="standard_gravity")
     def __init__(
-        self, filename: str, description: str, time_step: float, accels, fa_length=None
-    ):
+        self,
+        filename: str,
+        description: str,
+        time_step: float,
+        accels: npt.ArrayLike,
+        fa_length: int | None = None,
+    ) -> None:
         """Initialize the class from specified acceleration values.
 
         The *filename* and *description* parameters are only used to help track the
@@ -123,28 +316,40 @@ class TimeSeriesMotion(Motion):
 
         self._calc_fourier_spectrum(fa_length)
 
+        logger.debug(
+            "TimeSeriesMotion: %d samples, dt=%.4fs, PGA=%.3fg",
+            len(self._accels),
+            self._time_step,
+            self.pga,
+        )
+
     @property
-    def accels(self):
+    def accels(self) -> np.ndarray:
+        """Acceleration time series [g]."""
         return self._accels
 
     @property
-    def filename(self):
+    def filename(self) -> str:
+        """Name of the file that the motion was read from."""
         return self._filename
 
     @property
-    def description(self):
+    def description(self) -> str:
+        """Description of the motion."""
         return self._description
 
     @property
-    def time_step(self):
+    def time_step(self) -> float:
+        """Time step of the time series [s]."""
         return self._time_step
 
     @property
-    def times(self):
+    def times(self) -> np.ndarray:
+        """Times [s] of the time series."""
         return self._time_step * np.arange(self._accels.size)
 
     @property
-    def freqs(self):
+    def freqs(self) -> np.ndarray:
         """Return the frequencies."""
         if self._freqs is None:
             self._calc_fourier_spectrum()
@@ -152,7 +357,7 @@ class TimeSeriesMotion(Motion):
         return self._freqs
 
     @property
-    def fourier_amps(self):
+    def fourier_amps(self) -> np.ndarray:
         """Return the frequencies."""
         if self._fourier_amps is None:
             self._calc_fourier_spectrum()
@@ -160,14 +365,58 @@ class TimeSeriesMotion(Motion):
         # Normalize the Fourier amplitude by the time step
         return self.time_step * self._fourier_amps
 
-    def calc_time_series(self, tf=None):
+    def calc_attenuation(
+        self, min_freq: float, max_freq: float | None = None
+    ) -> tuple[float, float, np.ndarray, np.ndarray]:
+        r"""Compute the site attenuation (:math:`\kappa`) of the Fourier spectrum.
+
+        This has the arguments and the results of ``calc_attenuation`` of the
+        random vibration theory motions, and is computed by
+        :func:`fit_attenuation`.
+
+        Parameters
+        ----------
+        min_freq : float
+            Minimum frequency of the fit [Hz].
+        max_freq : float, optional
+            Maximum frequency of the fit [Hz]. The maximum frequency of the
+            spectrum is used if ``None``.
+
+        Returns
+        -------
+        atten : float
+            Attenuation, :math:`\kappa` [s].
+        r_sqr : float
+            Squared correlation coefficient of the fit.
+        freqs : np.ndarray
+            Frequencies of the fit [Hz].
+        fitted : np.ndarray
+            Fitted amplitudes at `freqs`.
+        """
+        return fit_attenuation(self.freqs, self.fourier_amps, min_freq, max_freq)
+
+    def calc_time_series(self, tf: npt.ArrayLike | None = None) -> np.ndarray:
+        """Compute the acceleration time series [g] with a transfer function applied.
+
+        Parameters
+        ----------
+        tf : array_like, optional
+            Transfer function to apply to the motion. If ``None``, none is applied.
+        """
         if tf is None:
             ts = np.fft.irfft(self.fourier_amps / self.time_step)
         else:
             ts = np.fft.irfft(tf * self.fourier_amps / self.time_step)
         return ts
 
-    def calc_pgv(self, tf=None):
+    def calc_pgv(self, tf: npt.ArrayLike | None = None) -> float:
+        """Compute the peak ground velocity [cm/s].
+
+        Parameters
+        ----------
+        tf : array_like, optional
+            Transfer function to apply to the motion. If ``None``, none is applied.
+        """
         tf = 1 if tf is None else np.asarray(tf)
         # Compute transfer function from acceleration to velocity
         # only over non-zero frequencies
@@ -176,33 +425,67 @@ class TimeSeriesMotion(Motion):
         tf_av[mask] = 1 / (self.angular_freqs[mask] * 1j)
         return GRAVITY * 100 * self.calc_peak(tf_av * tf)
 
-    def calc_pga(self, tf=None):
+    def calc_pga(self, tf: npt.ArrayLike | None = None) -> float:
+        """Compute the peak ground acceleration [g].
+
+        Parameters
+        ----------
+        tf : array_like, optional
+            Transfer function to apply to the motion. If ``None``, none is applied.
+        """
         return self.calc_peak(tf)
 
-    def calc_peak(self, tf=None, **kwargs):
+    def calc_peak(self, tf: npt.ArrayLike | None = None, **kwargs) -> float:
+        """Compute the peak absolute acceleration [g].
+
+        Parameters
+        ----------
+        tf : array_like, optional
+            Transfer function to apply to the motion. If ``None``, none is applied.
+        """
         ts = self.calc_time_series(tf)
         return np.abs(ts).max()
 
-    def calc_arias_intensity(self, tf=None):
+    def calc_arias_intensity(self, tf: npt.ArrayLike | None = None) -> float:
+        """Compute the Arias intensity [m/s].
+
+        Parameters
+        ----------
+        tf : array_like, optional
+            Transfer function to apply to the motion. If ``None``, none is applied.
+        """
         tf = 1 if tf is None else np.asarray(tf)
         ts = self.calc_time_series(tf)
-        return np.pi * GRAVITY / 2 * _trapezoid(ts**2, dx=self.time_step)
+        return np.pi * GRAVITY / 2 * np.trapezoid(ts**2, dx=self.time_step)
 
-    def calc_cav(self, tf=None):
+    def calc_cav(self, tf: npt.ArrayLike | None = None) -> float:
+        """Compute the cumulative absolute velocity [m/s].
+
+        Parameters
+        ----------
+        tf : array_like, optional
+            Transfer function to apply to the motion. If ``None``, none is applied.
+        """
         tf = 1 if tf is None else np.asarray(tf)
         ts = self.calc_time_series(tf)
-        return GRAVITY * _trapezoid(np.abs(ts), dx=self.time_step)
+        return GRAVITY * np.trapezoid(np.abs(ts), dx=self.time_step)
 
-    def calc_osc_accels(self, osc_freqs, osc_damping=0.05, tf=None):
-        """Compute the pseudo-acceleration spectral response of an oscillator with a
-        specific frequency and damping.
+    def calc_osc_accels(
+        self,
+        osc_freqs: npt.ArrayLike,
+        osc_damping: float = 0.05,
+        tf: npt.ArrayLike | None = None,
+    ) -> np.ndarray:
+        """Compute the pseudo-acceleration spectral response of an oscillator.
+
+        The oscillator has a specific frequency and damping.
 
         Parameters
         ----------
         osc_freq : float
-            Frequency of the oscillator (Hz).
+            Frequency of the oscillator [Hz].
         osc_damping : float
-            Fractional damping of the oscillator (dec). For example, 0.05 for a
+            Fractional damping of the oscillator [dec]. For example, 0.05 for a
             damping ratio of 5%.
         tf : array_like, optional
             Transfer function to be applied to motion prior calculation of the
@@ -226,9 +509,8 @@ class TimeSeriesMotion(Motion):
         )
         return resp
 
-    def _calc_fourier_spectrum(self, fa_length=None):
+    def _calc_fourier_spectrum(self, fa_length: int | None = None) -> None:
         """Compute the Fourier Amplitude Spectrum of the time series."""
-
         if fa_length is None:
             # Use the next power of 2 for the length
             n = 1
@@ -242,33 +524,33 @@ class TimeSeriesMotion(Motion):
         freq_step = 1.0 / (2 * self._time_step * (n / 2))
         self._freqs = freq_step * np.arange(1 + n / 2)
 
-    def _calc_sdof_tf(self, osc_freq, damping=0.05):
+    def _calc_sdof_tf(self, osc_freq: float, damping: float = 0.05) -> np.ndarray:
         """Compute the transfer function for a single-degree-of-freedom oscillator.
 
-        The transfer function computes the pseudo-spectral acceleration.
+        The transfer function computes the pseudo-spectral acceleration. See
+        :func:`pyrvt.motions.calc_sdof_tf`.
 
         Parameters
         ----------
         osc_freq : float
-            natural frequency of the oscillator [Hz]
-        damping : float, optional
-            damping ratio of the oscillator in decimal. Default value is
-            0.05, or 5%.
+            Natural frequency of the oscillator [Hz].
+        damping : float, default=0.05
+            Damping ratio of the oscillator [decimal].
 
         Returns
         -------
         tf : :class:`numpy.ndarray`
             Complex-valued transfer function with length equal to `self.freq`.
         """
-        return -(osc_freq**2.0) / (
-            np.square(self.freqs)
-            - np.square(osc_freq)
-            - 2.0j * damping * osc_freq * self.freqs
-        )
+        return pyrvt.motions.calc_sdof_tf(self.freqs, osc_freq, damping)
 
     @classmethod
-    def load_at2_file(cls, filename, scale=1.0):
+    def load_at2_file(cls, filename: str, scale: float = 1.0) -> TimeSeriesMotion:
         """Read an AT2 formatted time series.
+
+        The fourth line of the file provides the number of points and the time
+        step; both of the PEER NGA layouts are read, and a warning is issued if
+        the number of points does not match the number of accelerations.
 
         Parameters
         ----------
@@ -281,16 +563,22 @@ class TimeSeriesMotion(Motion):
             next(fp)
             description = next(fp).strip()
             next(fp)
-            parts = next(fp).split()
-            time_step = float(parts[1])
+            npts, time_step = _parse_at2_header(next(fp))
 
             accels = np.array([float(part) for line in fp for part in line.split()])
+
+        if accels.size != npts:
+            warnings.warn(
+                f"AT2 file '{filename}' specifies NPTS={npts}, but {accels.size} "
+                "accelerations were read.",
+                stacklevel=2,
+            )
 
         accels *= scale
         return cls(filename, description, time_step, accels)
 
     @classmethod
-    def load_smc_file(cls, filename, scale=1.0):
+    def load_smc_file(cls, filename: str, scale: float = 1.0) -> TimeSeriesMotion:
         """Read an SMC formatted time series.
 
         Format of the time series is provided by:
@@ -347,13 +635,24 @@ class TimeSeriesMotion(Motion):
         return TimeSeriesMotion(filename, description, time_step, accels)
 
 
-# FIXME: How do multiple inheritence properly?
 class RvtMotion(pyrvt.motions.RvtMotion, Motion):
-    """RVT motion based on user specified Fourier amplitude spectrum and duration."""
+    """RVT motion based on a user-specified Fourier amplitude spectrum + duration.
 
+    Wraps :class:`pyrvt.motions.RvtMotion` to add pint-based unit conversion
+    and the pystrata :class:`Motion` interface. Construct directly with
+    arrays, or use :meth:`from_fas` (inherited from pyrvt) to build from any
+    FAS-producing object (e.g. ``pygmm.fourier_spectrum.SourceTheoryModel``).
+    """
+
+    @convert_units(fourier_amps="standard_gravity * second", duration="second")
     def __init__(
-        self, freqs, fourier_amps, duration=None, peak_calculator=None, calc_kwds=None
-    ):
+        self,
+        freqs: npt.ArrayLike,
+        fourier_amps: npt.ArrayLike,
+        duration: float | None = None,
+        peak_calculator=None,
+        calc_kwds: dict | None = None,
+    ) -> None:
         Motion.__init__(self)
         pyrvt.motions.RvtMotion.__init__(
             self,
@@ -366,20 +665,19 @@ class RvtMotion(pyrvt.motions.RvtMotion, Motion):
 
 
 class CompatibleRvtMotion(pyrvt.motions.CompatibleRvtMotion, Motion):
-    """RVT motion based on user specified acceleration response spectrum and
-    duration."""
+    """RVT motion based on a user specified response spectrum and duration."""
 
+    @convert_units(osc_accels_target="standard_gravity", duration="second")
     def __init__(
         self,
-        osc_freqs,
-        osc_accels_target,
-        duration=None,
-        osc_damping=0.05,
-        event_kwds=None,
-        window_len=None,
+        osc_freqs: npt.ArrayLike,
+        osc_accels_target: npt.ArrayLike,
+        duration: float | None = None,
+        osc_damping: float = 0.05,
+        window_len: int | None = None,
         peak_calculator=None,
-        calc_kwds=None,
-    ):
+        calc_kwds: dict | None = None,
+    ) -> None:
         Motion.__init__(self)
         pyrvt.motions.CompatibleRvtMotion.__init__(
             self,
@@ -387,39 +685,7 @@ class CompatibleRvtMotion(pyrvt.motions.CompatibleRvtMotion, Motion):
             osc_accels_target,
             duration=duration,
             osc_damping=osc_damping,
-            event_kwds=event_kwds,
             window_len=window_len,
             peak_calculator=peak_calculator,
             calc_kwds=calc_kwds,
-        )
-
-
-class SourceTheoryRvtMotion(pyrvt.motions.SourceTheoryMotion, Motion):
-    """RVT motion based on seismological point source model and earthquake scenario
-    parameters."""
-
-    def __init__(
-        self,
-        magnitude: float,
-        distance: float,
-        region: str | None = None,
-        depth: float | None = 8,
-        peak_calculator: str | pyrvt.peak_calculators.Calculator | None = None,
-        calc_kwds: dict | None = None,
-        freqs: np.ndarray | None = None,
-        disable_site_amp: bool = False,
-        **kwargs,
-    ):
-        Motion.__init__(self)
-        pyrvt.motions.SourceTheoryMotion.__init__(
-            self,
-            magnitude=magnitude,
-            distance=distance,
-            region=region,
-            depth=depth,
-            peak_calculator=peak_calculator,
-            calc_kwds=calc_kwds,
-            freqs=freqs,
-            disable_site_amp=disable_site_amp,
-            **kwargs,
         )

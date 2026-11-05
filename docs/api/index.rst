@@ -1,7 +1,7 @@
 API Reference
 =============
 
-This section provides detailed documentation for all public classes and functions in PyStrata.
+This section provides detailed documentation for all public classes and functions in pyStrata.
 
 .. toctree::
    :maxdepth: 2
@@ -10,12 +10,18 @@ This section provides detailed documentation for all public classes and function
    site
    propagation
    output
+   runner
    variation
+   logic_tree
+   dam
+   generic
+   tools
+   units
 
 Overview
 --------
 
-PyStrata's API is organized into five main modules:
+pyStrata's API is organized into the following modules:
 
 **Motion** (:doc:`motion`)
     Classes for representing and manipulating ground motion data
@@ -29,8 +35,26 @@ PyStrata's API is organized into five main modules:
 **Output** (:doc:`output`)
     Output quantity computation and data handling
 
+**Runner** (:doc:`runner`)
+    Ensemble evaluation, serially or across processes
+
 **Variation** (:doc:`variation`)
     Tools for parameter variation and uncertainty analysis
+
+**Logic Tree** (:doc:`logic_tree`)
+    Weighted branching for epistemic uncertainty quantification
+
+**Generic Profiles** (:doc:`generic`)
+    Generic shear-wave velocity profiles from published datasets
+
+**Dam** (:doc:`dam`)
+    Seismic response of dams modeled as shear wedges
+
+**Tools** (:doc:`tools`)
+    File I/O and miscellaneous utilities
+
+**Units** (:doc:`units`)
+    Unit conversion of inputs
 
 Design Philosophy
 -----------------

@@ -1,0 +1,16 @@
+name: pre-commit
+
+on: [push, pull_request]
+
+jobs:
+    pre-commit:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v7.0.1
+            - name: Install uv
+              uses: astral-sh/setup-uv@v9.0.0
+              with:
+                  version: "latest"
+            # The same hooks as a local commit: formatting, whitespace and prettier
+            - name: Run pre-commit
+              run: uvx pre-commit run --all-files --show-diff-on-failure

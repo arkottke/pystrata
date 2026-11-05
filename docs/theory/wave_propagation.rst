@@ -144,7 +144,7 @@ Validation Examples
 
 **Benchmark Comparisons**
 
-PyStrata wave propagation algorithms have been validated against:
+pyStrata wave propagation algorithms have been validated against:
 - Analytical solutions for simple geometries
 - SHAKE91 for equivalent linear analysis
 - DEEPSOIL for advanced nonlinear methods
@@ -153,7 +153,7 @@ PyStrata wave propagation algorithms have been validated against:
 Implementation Details
 ----------------------
 
-The wave propagation calculations in PyStrata are implemented in the `propagation` module with careful attention to:
+The wave propagation calculations in pyStrata are implemented in the `propagation` module with careful attention to:
 
 - **Numerical stability** through appropriate algorithmic choices
 - **Computational efficiency** via optimized matrix operations

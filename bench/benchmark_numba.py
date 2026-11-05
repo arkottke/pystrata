@@ -8,38 +8,39 @@ FrequencyDependentEqlCalculator with 60 realizations.
 import time
 
 import numpy as np
+import pygmm
 
 import pystrata
 from pystrata import propagation
 
 
+def _darendeli(unit_wt, stress_mean, **kw):
+    return pystrata.site.SoilType.from_curves(
+        pygmm.DarendeliSoilType(unit_wt=unit_wt, stress_mean=stress_mean, **kw).curves()
+    )
+
+
 def create_motion():
-    m = pystrata.motion.SourceTheoryRvtMotion(6.0, 30, "wna")
-    m.calc_fourier_amps()
-    return m
+    return pystrata.motion.RvtMotion.from_fas(
+        pygmm.fourier_spectrum.SourceTheoryModel(6.0, 30, "wna")
+    )
 
 
 def create_profile():
     return pystrata.site.Profile(
         [
             pystrata.site.Layer(
-                pystrata.site.DarendeliSoilType(
-                    18.0, plas_index=0, ocr=1, stress_mean=100
-                ),
+                _darendeli(18.0, plas_index=0, ocr=1, stress_mean=100),
                 10,
                 400,
             ),
             pystrata.site.Layer(
-                pystrata.site.DarendeliSoilType(
-                    18.0, plas_index=0, ocr=1, stress_mean=200
-                ),
+                _darendeli(18.0, plas_index=0, ocr=1, stress_mean=200),
                 10,
                 450,
             ),
             pystrata.site.Layer(
-                pystrata.site.DarendeliSoilType(
-                    18.0, plas_index=0, ocr=1, stress_mean=400
-                ),
+                _darendeli(18.0, plas_index=0, ocr=1, stress_mean=400),
                 30,
                 600,
             ),

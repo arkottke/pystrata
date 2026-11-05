@@ -1,10 +1,12 @@
 """Generic velocity profiles."""
 
-import gzip as _gzip
+from __future__ import annotations
+
+import gzip
 import json
 import os
 import urllib.request
-import warnings
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -12,93 +14,63 @@ import pandas as pd
 from .tools import calc_mean_eff_stress
 
 
-def kea16_profile(depth: float, vs30: float, region: str) -> pd.DataFrame:
-    """
-    Calculate the median shear-wave velocity profile and its standard deviation
-    at a given depth, based on the VS30 value and region, using the model from
-    Kamai et al. (2016).
+def aaa21_profile(
+    model: str,
+    v_s30: int,
+    simplify: bool = True,
+    simplify_tol: float = 0.02,
+) -> pd.DataFrame:
+    """Load a generic shear-wave velocity profile.
+
+    The profiles are from :cite:t:`AlAtikAbrahamson2021`.
 
     Parameters
     ----------
-    depth : float or np.ndarray
-        The depth(s) in meters at which to calculate the profile.
-    vs30 : float
-        The VS30 value in m/sec.
-    region : str
-        The region for the model. Must be either 'California' or 'Japan'.
+    model : str
+        Ground-motion model identifier.  One of ``'ASK14'``, ``'BSSA14'``,
+        ``'CB14'``, or ``'CY14'``.
+    v_s30 : int
+        Reference VS30 value in m/s.  One of ``620``, ``760``, or ``1100``.
+    simplify : bool, optional
+        If True (default), merge adjacent layers whose shear-wave velocities
+        differ by less than *simplify_tol*.
+    simplify_tol : float, optional
+        Relative tolerance on velocity for merging adjacent layers
+        (default 0.02, i.e. 2 %).
 
     Returns
     -------
     pd.DataFrame
-        DataFrame with index as depth and columns:
-        - 'vs_median': float or np.ndarray
-            The median shear-wave velocity at the given depth(s) in m/sec.
-        - 'std_vs_ln_units': float
-            The standard deviation of the shear-wave velocity in ln units.
+        DataFrame with columns ``depth`` [m] and ``vel_shear`` [m/s].
 
     Raises
     ------
-    ValueError
-        If the region is not 'California' or 'Japan'.
-
-    Warns
-    -----
-    UserWarning
-        If vs30 is outside the recommended range [250, 850] m/sec.
-
-    References
-    ----------
-    Kamai, R., et al. (2016). "Nonlinear site response from the KiK-net
-    database." Bulletin of the Seismological Society of America, 106(4),
-    1710-1723.
+    KeyError
+        If *model* or *v_s30* is not found in the data file.
     """
-    # Coefficients from Table 2 [cite: 184, 185]
-    if region == "california":
-        b1 = 0.25
-        b2 = 104
-        b3 = 0.22
-        b4 = 166
-        b5 = 53
-        b6 = -0.00388
-        b7 = 0.0002
-        b8 = 0.195
-    elif region == "japan":
-        b1 = 0.2
-        b2 = 40
-        b3 = 0.25
-        b4 = 260
-        b5 = 28
-        b6 = -0.00296
-        b7 = 0
-        b8 = 0.4
-    else:
-        raise ValueError("Region must be 'California' or 'Japan'")
+    fpath = Path(__file__).parent / "data" / "aa21-profiles.json.gz"
+    with gzip.open(fpath, "rt") as f:
+        data = json.load(f)
 
-    if not (250 <= vs30 <= 850):
-        # The model is recommended for VS30 between 250 and 850 m/sec.
-        warnings.warn(
-            "The model is recommended for VS30 between 250 and 850 m/sec. "
-            "Values outside this range may lead to inaccurate results.",
-            UserWarning,
+    model = model.upper()
+    if model not in data:
+        raise KeyError(f"Unknown model '{model}'. Choose from: {list(data.keys())}")
+
+    vs30_key = f"vs30_{v_s30}_mps"
+    if vs30_key not in data[model]:
+        raise KeyError(
+            f"Unknown v_s30={v_s30}. Choose from: "
+            f"{[k.split('_')[1] for k in data[model]]}"
         )
 
-    a0 = b1 * vs30 + b2  # Equation 3a
-    a1 = b3 * vs30 + b4  # Equation 3b
-    a2 = b5 * np.exp(b6 * vs30)  # Equation 3c
+    profile = data[model][vs30_key]
+    depth_m = np.array(profile["depth_km"]) * 1000
+    vs_mps = np.array(profile["vs_km_per_sec"]) * 1000
 
-    # Ensure the argument to log is positive and handle depth=0 or negative depths
-    log_arg = (np.array(depth) + a2) / a2
-    vs_median = a0 + a1 * np.log(
-        np.maximum(log_arg, 1e-9)
-    )  # Equation 3, using maximum to handle non-positive log arguments
+    df = pd.DataFrame({"depth": depth_m, "vel_shear": vs_mps})
 
-    a3 = b7 * vs30 + b8  # Equation 4a
-    std_vs_ln_units = a3  # Equation 4
-
-    df = pd.DataFrame(
-        {"vs_median": vs_median, "std_vs_ln_units": std_vs_ln_units},
-        index=pd.Index(depth, name="depth"),
-    )
+    if simplify:
+        df = _simplify_profile(df, simplify_tol)
 
     return df
 
@@ -157,7 +129,7 @@ def fetch_ncm_profile(
 
     fpath = os.fspath(fpath)
     if gzip_output:
-        with _gzip.open(fpath, "wt") as f:
+        with gzip.open(fpath, "wt") as f:
             json.dump(data, f)
     else:
         with open(fpath, "w") as f:
@@ -199,9 +171,9 @@ def load_ncm_profile(
 
     # Try gzip first, fall back to plain JSON
     try:
-        with _gzip.open(fpath, "rt") as f:
+        with gzip.open(fpath, "rt") as f:
             data = json.load(f)
-    except _gzip.BadGzipFile:
+    except gzip.BadGzipFile:
         with open(fpath) as f:
             data = json.load(f)
 
@@ -244,7 +216,8 @@ def _simplify_profile(
     Parameters
     ----------
     df : pandas.DataFrame
-        Must contain ``depth``, ``vel_shear``, and ``unit_wt`` columns.
+        Must contain ``depth`` and ``vel_shear`` columns.  If ``unit_wt`` is
+        present it will also be averaged.
     tol : float
         Relative tolerance for grouping (e.g. 0.02 = 2 %).
 
@@ -255,7 +228,9 @@ def _simplify_profile(
     """
     depths = df["depth"].values
     vs = df["vel_shear"].values
-    unit_wt = df["unit_wt"].values
+    has_unit_wt = "unit_wt" in df.columns
+    if has_unit_wt:
+        unit_wt = df["unit_wt"].values
 
     # Compute layer thicknesses (last layer gets 0)
     thicknesses = np.diff(depths, append=depths[-1])
@@ -285,7 +260,11 @@ def _simplify_profile(
             # Halfspace (last layer)
             vs_avg = vs[group[0]]
 
-        unit_wt_avg = np.average(unit_wt[group], weights=np.maximum(thick, 1e-10))
-        rows.append({"depth": depth_top, "vel_shear": vs_avg, "unit_wt": unit_wt_avg})
+        row = {"depth": depth_top, "vel_shear": vs_avg}
+        if has_unit_wt:
+            row["unit_wt"] = np.average(
+                unit_wt[group], weights=np.maximum(thick, 1e-10)
+            )
+        rows.append(row)
 
     return pd.DataFrame(rows)

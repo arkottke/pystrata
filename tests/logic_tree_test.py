@@ -1,6 +1,15 @@
+import numpy as np
 import pytest
 
-from pystrata.logic_tree import Alternative, LogicTree, Node
+from pystrata.logic_tree import (
+    Alternative,
+    LogicTree,
+    Node,
+    compute_marginals,
+    plot_tornado,
+    separation_of_variance,
+)
+from pystrata.output import Output
 
 from . import FPATH_DATA
 
@@ -47,6 +56,21 @@ def test_branch_count(my_tree):
     assert len(branches) == count
 
 
+def test_len_conditional_tree(my_tree):
+    """A conditional tree has to be enumerated, not computed from the product."""
+    assert not my_tree.is_rectangular
+    assert len(my_tree) == len(list(my_tree))
+    assert len(my_tree) < np.prod([len(node) for node in my_tree.nodes])
+
+
+def test_len_rectangular_tree(rectangular_tree):
+    assert rectangular_tree.is_rectangular
+    assert len(rectangular_tree) == len(list(rectangular_tree))
+    assert len(rectangular_tree) == np.prod(
+        [len(node) for node in rectangular_tree.nodes]
+    )
+
+
 def test_valid_branches(my_tree):
     branches = list(my_tree)
 
@@ -63,13 +87,12 @@ def test_valid_branches(my_tree):
 
 
 def test_multiple_alternatives_same_value_different_requires():
-    """
-    Test that multiple alternatives with the same value but different 'requires'
+    """Test that multiple alternatives with the same value but different 'requires'
     conditions are both included in the logic tree branches.
 
-    This test addresses a bug where only the first alternative with a given value
-    was being used in branch validation, causing branches with later alternatives
-    to be incorrectly marked as invalid.
+    This test addresses a bug where only the first alternative with a given value was
+    being used in branch validation, causing branches with later alternatives to be
+    incorrectly marked as invalid.
     """
     # Create a logic tree with the problematic pattern:
     # - Two alternatives with same value (0.05) but different requirements
@@ -85,7 +108,7 @@ def test_multiple_alternatives_same_value_different_requires():
             Node(
                 "kappa",
                 [
-                    # These two alternatives have the same value but different requirements
+                    # Same value, but different requirements
                     Alternative(0.05, weight=0.3, requires={"site_class": "D"}),
                     Alternative(0.05, weight=0.7, requires={"site_class": "E"}),
                     # Add another value to make it more interesting
@@ -127,10 +150,8 @@ def test_multiple_alternatives_same_value_different_requires():
 
 
 def test_complex_conditional_logic_tree():
-    """
-    Test a more complex case similar to the original bug report with multiple
-    sites, kappa values, and methods.
-    """
+    """Test a more complex case similar to the original bug report with multiple sites,
+    kappa values, and methods."""
     # This reproduces the original bug scenario
     logic_tree_definition = [
         {
@@ -240,3 +261,247 @@ def test_complex_conditional_logic_tree():
 
     assert kappa_05_methods == methods
     assert kappa_06_methods == methods
+
+
+# ---------------------------------------------------------------------------
+# Fixtures and helpers for variance / tornado tests
+# ---------------------------------------------------------------------------
+
+
+def _make_output(tree, value_func, refs=None):
+    """Build an Output with branches stored in names.
+
+    Parameters
+    ----------
+    tree : LogicTree
+        A rectangular logic tree.
+    value_func : callable
+        ``value_func(branch, ref) -> float`` producing the output value.
+    refs : array_like, optional
+        Reference values. Defaults to ``[1.0]``.
+
+    Returns
+    -------
+    Output
+        An Output instance ready for ``.to_xarray(tree)``.
+    """
+    if refs is None:
+        refs = np.array([1.0])
+    else:
+        refs = np.asarray(refs)
+    output = Output(refs)
+    for branch in tree:
+        vals = np.array([value_func(branch, r) for r in refs])
+        output._add_values(vals)
+        output._names.append(branch)
+    return output
+
+
+@pytest.fixture
+def rectangular_tree():
+    return LogicTree(
+        [
+            Node(
+                "A",
+                [Alternative(1.0, weight=0.3), Alternative(2.0, weight=0.7)],
+            ),
+            Node(
+                "B",
+                [
+                    Alternative(10.0, weight=0.2),
+                    Alternative(20.0, weight=0.5),
+                    Alternative(30.0, weight=0.3),
+                ],
+            ),
+        ]
+    )
+
+
+# ---------------------------------------------------------------------------
+# is_rectangular
+# ---------------------------------------------------------------------------
+
+
+def test_is_rectangular_true(rectangular_tree):
+    assert rectangular_tree.is_rectangular
+
+
+def test_is_rectangular_false(my_tree):
+    assert not my_tree.is_rectangular
+
+
+# ---------------------------------------------------------------------------
+# Output.to_xarray
+# ---------------------------------------------------------------------------
+
+
+def test_to_xarray_shape(rectangular_tree):
+    output = _make_output(
+        rectangular_tree,
+        lambda b, r: b.value("A") + b.value("B") + r,
+        refs=np.arange(5, dtype=float),
+    )
+
+    da = output.to_xarray(rectangular_tree)
+
+    assert da.dims == ("ref", "A", "B")
+    assert da.shape == (5, 2, 3)
+
+
+def test_to_xarray_values(rectangular_tree):
+    output = _make_output(
+        rectangular_tree,
+        lambda b, r: b.value("A") * 100 + b.value("B") + r,
+        refs=np.array([1.0, 2.0]),
+    )
+    branches = list(rectangular_tree)
+
+    da = output.to_xarray(rectangular_tree)
+
+    for branch in branches:
+        a_val = branch.value("A")
+        b_val = branch.value("B")
+        expected = np.array([a_val * 100 + b_val + r for r in [1.0, 2.0]])
+        np.testing.assert_allclose(da.sel(A=a_val, B=b_val).values, expected)
+
+
+def test_to_xarray_rejects_conditional(my_tree):
+    # Build a minimal output with string-named entries (not branches)
+    output = Output(np.array([1.0]))
+    for branch in my_tree:
+        output._add_values(np.array([1.0]))
+        output._names.append(branch)
+
+    with pytest.raises(ValueError, match="rectangular"):
+        output.to_xarray(my_tree)
+
+
+# ---------------------------------------------------------------------------
+# separation_of_variance
+# ---------------------------------------------------------------------------
+
+
+def test_separation_of_variance_single_varying_node():
+    """When only one node varies, it should capture ~100% of the variance."""
+    tree = LogicTree(
+        [
+            Node("X", [Alternative(1.0, weight=0.5), Alternative(2.0, weight=0.5)]),
+            Node("Y", [Alternative(10.0, weight=0.5), Alternative(20.0, weight=0.5)]),
+        ]
+    )
+    # Output depends only on X, not on Y → all variance from X
+    output = _make_output(tree, lambda b, r: b.value("X"))
+    da = output.to_xarray(tree)
+
+    ds = separation_of_variance(da, tree, ref_value=1.0)
+
+    assert ds["variance_fraction"].sel(node="X").item() == pytest.approx(1.0, abs=1e-10)
+    assert ds["variance_fraction"].sel(node="Y").item() == pytest.approx(0.0, abs=1e-10)
+
+
+def test_separation_of_variance_fractions_sum_to_one():
+    """Variance fractions (including interaction) should sum to 1."""
+    tree = LogicTree(
+        [
+            Node(
+                "A",
+                [Alternative(1.0, weight=0.3), Alternative(3.0, weight=0.7)],
+            ),
+            Node(
+                "B",
+                [Alternative(2.0, weight=0.4), Alternative(5.0, weight=0.6)],
+            ),
+        ]
+    )
+    output = _make_output(
+        tree, lambda b, r: b.value("A") * b.value("B"), refs=np.array([0.5])
+    )
+    da = output.to_xarray(tree)
+
+    ds = separation_of_variance(da, tree, ref_value=0.5)
+
+    total = ds["variance_fraction"].values.sum()
+    assert total == pytest.approx(1.0, abs=1e-10)
+
+
+def test_separation_of_variance_attrs():
+    tree = LogicTree(
+        [
+            Node("P", [Alternative(2.0, weight=0.5), Alternative(4.0, weight=0.5)]),
+        ]
+    )
+    output = _make_output(tree, lambda b, r: b.value("P"))
+    da = output.to_xarray(tree)
+
+    ds = separation_of_variance(da, tree, ref_value=1.0)
+
+    assert "weighted_mean" in ds.attrs
+    assert "total_variance" in ds.attrs
+    assert ds.attrs["total_variance"] > 0
+
+
+# ---------------------------------------------------------------------------
+# compute_marginals
+# ---------------------------------------------------------------------------
+
+
+def test_compute_marginals_single_node():
+    """Marginals for a single-node tree equal the raw values."""
+    tree = LogicTree(
+        [Node("P", [Alternative(2.0, weight=0.5), Alternative(8.0, weight=0.5)])]
+    )
+    output = _make_output(tree, lambda b, r: b.value("P"))
+    da = output.to_xarray(tree)
+
+    ds = compute_marginals(da, tree, ref_value=1.0)
+
+    np.testing.assert_allclose(ds["P"].values, [2.0, 8.0])
+    # Geometric mean of 2 and 8 with equal weights = sqrt(16) = 4
+    assert ds.attrs["weighted_mean"] == pytest.approx(4.0, rel=1e-10)
+
+
+def test_compute_marginals_independent_nodes():
+    """When output = A * B, marginals reflect each node independently."""
+    tree = LogicTree(
+        [
+            Node("A", [Alternative(1.0, weight=0.5), Alternative(3.0, weight=0.5)]),
+            Node("B", [Alternative(2.0, weight=0.5), Alternative(4.0, weight=0.5)]),
+        ]
+    )
+    output = _make_output(tree, lambda b, r: b.value("A") * b.value("B"))
+    da = output.to_xarray(tree)
+
+    ds = compute_marginals(da, tree, ref_value=1.0)
+
+    # Marginal for A: geometric mean over B of (A*B)
+    # A=1: geom_mean(1*2, 1*4) = 1 * geom_mean(2,4) = 1 * sqrt(8)
+    # A=3: geom_mean(3*2, 3*4) = 3 * sqrt(8)
+    geom_b = np.sqrt(2.0 * 4.0)
+    np.testing.assert_allclose(ds["A"].values, [1.0 * geom_b, 3.0 * geom_b], rtol=1e-10)
+
+
+# ---------------------------------------------------------------------------
+# plot_tornado
+# ---------------------------------------------------------------------------
+
+
+def test_plot_tornado_returns_axes():
+    import matplotlib
+
+    matplotlib.use("Agg")
+
+    tree = LogicTree(
+        [
+            Node("A", [Alternative(1.0, weight=0.5), Alternative(2.0, weight=0.5)]),
+            Node("B", [Alternative(3.0, weight=0.5), Alternative(6.0, weight=0.5)]),
+        ]
+    )
+    output = _make_output(tree, lambda b, r: b.value("A") + b.value("B"))
+    da = output.to_xarray(tree)
+    ds = compute_marginals(da, tree, ref_value=1.0)
+
+    ax = plot_tornado(ds)
+
+    assert ax is not None
+    # Should have one bar per node (A and B)
+    assert len(ax.patches) == 2

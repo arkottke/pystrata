@@ -9,12 +9,13 @@ Classes
 -------
 
 .. autosummary::
-   :toctree: ../generated/
    :nosignatures:
 
    LinearElasticCalculator
    EquivalentLinearCalculator
    FrequencyDependentEqlCalculator
+   QuarterWaveLenCalculator
+   KappaCorrectedCalculator
 
 Linear Methods
 --------------
@@ -23,13 +24,27 @@ Linear Methods
    :members:
    :show-inheritance:
 
-Nonlinear Methods
------------------
+Equivalent-Linear Methods
+--------------------------
 
 .. autoclass:: EquivalentLinearCalculator
    :members:
    :show-inheritance:
 
 .. autoclass:: FrequencyDependentEqlCalculator
+   :members:
+   :show-inheritance:
+
+Quarter-Wavelength Approximation
+---------------------------------
+
+.. autoclass:: QuarterWaveLenCalculator
+   :members:
+   :show-inheritance:
+
+Site Attenuation Correction
+---------------------------
+
+.. autoclass:: KappaCorrectedCalculator
    :members:
    :show-inheritance:

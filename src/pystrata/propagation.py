@@ -19,27 +19,41 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+"""Wave propagation calculators for layered soil columns."""
 
-try:
-    import numba
+import logging
+import time
 
-    HAS_NUMBA = True
-except ImportError:
-    HAS_NUMBA = False
+import numba
 import numpy as np
 import numpy.typing as npt
 import pykooh
 from scipy.optimize import minimize
 
-from .motion import GRAVITY, Motion, WaveField
+from .motion import Motion, WaveField, fit_attenuation
 from .site import Layer, Location, Profile
+from .units import GRAVITY
+
+# numba is a required dependency. The pure-Python implementations in this
+# module are kept as reference implementations -- the test suite runs the
+# calculators against both and checks that they agree -- so the dispatch
+# indirection below remains.
+HAS_NUMBA = True
+
+logger = logging.getLogger(__name__)
 
 
 class AbstractCalculator:
+    """Base class for site response calculators.
+
+    Calling an instance runs the calculation for a motion and a profile.
+    """
+
     def __init__(self):
         self._loc_input: None | Location = None
         self._motion: None | Motion = None
         self._profile: None | Profile = None
+        self._start_time: float | None = None
 
     def __call__(
         self,
@@ -49,9 +63,36 @@ class AbstractCalculator:
         reset_layers=True,
         **kwds,
     ):
+        """Store the inputs and prepare the layers for a calculation.
+
+        Parameters
+        ----------
+        motion : Motion
+            Input motion.
+        profile : Profile
+            Site profile.
+        loc_input : Location
+            Location at which the motion is defined.
+        reset_layers : bool, default=True
+            If the layers are reset to their initial properties.
+        """
+        self._start_time = time.perf_counter()
         self._motion = motion
         self._profile = profile
         self._loc_input = loc_input
+
+        if logger.isEnabledFor(logging.DEBUG):
+            n_layers = len(profile)
+            max_depth = (
+                sum(layer.thickness for layer in profile[:-1]) if n_layers > 1 else 0
+            )
+            logger.debug(
+                "%s: %d layers, max_depth=%.1fm, motion=%s",
+                getattr(self, "name", self.__class__.__name__),
+                n_layers,
+                max_depth,
+                type(motion).__name__,
+            )
 
         if reset_layers:
             # Set initial properties
@@ -62,34 +103,18 @@ class AbstractCalculator:
 
     @property
     def motion(self):
+        """Input motion of the last calculation."""
         return self._motion
 
     @property
     def profile(self):
+        """Profile of the last calculation."""
         return self._profile
 
     @property
     def loc_input(self):
+        """Location of the input motion."""
         return self._loc_input
-
-
-@numba.jit(nopython=True)
-def _my_trapz_impl(thickness, prop, depth_max):
-    total = 0
-    depth = 0
-
-    for t, p in zip(thickness, prop):
-        depth += t
-        if depth_max < depth:
-            # Partial layer
-            total += (t - (depth - depth_max)) * p
-            break
-        total += t * p
-    else:
-        # Final infinite layer
-        total += (depth_max - depth) * p
-
-    return total / depth_max
 
 
 def _my_trapz_python(thickness, prop, depth_max):
@@ -109,6 +134,9 @@ def _my_trapz_python(thickness, prop, depth_max):
 
     return total / depth_max
 
+
+if HAS_NUMBA:
+    _my_trapz_impl = numba.jit(nopython=True)(_my_trapz_python)
 
 my_trapz = _my_trapz_impl if HAS_NUMBA else _my_trapz_python
 
@@ -158,6 +186,72 @@ def _calc_waves_python(angular_freqs, comp_shear_vels, comp_shear_mods, thicknes
     return waves_a, waves_b, wave_nums
 
 
+def _calc_waves_general_python(
+    angular_freqs, comp_shear_vels, comp_shear_mods, thicknesses, horiz_wave_nums
+):
+    """Pure-Python/numpy wave propagation for general (inhomogeneous) SII waves.
+
+    Identical to :func:`_calc_waves_python` but the vertical wave number of each
+    layer is the general SH value ``d_beta = sqrt(k_S**2 - k**2)`` rather than the
+    normal-incidence value ``k_S = omega / Vs*``, where ``k`` is the (complex,
+    per-frequency) horizontal wave number set by the incidence angle and degree of
+    inhomogeneity of the wave incident at the base half-space. Because the impedance
+    ratio and phase term of the transfer-matrix recursion are already expressed
+    through ``wave_nums``, this single change generalizes the propagator to oblique
+    and inhomogeneous incidence (Borcherdt, *Viscoelastic Waves in Layered Media*,
+    Ch. 9). Setting ``horiz_wave_nums = 0`` recovers :func:`_calc_waves_python`.
+
+    Parameters
+    ----------
+    angular_freqs : np.ndarray, shape (n_freqs,)
+    comp_shear_vels : np.ndarray, shape (n_layers, n_freqs)
+    comp_shear_mods : np.ndarray, shape (n_layers, n_freqs)
+    thicknesses : np.ndarray, shape (n_layers,)
+    horiz_wave_nums : np.ndarray, shape (n_freqs,)
+        Complex horizontal wave number ``k`` (same in every layer).
+    """
+    n_layers = comp_shear_vels.shape[0]
+    n_freqs = len(angular_freqs)
+
+    wave_nums = np.empty((n_layers, n_freqs), dtype=complex)
+    for i in range(n_layers):
+        comp_wave_num = angular_freqs / comp_shear_vels[i, :]
+        vert_wave_nums = np.sqrt(comp_wave_num**2 - horiz_wave_nums**2)
+        # Waves must decay away from the source: Im(k) <= 0. Past the critical
+        # angle of a lossless layer the argument is real and negative, and the
+        # branch of the root would otherwise depend on the sign of a zero.
+        wave_nums[i, :] = np.where(
+            vert_wave_nums.imag > 0, -vert_wave_nums, vert_wave_nums
+        )
+
+    waves_a = np.ones_like(wave_nums, dtype=complex)
+    waves_b = np.ones_like(wave_nums, dtype=complex)
+    for i in range(n_layers - 1):
+        with np.errstate(invalid="ignore"):
+            cimped = (wave_nums[i] * comp_shear_mods[i, :]) / (
+                wave_nums[i + 1] * comp_shear_mods[i + 1, :]
+            )
+
+        cterm = 1j * wave_nums[i, :] * thicknesses[i]
+
+        waves_a[i + 1, :] = 0.5 * waves_a[i] * (1 + cimped) * np.exp(
+            cterm
+        ) + 0.5 * waves_b[i] * (1 - cimped) * np.exp(-cterm)
+        waves_b[i + 1, :] = 0.5 * waves_a[i] * (1 - cimped) * np.exp(
+            cterm
+        ) + 0.5 * waves_b[i] * (1 + cimped) * np.exp(-cterm)
+
+        mask = ~np.isfinite(cimped)
+        waves_a[i + 1, mask] = 1.0
+        waves_b[i + 1, mask] = 1.0
+
+    mask = np.isclose(angular_freqs, 0)
+    waves_a[-1, mask] = 1.0
+    waves_b[-1, mask] = 1.0
+
+    return waves_a, waves_b, wave_nums
+
+
 def _wave_at_location_python(
     wave_nums_row, depth_within, waves_a_row, waves_b_row, wave_field_code
 ):
@@ -168,7 +262,9 @@ def _wave_at_location_python(
         return waves_a_row * exp_pos + waves_b_row * np.exp(-cterm)
     elif wave_field_code == 0:  # WaveField.outcrop
         return 2.0 * waves_a_row * exp_pos
-    else:  # WaveField.incoming_only
+    elif wave_field_code == 3:  # WaveField.down_going
+        return waves_b_row * np.exp(-cterm)
+    else:  # WaveField.up_going
         return waves_a_row * exp_pos
 
 
@@ -263,6 +359,64 @@ if HAS_NUMBA:
         return waves_a, waves_b, wave_nums
 
     @numba.njit(cache=True)
+    def _calc_waves_general_numba(
+        angular_freqs, comp_shear_vels, comp_shear_mods, thicknesses, horiz_wave_nums
+    ):
+        """Numba twin of :func:`_calc_waves_general_python`.
+
+        Uses the general SH vertical wave number ``d_beta = sqrt(k_S**2 - k**2)``
+        so the transfer-matrix recursion handles oblique and inhomogeneous
+        incidence. ``horiz_wave_nums = 0`` recovers :func:`_calc_waves_numba`.
+        """
+        n_layers = comp_shear_vels.shape[0]
+        n_freqs = len(angular_freqs)
+
+        wave_nums = np.empty((n_layers, n_freqs), dtype=np.complex128)
+        for i in range(n_layers):
+            for j in range(n_freqs):
+                comp_wave_num = angular_freqs[j] / comp_shear_vels[i, j]
+                vert_wave_num = np.sqrt(comp_wave_num**2 - horiz_wave_nums[j] ** 2)
+                if vert_wave_num.imag > 0:
+                    vert_wave_num = -vert_wave_num
+                wave_nums[i, j] = vert_wave_num
+
+        waves_a = np.ones((n_layers, n_freqs), dtype=np.complex128)
+        waves_b = np.ones((n_layers, n_freqs), dtype=np.complex128)
+        for i in range(n_layers - 1):
+            for j in range(n_freqs):
+                denom = wave_nums[i + 1, j] * comp_shear_mods[i + 1, j]
+                if denom == 0:
+                    waves_a[i + 1, j] = 1.0
+                    waves_b[i + 1, j] = 1.0
+                    continue
+
+                cimped = (wave_nums[i, j] * comp_shear_mods[i, j]) / denom
+                cterm = 1j * wave_nums[i, j] * thicknesses[i]
+                exp_pos = np.exp(cterm)
+                exp_neg = np.exp(-cterm)
+
+                if np.isfinite(cimped.real) and np.isfinite(cimped.imag):
+                    waves_a[i + 1, j] = (
+                        0.5 * waves_a[i, j] * (1 + cimped) * exp_pos
+                        + 0.5 * waves_b[i, j] * (1 - cimped) * exp_neg
+                    )
+                    waves_b[i + 1, j] = (
+                        0.5 * waves_a[i, j] * (1 - cimped) * exp_pos
+                        + 0.5 * waves_b[i, j] * (1 + cimped) * exp_neg
+                    )
+                else:
+                    waves_a[i + 1, j] = 1.0
+                    waves_b[i + 1, j] = 1.0
+
+        # Set wave amplitudes to 1 at frequencies near 0
+        for j in range(n_freqs):
+            if abs(angular_freqs[j]) < 1e-8:
+                waves_a[n_layers - 1, j] = 1.0
+                waves_b[n_layers - 1, j] = 1.0
+
+        return waves_a, waves_b, wave_nums
+
+    @numba.njit(cache=True)
     def _wave_at_location_numba(
         wave_nums_row, depth_within, waves_a_row, waves_b_row, wave_field_code
     ):
@@ -276,7 +430,9 @@ if HAS_NUMBA:
                 result[j] = waves_a_row[j] * exp_pos + waves_b_row[j] * np.exp(-cterm)
             elif wave_field_code == 0:  # WaveField.outcrop
                 result[j] = 2.0 * waves_a_row[j] * exp_pos
-            else:  # WaveField.incoming_only
+            elif wave_field_code == 3:  # WaveField.down_going
+                result[j] = waves_b_row[j] * np.exp(-cterm)
+            else:  # WaveField.up_going
                 result[j] = waves_a_row[j] * exp_pos
         return result
 
@@ -316,7 +472,9 @@ if HAS_NUMBA:
                 wave_in = waves_a_in[j] * exp_pos_in + waves_b_in[j] * np.exp(-cterm_in)
             elif wave_field_code_in == 0:  # outcrop
                 wave_in = 2.0 * waves_a_in[j] * exp_pos_in
-            else:  # incoming_only
+            elif wave_field_code_in == 3:  # down_going
+                wave_in = waves_b_in[j] * np.exp(-cterm_in)
+            else:  # up_going
                 wave_in = waves_a_in[j] * exp_pos_in
 
             denom = -(ang_freqs[j] ** 2) * wave_in
@@ -326,10 +484,12 @@ if HAS_NUMBA:
         return tf
 
     _calc_waves_dispatch = _calc_waves_numba
+    _calc_waves_general_dispatch = _calc_waves_general_numba
     _wave_at_location_dispatch = _wave_at_location_numba
     _calc_strain_tf_dispatch = _calc_strain_tf_numba
 else:
     _calc_waves_dispatch = _calc_waves_python
+    _calc_waves_general_dispatch = _calc_waves_general_python
     _wave_at_location_dispatch = _wave_at_location_python
     _calc_strain_tf_dispatch = _calc_strain_tf_python
 
@@ -376,6 +536,19 @@ class QuarterWaveLenCalculator(AbstractCalculator):
 
     @staticmethod
     def correction_ba23(x):
+        """Exponent applied to the amplification by the ``"ba23"`` method.
+
+        Parameters
+        ----------
+        x : float or array_like
+            Base 10 logarithm of the frequency over the lowest frequency of the
+            method.
+
+        Returns
+        -------
+        float or ndarray
+            Exponent, which is 0.5 for the ``"standard"`` method.
+        """
         a = 0.560
         b = -1.301
         s = 1.398
@@ -394,26 +567,34 @@ class QuarterWaveLenCalculator(AbstractCalculator):
 
     @property
     def method(self) -> str:
+        """Method of computing the amplification: ``"standard"`` or ``"ba23"``."""
         return self._method
 
     @property
     def crustal_amp(self) -> np.ndarray:
+        """Crustal amplification of the profile."""
         return self._crustal_amp
 
     @property
     def site_term(self) -> np.ndarray:
+        """Site term: the crustal amplification with the site attenuation applied."""
         return self._site_term
 
     @property
     def site_atten(self) -> float | None:
+        """Site attenuation [s]; ``None`` if it is not applied."""
         return self._site_atten
 
     def _calc_amp(
         self, density: npt.ArrayLike, thickness: npt.ArrayLike, slowness: npt.ArrayLike
     ) -> tuple[np.ndarray, np.ndarray]:
         freqs = self.motion.freqs
+        # The quarter-wavelength depth is infinite at zero frequency; use the
+        # lowest positive frequency there, which is the limit of the average
+        positive = freqs > 0
+        freqs_calc = np.where(positive, freqs, np.min(freqs[positive]))
         # 1/4 wavelength depth -- estimated for mean slowness
-        qwl_depth = 1 / (4 * np.mean(slowness) * freqs)
+        qwl_depth = 1 / (4 * np.mean(slowness) * freqs_calc)
 
         def qwl_average(param):
             return np.array([my_trapz(thickness, param, qd) for qd in qwl_depth])
@@ -426,7 +607,7 @@ class QuarterWaveLenCalculator(AbstractCalculator):
             # computed depths. If the new value is just taken, then this
             # algorithm can osccilate between two solutions.
             qwl_depth = np.mean(
-                np.c_[prev_qwl_depth, 1 / (4 * qwl_slowness * freqs)], axis=1
+                np.c_[prev_qwl_depth, 1 / (4 * qwl_slowness * freqs_calc)], axis=1
             )
             if np.allclose(prev_qwl_depth, qwl_depth, rtol=0.01):
                 break
@@ -441,7 +622,7 @@ class QuarterWaveLenCalculator(AbstractCalculator):
             total_depth = np.sum(thickness[:-1])
             total_slow = my_trapz(thickness, slowness, total_depth)
             freq_bot = 1.0 / (4 * total_depth * total_slow)
-            eta = self.correction_ba23(np.log10(freqs / freq_bot))
+            eta = self.correction_ba23(np.log10(freqs_calc / freq_bot))
         else:
             raise NotImplementedError
 
@@ -483,6 +664,7 @@ class QuarterWaveLenCalculator(AbstractCalculator):
             If the site attenuation is adjusted as well, default: False.
         adjust_source_vel: bool (optional)
             If the source velocity should be adjusted, default: False.
+
         Returns
         -------
         profile: `pyrsa.site.Profile`
@@ -556,16 +738,95 @@ class QuarterWaveLenCalculator(AbstractCalculator):
 
 
 class LinearElasticCalculator(AbstractCalculator):
-    """Class for performing linear elastic site response."""
+    r"""Class for performing linear elastic site response.
+
+    Parameters
+    ----------
+    incidence_angle : float, default=0.0
+        Angle of incidence [degrees] of the SII (SH) wave at the base half
+        space, measured from vertical. The default of 0 corresponds to a
+        vertically propagating wave and reproduces the classical
+        (normal-incidence) transfer-matrix solution.
+    inhomogeneity : float, default=0.0
+        Degree of inhomogeneity [degrees] of the incident SII wave -- the angle
+        between the propagation and attenuation vectors (Borcherdt,
+        *Viscoelastic Waves in Layered Media*, Ch. 9). A value of 0 corresponds
+        to a homogeneous wave.
+
+    Notes
+    -----
+    Nonzero ``incidence_angle`` or ``inhomogeneity`` engage the general
+    (inhomogeneous) SII solution. When both are zero the original
+    normal-incidence propagator is used and results are unchanged.
+
+    **Choosing the degree of inhomogeneity** (``inhomogeneity``, gamma)
+
+    The degree of inhomogeneity gamma is the angle between the wave's
+    *propagation* vector P (normal to planes of constant phase) and its
+    *attenuation* vector A (normal to planes of constant amplitude). For a
+    *homogeneous* wave these are parallel (gamma = 0): amplitude decays in the
+    same direction the wave travels. For an *inhomogeneous* wave they are not, so
+    amplitude decays fastest in a direction oblique to propagation.
+
+    Importantly, gamma is a property of the *incident wavefield*, not of the soil
+    column -- it cannot be derived from the layer velocities and damping alone.
+    The layers only transform an incident ``(incidence_angle, inhomogeneity)``
+    pair into the per-layer wave field. The physically invariant quantity, held
+    continuous across every boundary, is the complex horizontal wave number
+    :math:`k = k_R - i k_I`; specifying ``(incidence_angle, inhomogeneity)`` is
+    equivalent to specifying ``(k_R, k_I)``, where ``k_R`` is the horizontal
+    phase slowness and ``k_I`` is the horizontal amplitude decay
+    (Borcherdt eq. 9.1.32). Note that even a homogeneous wave (gamma = 0) at
+    oblique incidence has ``k_I != 0``: oblique travel through a lossy medium
+    produces horizontal attenuation on its own, and gamma measures only the
+    *additional* inhomogeneity beyond that.
+
+    Ways to select gamma in practice:
+
+    1. Default ``inhomogeneity = 0`` (homogeneous incident wave). This is
+       standard practice: the wave arrives from a deep, comparatively low-loss
+       source region and is treated as homogeneous. Use this unless you have a
+       specific reason not to.
+    2. Let it be generated by deeper structure. Inhomogeneity is *created* at
+       interfaces -- a homogeneous wave refracting obliquely through deeper
+       attenuating layers emerges inhomogeneous. To honor this, extend the
+       profile down to where gamma = 0 is defensible and let the propagation
+       determine the effective inhomogeneity at your base.
+    3. Invert from measurements. With array data, :math:`k_R = \omega / c_{app}` from
+       the apparent horizontal phase velocity ``c_app`` (or
+       ``incidence_angle = arcsin(v_HS / c_app)`` from source geometry / ray
+       tracing) and ``k_I`` from the horizontal amplitude-decay coefficient; then
+       solve eq. 9.1.32 for ``(incidence_angle, inhomogeneity)``.
+    4. Sensitivity study. Because gamma is uncertain and physically bounded
+       (the attenuation vector is constrained by the material Q), the most honest
+       use is often to sweep it (e.g. 0, 15, 30 degrees) and report the response
+       envelope.
+
+    pyStrata treats ``inhomogeneity`` purely as a user-supplied input; it does not
+    attempt to estimate or quantify gamma from the profile or motion.
+    """
 
     name = "LE"
 
-    def __init__(self):
+    def __init__(self, incidence_angle: float = 0.0, inhomogeneity: float = 0.0):
         super().__init__()
+
+        self._incidence_angle = np.radians(incidence_angle)
+        self._inhomogeneity = np.radians(inhomogeneity)
 
         self._waves_a = np.array([])
         self._waves_b = np.array([])
         self._wave_nums = np.array([])
+
+    @property
+    def incidence_angle(self) -> float:
+        """Angle of incidence at the base half space [degrees]."""
+        return np.degrees(self._incidence_angle)
+
+    @property
+    def inhomogeneity(self) -> float:
+        """Degree of inhomogeneity of the incident wave [degrees]."""
+        return np.degrees(self._inhomogeneity)
 
     def __call__(
         self,
@@ -592,6 +853,13 @@ class LinearElasticCalculator(AbstractCalculator):
 
         self._calc_waves(motion.angular_freqs, profile)
 
+        elapsed = time.perf_counter() - self._start_time
+        logger.debug(
+            "LE: computed %d frequencies in %.3fs",
+            len(motion.angular_freqs),
+            elapsed,
+        )
+
     def _calc_waves(self, angular_freqs, profile):
         """Compute the wave numbers and amplitudes (up- and down-going).
 
@@ -616,8 +884,67 @@ class LinearElasticCalculator(AbstractCalculator):
             comp_shear_mods[i, :] = layer.comp_shear_mod
         thicknesses = profile.thickness
 
-        self._waves_a, self._waves_b, self._wave_nums = _calc_waves_dispatch(
-            angular_freqs, comp_shear_vels, comp_shear_mods, thicknesses
+        if not self._incidence_angle and not self._inhomogeneity:
+            # Default path: vertically propagating homogeneous wave. Left
+            # untouched so results are unchanged from previous versions.
+            self._waves_a, self._waves_b, self._wave_nums = _calc_waves_dispatch(
+                angular_freqs, comp_shear_vels, comp_shear_mods, thicknesses
+            )
+        else:
+            # General (inhomogeneous / obliquely incident) SII wave.
+            horiz_wave_nums = self._calc_horiz_wave_nums(angular_freqs, profile)
+            self._waves_a, self._waves_b, self._wave_nums = (
+                _calc_waves_general_dispatch(
+                    angular_freqs,
+                    comp_shear_vels,
+                    comp_shear_mods,
+                    thicknesses,
+                    horiz_wave_nums,
+                )
+            )
+
+    def _calc_horiz_wave_nums(self, angular_freqs, profile):
+        """Compute the horizontal wave number ``k`` of the incident SII wave.
+
+        The horizontal (complex) wave number is fixed by the wave incident at the
+        base half space and, by the boundary conditions, is identical in every
+        layer (Borcherdt, Ch. 9). It is returned per frequency.
+
+        For a homogeneous incident wave (``inhomogeneity == 0``) this reduces to
+        ``k = sin(theta) * omega / Vs*`` of the half space (eq. 9.1.39). For an
+        inhomogeneous wave the full expression (eq. 9.1.32) is used, with the
+        intrinsic absorption ``Q^-1`` taken from the half-space damping.
+
+        Parameters
+        ----------
+        angular_freqs : :class:`numpy.ndarray`
+        profile : :class:`~.site.Profile`
+
+        Returns
+        -------
+        :class:`numpy.ndarray`
+            Complex horizontal wave number, shape ``(n_freqs,)``.
+        """
+        half_space = profile[-1]
+        theta = self._incidence_angle
+
+        if not self._inhomogeneity:
+            # Homogeneous incident wave (eq. 9.1.39): k = k_S * sin(theta), using
+            # the complex half-space velocity for consistency with the layer
+            # propagation.
+            comp_wave_num = angular_freqs / half_space.comp_shear_vel
+            return np.sin(theta) * comp_wave_num
+
+        # Inhomogeneous incident wave (eq. 9.1.32).
+        gamma = self._inhomogeneity
+        vel = half_space.shear_vel
+        # Intrinsic absorption Q^-1 = 1 / Q of the half space (~= 2 * damping).
+        inv_q = 2 * half_space.damping
+        chi = np.sqrt(1.0 + inv_q**2)
+        chi_su = np.sqrt(1.0 + inv_q**2 / np.cos(gamma) ** 2)
+        return (angular_freqs / vel) * (
+            np.sqrt((1.0 + chi_su) / (1.0 + chi)) * np.sin(theta)
+            - 1j * np.sqrt((-1.0 + chi_su) / (1.0 + chi)) * np.sin(theta - gamma)
         )
 
     def wave_at_location(self, loc: Location) -> np.ndarray:
@@ -728,7 +1055,13 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
     name = "EQL"
 
     def __init__(
-        self, strain_ratio=0.65, tolerance=0.01, max_iterations=15, strain_limit=0.05
+        self,
+        strain_ratio=0.65,
+        tolerance=0.025,
+        max_iterations=15,
+        strain_limit=0.05,
+        incidence_angle: float = 0.0,
+        inhomogeneity: float = 0.0,
     ):
         """Initialize the class.
 
@@ -738,7 +1071,7 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
             Ratio between the maximum strain and effective strain used to
             compute strain compatible properties.
 
-        tolerance: float, default=0.01
+        tolerance: float, default=0.025
             Tolerance in the iterative properties, which would cause the
             iterative process to terminate.
 
@@ -748,8 +1081,16 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
         strain_limit: float, default=0.05
             Limit of strain in calculations. If this strain is exceed, the
             iterative calculation is ended.
+
+        incidence_angle: float, default=0.0
+            Angle of incidence [degrees] of the SII wave at the base half space.
+            See :class:`LinearElasticCalculator`.
+
+        inhomogeneity: float, default=0.0
+            Degree of inhomogeneity [degrees] of the incident SII wave. See
+            :class:`LinearElasticCalculator`.
         """
-        super().__init__()
+        super().__init__(incidence_angle=incidence_angle, inhomogeneity=inhomogeneity)
         self._strain_ratio = strain_ratio
         self._tolerance = tolerance
         self._max_iterations = max_iterations
@@ -786,6 +1127,7 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
         # The iteration at which strains were last limited
         limited_iter = -2
         limited_strains = False
+        converged = False
 
         while iteration < self.max_iterations:
             limited_strains = False
@@ -805,16 +1147,41 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
             # Maximum error (damping and shear modulus) over all layers
             max_error = max(profile.max_error)
             if max_error < self.tolerance:
+                converged = True
                 break
 
             # Break, if the strains were limited the last two iterations.
             if limited_strains:
                 if limited_iter == (iteration - 1):
+                    logger.warning(
+                        "EQL: strain limit (%.3f) exceeded after %d iterations",
+                        self._strain_limit,
+                        iteration + 1,
+                    )
                     raise RuntimeError("Strain limit exceeded.")
                 else:
                     limited_iter = iteration
 
             iteration += 1
+
+        # Log convergence status
+        elapsed = time.perf_counter() - self._start_time
+        if converged:
+            logger.info(
+                "%s: converged in %d iterations (max_error=%.4f) in %.3fs",
+                self.name,
+                iteration + 1,
+                max_error,
+                elapsed,
+            )
+        else:
+            logger.warning(
+                "%s: did not converge after %d iterations (max_error=%.4f, tol=%.4f)",
+                self.name,
+                self.max_iterations,
+                max_error,
+                self.tolerance,
+            )
 
         # Compute the maximum strain within the profile.
         for index, layer in enumerate(profile[:-1]):
@@ -831,23 +1198,27 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
 
     @property
     def strain_ratio(self):
+        """Ratio between the effective and maximum strain."""
         return self._strain_ratio
 
     @property
     def tolerance(self):
+        """Tolerance of the iterated properties at which the iterations stop."""
         return self._tolerance
 
     @property
     def max_iterations(self):
+        """Maximum number of iterations."""
         return self._max_iterations
 
     @property
     def strain_limit(self):
+        """Strain [decimal] above which the iterations stop."""
         return self._strain_limit
 
     @classmethod
     def calc_strain_ratio(cls, mag):
-        """Compute the effective strain ratio using Idriss and Sun (1992).
+        """Compute the effective strain ratio of :cite:t:`idriss1992shake91`.
 
         Parameters
         ----------
@@ -858,14 +1229,6 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
         -------
         strain_ratio : float
             Effective strain ratio
-
-        References
-        ----------
-        .. [1] Idriss, I. M., & Sun, J. I. (1992). SHAKE91: A computer program
-            for conducting equivalent linear seismic response analyses of
-            horizontally layered soil deposits. Center for Geotechnical
-            Modeling, Department of Civil and Environmental Engineering,
-            University of California, Davis, CA.
         """
         return (mag - 1) / 10
 
@@ -880,79 +1243,104 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
 
 
 class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
-    """Class for performing equivalent-linear elastic site response with frequency-
-    dependent modulii and damping.
+    r"""Equivalent-linear site response with frequency-dependent properties.
+
+    The shear modulus and damping vary with frequency.
 
     Parameters
     ----------
-    method: str
-        method for computing the strain spectrum:
-         - ka02: use the Kausel & Assimaki (2002) defined shape for a  smooth spectrum
-           for the strain.
-         - zr15: use Zalachoris & Rathje (2015) approach of the strain
-         spectrum
-         - ko:##: use Konno-Omachi with a bandwith of ## to compute the smooth
-         spectrum. The strain is then computed as a running maximum from high
-         to low frequencies. A value of 20 or 30 is recommended based on
-         limited studies.
+    method : str, default="ko:20"
+        Method for computing the strain spectrum:
+
+        - ``ka02``: use the shape of :cite:t:`kausel2002seismic` for a smooth strain
+          spectrum.
+        - ``zr15``: use the approach of :cite:t:`ZalachorisRathje2015` for the
+          strain spectrum.
+        - ``tan_avg``: loop-averaged tangent strain. Requires the
+          `strain_reduc` parameter.
+        - ``ko:##``: use Konno-Ohmachi smoothing with a bandwidth of ## to
+          compute the smooth spectrum. The strain is then computed as a running
+          maximum from high to low frequencies. A value of 20 or 30 is
+          recommended based on limited studies.
     strain_ratio: float, default=1.00
         ratio between the maximum strain and effective strain used to compute
         strain compatible properties. There is not clear guidance the use of
         the effective strain ratio. For the `ka02` the recommended value is
         0.65 -- or consistent with an EQL approach. For `zr15` and `ko:##`, there is no
         clear guidance but a value of 1.0 might make sense.
-    tolerance: float, default=0.01
+    tolerance: float, default=0.025
         tolerance in the iterative properties, which would cause the iterative
         process to terminate.
-    max_iterations: int, default=15
-        maximum number of iterations to perform.
-
+    max_iterations: int, default=50
+        maximum number of iterations to perform. Because of the
+        frequency-dependent properties, more iterations might be needed for
+        convergence.
     strain_limit: float, default=0.05
         Limit of strain in calculations. If this strain is exceed, the
         iterative calculation is ended.
-
-    References
-    ----------
-    .. [1] Kausel, E., & Assimaki, D. (2002). Seismic simulation of inelastic
-        soils via frequency-dependent moduli and damping. Journal of
-        Engineering Mechanics, 128(1), 34-47.
+    freq_shift : float, default=1.0
+        :math:`\eta \ge 1`. The strain spectrum shape is evaluated at
+        :math:`f / \eta`, extending nonlinearity to higher frequencies.
+        :math:`\eta = 1` is identical to the parent ``ko:{bw_ko}`` method.
     """
 
     def __init__(
         self,
-        method: str = "ka02",
+        method: str = "ko:20",
         strain_ratio: float = 0.65,
-        tolerance: float = 0.01,
-        max_iterations: int = 15,
+        tolerance: float = 0.025,
+        max_iterations: int = 50,
         strain_limit: float = 0.05,
+        freq_shift: float = 1.0,
+        incidence_angle: float = 0.0,
+        inhomogeneity: float = 0.0,
     ):
         """Initialize the class."""
-        super().__init__(strain_ratio, tolerance, max_iterations, strain_limit)
+        super().__init__(
+            strain_ratio,
+            tolerance,
+            max_iterations,
+            strain_limit,
+            incidence_angle=incidence_angle,
+            inhomogeneity=inhomogeneity,
+        )
 
         self._method = method
         self._smoother = None
+        self._freq_shift = freq_shift
 
     @property
     def name(self):
+        """Name of the calculator, including the strain spectrum method."""
         return f"FDM-{self.method}"
 
     @property
     def method(self):
+        """Method of computing the strain spectrum."""
         return self._method
+
+    @property
+    def freq_shift(self) -> float:
+        r"""Frequency stretch parameter :math:`\eta`."""
+        return self._freq_shift
 
     def _estimate_strains(self):
         """Estimate the strains by running an EQL site response.
 
-        This step was recommended in Section 8.3.1 of Zalachoris (2014).
+        This step was recommended in Section 8.3.1 of :cite:t:`Zalachoris2014`.
         """
         eql = EquivalentLinearCalculator(
             strain_ratio=self.strain_ratio,
             strain_limit=self.strain_limit,
+            tolerance=self.tolerance,
+            incidence_angle=self.incidence_angle,
+            inhomogeneity=self.inhomogeneity,
         )
         eql(self._motion, self._profile, self._loc_input)
 
     def _calc_strain(self, loc_input, loc_layer, motion, *args):
-        freqs = np.array(motion.freqs)
+        freqs = np.array(motion.freqs, dtype=float)
+
         strain_tf = self.calc_strain_tf(loc_input, loc_layer)
         strain_fas = np.abs(strain_tf * motion.fourier_amps)
         # Maximum strain in the time domain modified by the effective strain
@@ -1001,4 +1389,192 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         else:
             strains = strain_eff * strain_fas / np.max(strain_fas)
 
+        # Evaluate the monotone-decreasing shape at f/η via interpolation.
+        if self._freq_shift != 1:
+            # left=strains[0]: below the freq grid, return the max strain.
+            # right=strains[-1]: above the freq grid, hold the minimum value.
+            strains = np.interp(
+                freqs / self._freq_shift,
+                freqs,
+                strains,
+                left=strains[0],
+                right=strains[-1],
+            )
+
         return strains
+
+
+class KappaCorrectedCalculator:
+    r"""Calculator that corrects the site attenuation of the computed motions.
+
+    The calculator wraps another calculator. Before the calculation it reads the
+    site attenuation (:math:`\kappa`) of the input motion, the wrapped calculator
+    then runs unchanged, and the transfer functions that it provides are corrected
+    so that the motion at each location has a target :math:`\kappa`. The outputs
+    (response spectra, Fourier spectra, transfer functions, time series, and those
+    of the dam calculators) need not know of the correction, since they take their
+    transfer function from the calculator.
+
+    :math:`\kappa` is the slope of the log of the Fourier amplitudes against
+    frequency, :math:`a(f) \propto \exp(-\pi \kappa f)`, fit over a frequency
+    range. For a location, the transfer function from the input location is
+    multiplied by :math:`\exp(\pi (\kappa_{fit} - \kappa_{target}) f)`, where
+    :math:`\kappa_{fit}` is that of the motion at the location, which gives it the
+    target :math:`\kappa`. The input motion is not changed, and the transfer
+    function between two locations is the ratio of their corrected transfer
+    functions. The strain and stress transfer functions are not corrected, and
+    the iterations of an equivalent-linear calculator are not affected.
+
+    Parameters
+    ----------
+    calc : AbstractCalculator
+        Calculator that is wrapped, for example
+        :class:`EquivalentLinearCalculator` or a dam calculator.
+    kappa_target : float
+        Site attenuation [s] of the motions at the locations of the profile.
+    min_freq : float, default=10
+        Minimum frequency of the fit [Hz].
+    max_freq : float, default=30
+        Maximum frequency of the fit [Hz].
+    ko_bandwidth : float, optional
+        Konno-Ohmachi bandwidth with which the Fourier amplitudes are smoothed
+        before the fit. They are not smoothed if ``None``.
+
+    Notes
+    -----
+    This adjusts the computed motion. :func:`pystrata.tools.adjust_damping_values`
+    instead changes the minimum damping of the layers, so that the attenuation
+    of the propagation matches a target.
+
+    All of the other attributes, such as ``motion``, ``profile``, ``loc_input``
+    and the calculation methods, are those of the wrapped calculator.
+    """
+
+    def __init__(
+        self,
+        calc,
+        kappa_target: float,
+        min_freq: float = 10.0,
+        max_freq: float = 30.0,
+        ko_bandwidth: float | None = None,
+    ) -> None:
+        if not 0 <= min_freq < max_freq:
+            raise ValueError("The frequency range of the fit must be increasing.")
+        self._calc = calc
+        self._kappa_target = kappa_target
+        self._min_freq = min_freq
+        self._max_freq = max_freq
+        self._ko_bandwidth = ko_bandwidth
+        self._initial_kappa: float | None = None
+        self._corrections: dict = {}
+
+    def __getattr__(self, name):
+        # Only called for attributes that are not found. Underscored names are not
+        # delegated, so that copying the object does not recurse.
+        if name.startswith("_"):
+            raise AttributeError(name)
+        return getattr(self._calc, name)
+
+    @property
+    def calc(self):
+        """Calculator that is wrapped."""
+        return self._calc
+
+    @property
+    def kappa_target(self) -> float:
+        """Site attenuation [s] of the corrected motions."""
+        return self._kappa_target
+
+    @property
+    def min_freq(self) -> float:
+        """Minimum frequency [Hz] of the fit."""
+        return self._min_freq
+
+    @property
+    def max_freq(self) -> float:
+        """Maximum frequency [Hz] of the fit."""
+        return self._max_freq
+
+    @property
+    def ko_bandwidth(self) -> float | None:
+        """Konno-Ohmachi bandwidth of the smoothing before the fit."""
+        return self._ko_bandwidth
+
+    @property
+    def initial_kappa(self) -> float | None:
+        """Site attenuation [s] of the input motion; ``None`` before a calculation."""
+        return self._initial_kappa
+
+    def __call__(self, motion, profile, loc_input, **kwds):
+        """Read the attenuation of the motion, and run the wrapped calculation.
+
+        Parameters
+        ----------
+        motion : Motion
+            Input motion.
+        profile : Profile
+            Site profile.
+        loc_input : Location
+            Location at which the motion is defined.
+        **kwds
+            Keywords of the wrapped calculator.
+        """
+        self._corrections = {}
+        self._initial_kappa = self._fit_kappa(motion.freqs, motion.fourier_amps)
+        return self._calc(motion, profile, loc_input, **kwds)
+
+    def _fit_kappa(self, freqs, amps) -> float:
+        """Fit the site attenuation of Fourier amplitudes over the range."""
+        amps = np.abs(amps)
+        if self._ko_bandwidth is not None:
+            mask = (self._min_freq <= freqs) & (freqs <= self._max_freq)
+            amps = pykooh.smooth(freqs[mask], freqs, amps, self._ko_bandwidth)
+            freqs = freqs[mask]
+        return fit_attenuation(freqs, amps, self._min_freq, self._max_freq)[0]
+
+    def _is_input(self, loc: Location) -> bool:
+        """If the location is that of the input motion."""
+        loc_in = self._calc.loc_input
+        return (
+            loc.index == loc_in.index
+            and loc.wave_field == loc_in.wave_field
+            and np.isclose(loc.depth_within, loc_in.depth_within)
+        )
+
+    def calc_kappa(self, loc: Location) -> float:
+        """Site attenuation [s] of the motion at a location, before the correction.
+
+        The attenuation that the site adds to that of the input motion is this
+        minus :attr:`initial_kappa`.
+
+        Parameters
+        ----------
+        loc : Location
+            Location of the motion.
+        """
+        tf = self._calc.calc_accel_tf(self._calc.loc_input, loc)
+        motion = self._calc.motion
+        return self._fit_kappa(motion.freqs, tf * motion.fourier_amps)
+
+    def _correction(self, loc: Location) -> np.ndarray | float:
+        """Factor that gives the motion at a location the target attenuation."""
+        if self._is_input(loc):
+            return 1.0
+        key = (loc.index, loc.wave_field, float(loc.depth_within))
+        if key not in self._corrections:
+            delta = self.calc_kappa(loc) - self._kappa_target
+            self._corrections[key] = np.exp(np.pi * delta * self._calc.motion.freqs)
+        return self._corrections[key]
+
+    def calc_accel_tf(self, lin: Location, lout: Location) -> np.ndarray:
+        """Compute the corrected acceleration transfer function.
+
+        Parameters
+        ----------
+        lin : Location
+            Location of the input.
+        lout : Location
+            Location of the output.
+        """
+        tf = self._calc.calc_accel_tf(lin, lout)
+        return tf * self._correction(lout) / self._correction(lin)

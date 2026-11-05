@@ -9,12 +9,12 @@ Classes
 -------
 
 .. autosummary::
-   :toctree: ../generated/
    :nosignatures:
 
    OutputCollection
    ResponseSpectrumOutput
    AccelTransferFunctionOutput
+   ProfileBasedOutput
    MaxAccelProfile
    TimeSeriesOutput
 
@@ -41,6 +41,10 @@ Transfer Functions
 
 Profile Outputs
 ---------------
+
+.. autoclass:: ProfileBasedOutput
+   :members:
+   :show-inheritance:
 
 .. autoclass:: MaxAccelProfile
    :members:

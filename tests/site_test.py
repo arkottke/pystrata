@@ -16,16 +16,12 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
 # Copyright (C) Albert Kottke, 2013-2015
-import json
 
 import numpy as np
 import pytest
-import scipy.constants
 from numpy.testing import assert_allclose
 
 from pystrata import site
-
-from . import FPATH_DATA
 
 
 def test_published_nonlinear_curve():
@@ -68,207 +64,13 @@ def test_nlp_update(nlp, strains):
     assert_allclose(nlp.strains, strains)
 
 
-@pytest.fixture
-def soil_type_darendeli():
-    """Create an example DarendeliSoilType."""
-    stress_mean = 0.25 / site.KPA_TO_ATM
-    return site.DarendeliSoilType(
-        plas_index=30,
-        ocr=1.0,
-        stress_mean=stress_mean,
-        freq=1,
-        num_cycles=10,
-        strains=[1e-7, 2.2e-5, 1e-2],
-    )
-
-
-@pytest.mark.parametrize(
-    "attr,expected",
-    [
-        ("mod_reduc", [1.0, 0.936, 0.050]),
-        ("damping", [0.01778, 0.02476, 0.21542]),
-    ],
-)
-def test_darendeli(soil_type_darendeli, attr, expected):
-    """Test calculated values of the DarendeliSoilType."""
-    # Reference values taken from Tables 10.13 and 10.14 of the Darendeli
-    # dissertation.
-    actual = getattr(soil_type_darendeli, attr).values.tolist()
-    assert_allclose(actual, expected, rtol=0.01)
-
-
-# ---------------------------------------------------------------------------
-# RollinsEtAlSoilType tests
-# Reference values computed analytically from Eqs. (1), (5), (8) in
-# Rollins et al. (2020), J. Geotech. Geoenviron. Eng., 146(9): 04020076.
-# G/Gmax = 1 / (1 + (γ/γ_ref)^0.84)
-# Eq. 5 (no Cu):  γ_ref [%] = 0.0039 * σ'₀^0.42
-# Eq. 8 (with Cu): γ_ref [%] = 0.0046 * Cu^(-0.197) * σ'₀^0.52
-# ---------------------------------------------------------------------------
-
-_ROLLINS_TEST_STRAINS = [1e-6, 1e-4, 1e-3, 1e-2]
-
-# (stress_mean_kPa, coef_unif_or_None, expected_strain_ref_decimal,
-#  expected_mod_reduc_at_strains, expected_damping_min)
-_ROLLINS_CASES = [
-    (
-        # Eq. 5: no Cu, σ'₀ = 100 kPa
-        100.0,
-        None,
-        2.698141e-04,
-        [0.991, 0.6971, 0.2497, 0.0459],
-        0.01,
-    ),
-    (
-        # Eq. 8: Cu = 7, σ'₀ = 100 kPa
-        100.0,
-        7.0,
-        3.437744e-04,
-        [0.9926, 0.7383, 0.2897, 0.0557],
-        0.01,
-    ),
-    (
-        # Eq. 8: Cu = 7, σ'₀ = 25 kPa  (lower confining pressure)
-        25.0,
-        7.0,
-        1.671869e-04,
-        [0.9866, 0.6063, 0.1821, 0.0312],
-        0.01,
-    ),
-    (
-        # Eq. 8: Cu = 7, σ'₀ = 400 kPa  (higher confining pressure)
-        400.0,
-        7.0,
-        7.068784e-04,
-        [0.996, 0.8379, 0.4277, 0.0975],
-        0.01,
-    ),
-]
-
-
-@pytest.mark.parametrize(
-    "stress_mean,coef_unif,expected_strain_ref,expected_mr,expected_dmin",
-    _ROLLINS_CASES,
-)
-def test_rollins_mod_reduc(
-    stress_mean, coef_unif, expected_strain_ref, expected_mr, expected_dmin
-):
-    """G/Gmax backbone matches Eqs. (1), (5) and (8) of Rollins et al. (2020)."""
-    st = site.RollinsEtAlSoilType(
-        unit_wt=20.0,
-        stress_mean=stress_mean,
-        coef_unif=coef_unif,
-        num_cycles=10,
-        strains=_ROLLINS_TEST_STRAINS,
-    )
-    # Reference strain matches the paper equation
-    assert_allclose(st.strain_ref, expected_strain_ref, rtol=1e-4)
-    # G/Gmax at reference strain is exactly 0.5 by definition
-    assert_allclose(
-        1.0 / (1.0 + (st.strain_ref / st.strain_ref) ** st.curvature),
-        0.5,
-        rtol=1e-10,
-    )
-    # G/Gmax values match analytical calculation
-    assert_allclose(st.mod_reduc.values, expected_mr, rtol=0.01)
-    # Curvature is fixed at 0.84
-    assert st.curvature == 0.84
-
-
-@pytest.mark.parametrize(
-    "stress_mean,coef_unif,expected_strain_ref,expected_mr,expected_dmin",
-    _ROLLINS_CASES,
-)
-def test_rollins_damping_min(
-    stress_mean, coef_unif, expected_strain_ref, expected_mr, expected_dmin
-):
-    """Minimum damping defaults to 1 % and is approached at small strains."""
-    st = site.RollinsEtAlSoilType(
-        unit_wt=20.0,
-        stress_mean=stress_mean,
-        coef_unif=coef_unif,
-        num_cycles=10,
-        strains=_ROLLINS_TEST_STRAINS,
-    )
-    assert_allclose(st.damping.values[0], expected_dmin, rtol=0.10)
-    # Damping must increase monotonically (or stay the same) with strain
-    assert np.all(np.diff(st.damping.values) >= 0)
-
-
-@pytest.mark.parametrize(
-    "num_cycles,expected_b",
-    [
-        (1, 0.530000),
-        (10, 0.516875),
-        (30, 0.510613),
-    ],
-)
-def test_rollins_masing_scaling(num_cycles, expected_b):
-    """Masing scaling factor matches Eq. (14): b = 0.53 - 0.0057*ln(N)."""
-    st = site.RollinsEtAlSoilType(unit_wt=20.0, stress_mean=100.0, num_cycles=num_cycles)
-    assert_allclose(st.masing_scaling, expected_b, rtol=1e-4)
-
-
-def test_rollins_damping_custom_min():
-    """User-supplied damping_min overrides the 1 % default."""
-    st = site.RollinsEtAlSoilType(
-        unit_wt=20.0, stress_mean=100.0, damping_min=0.02,
-        strains=[1e-6, 1e-4, 1e-3, 1e-2],
-    )
-    # At very small strains damping should be close to d_min = 2 %
-    assert_allclose(st.damping.values[0], 0.02, rtol=0.05)
-
-
-def iter_wang_stokoe_cases():
-    # Ranges for the test cases
-    ranges = {
-        "stress_mean": (50, 1000),
-        "plas_index": (0, 100),
-        "ocr": (1, 10),
-        "void_ratio": (0.3, 1.5),
-        "coef_unif": (1, 40),
-        "diam_50": (0.1, 20),
-        "fines_cont": (5, 40),
-        "water_cont": (0, 35),
-    }
-    param_names = list(ranges.keys())
-    print(param_names)
-
-    for _ in range(20):
-        params = {
-            k: np.random.uniform(*ranges[k])
-            # stress_mean is required
-            for k in param_names[: np.random.randint(1, len(param_names))]
-        }
-        for soil_group in site.WangSoilType.FACTORS:
-            yield soil_group, params
-
-
-@pytest.mark.parametrize("soil_type,params", iter_wang_stokoe_cases())
-def test_wang_stokoe(soil_type, params):
-    """Test random parameters and check within reasonable ranges"""
-    st = site.WangSoilType(soil_type, **params)
-
-    damping_min = st.damping.values[0]
-    assert damping_min > 0
-    assert damping_min < 0.15
-
-    assert np.max(st.mod_reduc.values) <= 1
-    assert np.min(st.mod_reduc.values) >= 0
-
-    ref_strain = np.interp(0.5, st.mod_reduc.values[::-1], st.mod_reduc.strains[::-1])
-
-    assert ref_strain > 1e-4
-    assert ref_strain < 1e-1
-
-
 def test_iterative_value():
     """Test the iterative value and relative error."""
     iv = site.IterativeValue(11)
     value = 10
     iv.value = value
     assert_allclose(iv.value, value)
-    assert_allclose(iv.relative_error, 10.0)
+    assert_allclose(iv.relative_error, 0.1)
 
 
 def test_soil_type_linear():
@@ -295,59 +97,6 @@ def test_soil_type_iterative():
     assert_allclose(layer.strain, strain)
     assert_allclose(layer.shear_mod, 0.5 * layer.initial_shear_mod)
     assert_allclose(layer.damping, 0.05)
-
-
-with (FPATH_DATA / "kishida_2009.json").open() as fp:
-    kishida_cases = json.load(fp)
-    for i in range(len(kishida_cases)):
-        kishida_cases[i]["strains"] = np.array(kishida_cases[i]["strains"]) / 100
-        kishida_cases[i]["dampings"] = np.array(kishida_cases[i]["dampings"]) / 100
-
-
-def format_kishida_case_id(case):
-    """Create an ID for the Kishida test cases."""
-    fmt = "({stress_vert:.1f} kN/m², OC={organic_content:.0f} %)"
-    return fmt.format(**case)
-
-
-@pytest.mark.parametrize("case", kishida_cases, ids=format_kishida_case_id)
-def test_kishida_unit_wt(case):
-    """Test calculation of Unit Wt. by KishidaSoilType."""
-    st = site.KishidaSoilType(
-        "test",
-        unit_wt=None,
-        stress_vert=case["stress_vert"],
-        organic_content=case["organic_content"],
-        strains=case["strains"],
-    )
-    assert_allclose(st.unit_wt, scipy.constants.g * case["density"], rtol=0.005)
-
-
-@pytest.mark.parametrize("case", kishida_cases, ids=format_kishida_case_id)
-@pytest.mark.parametrize(
-    "curve,attr,key",
-    [
-        ("mod_reduc", "strains", "strains"),
-        ("mod_reduc", "values", "mod_reducs"),
-        ("damping", "strains", "strains"),
-        ("damping", "values", "dampings"),
-    ],
-)
-def test_kishida_nlc(case, curve, attr, key):
-    """Test properties calculated by KishidaSoilType."""
-    st = site.KishidaSoilType(
-        "test",
-        unit_wt=None,
-        stress_vert=case["stress_vert"],
-        organic_content=case["organic_content"],
-        strains=case["strains"],
-    )
-    # Decimal damping used inside pyStrata
-    scale = 100 if key == "dampings" else 1
-    scale = 1
-    assert_allclose(
-        scale * getattr(getattr(st, curve), attr), case[key], rtol=0.005, atol=0.0005
-    )
 
 
 @pytest.mark.parametrize("depth,expected", [(10, 300), (20, 400), (30, 490.909)])
@@ -389,7 +138,7 @@ def test_simplified_rayleigh_vel():
     )
 
     assert_allclose(
-        p.simplified_rayliegh_vel(),
+        p.simplified_rayleigh_vel(),
         1349.076,
         atol=0.001,
     )
@@ -405,49 +154,6 @@ def create_soil_types():
     d = site.DampingCurve("test_d", strains, np.linspace(0.01, 0.15, 20))
     soil_types.append(("SoilType", site.SoilType("test", 18.0, mr, d)))
 
-    # DarendeliSoilType
-    soil_types.append((
-        "DarendeliSoilType",
-        site.DarendeliSoilType(
-            plas_index=30, ocr=1.0, stress_mean=100, freq=1, num_cycles=10
-        ),
-    ))
-
-    # MenqSoilType
-    soil_types.append((
-        "MenqSoilType",
-        site.MenqSoilType(coef_unif=10, diam_mean=5, stress_mean=100, num_cycles=10),
-    ))
-
-    # TwoParamModifiedHyperbolicSoilType
-    soil_types.append((
-        "TwoParamModifiedHyperbolicSoilType",
-        site.TwoParamModifiedHyperbolicSoilType(stress_mean=100),
-    ))
-
-    # WangSoilType - all soil groups
-    for soil_group in site.WangSoilType.FACTORS:
-        soil_types.append((
-            f"WangSoilType_{soil_group}",
-            site.WangSoilType(soil_group, stress_mean=200, void_ratio=0.6),
-        ))
-
-    # KishidaSoilType
-    soil_types.append((
-        "KishidaSoilType",
-        site.KishidaSoilType(stress_vert=100, organic_content=20),
-    ))
-
-    # RollinsEtAlSoilType - without and with uniformity coefficient
-    soil_types.append((
-        "RollinsEtAlSoilType_no_cu",
-        site.RollinsEtAlSoilType(unit_wt=20.0, stress_mean=100.0),
-    ))
-    soil_types.append((
-        "RollinsEtAlSoilType_cu7",
-        site.RollinsEtAlSoilType(unit_wt=20.0, stress_mean=100.0, coef_unif=7.0),
-    ))
-
     return soil_types
 
 
@@ -456,9 +162,9 @@ def create_soil_types():
 def test_nonlinear_curve_interpolation_matches_underlying(name, soil_type, curve_name):
     """Test that interpolating at underlying strain values returns original values.
 
-    This test ensures that limits are properly applied and do not clip values
-    that are within the expected range of the nonlinear curves. The interpolated
-    values at the underlying strains should match the original curve values.
+    This test ensures that limits are properly applied and do not clip values that are
+    within the expected range of the nonlinear curves. The interpolated values at the
+    underlying strains should match the original curve values.
     """
     curve = getattr(soil_type, curve_name)
 
@@ -487,9 +193,8 @@ def test_nonlinear_curve_interpolation_matches_underlying(name, soil_type, curve
 def test_nonlinear_curve_limits_not_too_restrictive(name, soil_type, curve_name):
     """Test that curve limits do not clip values within the underlying curve range.
 
-    This test detects issues where default limits improperly clip values at
-    the extremes of the curve (e.g., low strain mod_reduc near 1.0 or high
-    strain damping values).
+    This test detects issues where default limits improperly clip values at the extremes
+    of the curve (e.g., low strain mod_reduc near 1.0 or high strain damping values).
     """
     curve = getattr(soil_type, curve_name)
 
@@ -507,3 +212,230 @@ def test_nonlinear_curve_limits_not_too_restrictive(name, soil_type, curve_name)
     assert values.max() <= max_val, (
         f"{name}.{curve_name}: max value {values.max()} above limit {max_val}"
     )
+
+
+def test_depth_power_law_mid_depth():
+    st = site.SoilType("", 20.0, None, 0.02)
+    layers = site.layers_from_depth_power_law(st, [2.0, 4.0], a=100.0, b=0.5)
+    assert_allclose([layer.initial_shear_vel for layer in layers], [100.0, 200.0])
+    assert_allclose([layer.thickness for layer in layers], [2.0, 4.0])
+
+    # Offset datum
+    layers = site.layers_from_depth_power_law(st, [2.0], a=10.0, b=1.0, depth_top=9.0)
+    assert_allclose(layers[0].initial_shear_vel, 100.0)
+
+
+def test_depth_power_law_requires_positive_depth():
+    st = site.SoilType("", 20.0, None, 0.02)
+    with pytest.raises(ValueError):
+        site.layers_from_depth_power_law(st, [2.0], a=100.0, b=0.5, depth_top=-1.0)
+
+
+def test_stress_power_law_values():
+    st = site.SoilType("", 20.0, None, 0.02)
+    layers = site.layers_from_stress_power_law(
+        st, [2.0, 2.0], a=200.0, b=0.25, wt_depth=1.0, k0=0.5
+    )
+    sigma_v = np.array([20.0, 60.0])
+    pore = 9.80665 * np.array([0.0, 2.0])
+    sigma_m = (sigma_v - pore) * 2 / 3
+    expected = 200.0 * (sigma_m / site.PA) ** 0.25
+    assert_allclose([layer.initial_shear_vel for layer in layers], expected, rtol=1e-4)
+
+
+def test_stress_power_law_chaining():
+    """A second segment with an initial stress continues the first."""
+    st = site.SoilType("", 19.0, None, 0.02)
+    one = site.layers_from_stress_power_law(st, [3.0] * 4, 150.0, 0.3, wt_depth=4.0)
+    first = site.layers_from_stress_power_law(st, [3.0] * 2, 150.0, 0.3, wt_depth=4.0)
+    second = site.layers_from_stress_power_law(
+        st, [3.0] * 2, 150.0, 0.3, wt_depth=4.0 - 6.0, stress_vert_top=19.0 * 6.0
+    )
+    assert_allclose(
+        [layer.initial_shear_vel for layer in first + second],
+        [layer.initial_shear_vel for layer in one],
+    )
+
+
+def test_stress_power_law_matches_profile_stress():
+    """Mean effective stress is consistent with Profile / Layer stresses."""
+    st = site.SoilType("", 19.0, None, 0.02)
+    layers = site.layers_from_stress_power_law(st, [2.0] * 5, 150.0, 0.3, wt_depth=3.0)
+    profile = site.Profile(layers + [site.Layer(st, 1.0, 600.0)], wt_depth=3.0)
+    for layer in profile[:-1]:
+        stress = layer.stress_mean(layer.thickness / 2, effective=True)
+        assert_allclose(
+            layer.initial_shear_vel, 150.0 * (stress / site.PA) ** 0.3, rtol=1e-12
+        )
+
+
+def test_stress_power_law_negative_stress():
+    st = site.SoilType("", 19.0, None, 0.02)
+    with pytest.raises(ValueError):
+        # Fully submerged by a water table far above with no overburden
+        site.layers_from_stress_power_law(st, [2.0], 150.0, 0.3, wt_depth=-100.0)
+
+
+def test_layer_copy_preserves_type():
+    class MyLayer(site.Layer):
+        pass
+
+    st = site.SoilType("", 19.0, None, 0.02)
+    assert type(MyLayer(st, 1.0, 100.0).copy()) is MyLayer
+
+
+def test_iterative_value_error_is_two_sided():
+    value = site.IterativeValue(100.0)
+    value.value = 150.0
+    # A rise is as unconverged as a fall
+    assert value.relative_error == pytest.approx(1 / 3)
+    value.value = 100.0
+    assert value.relative_error == pytest.approx(0.5)
+
+
+def test_layer_copy_keeps_initial_shear_vel():
+    layer = site.Layer(site.SoilType("S", 18.0, None, 0.02), 5.0, 200.0)
+    layer._shear_mod.value = 0.5 * layer.initial_shear_mod
+    softened = layer.shear_vel
+    assert softened < 200.0
+
+    copied = layer.copy()
+    assert copied.initial_shear_vel == 200.0
+    assert copied.shear_vel == 200.0
+
+
+def _identical_layers(count):
+    soil = site.SoilType("S", 18.0, None, 0.02)
+    layers = [site.Layer(soil, 5.0, 200.0) for _ in range(count)]
+    layers.append(site.Layer(site.SoilType("R", 22.0, None, 0.01), 0, 800.0))
+    return site.Profile(layers)
+
+
+def test_equal_layers_have_their_own_depth_and_index():
+    profile = _identical_layers(4)
+    assert [layer.depth for layer in profile] == [0, 5, 10, 15, 20]
+    assert [profile.index(layer) for layer in profile] == [0, 1, 2, 3, 4]
+    assert profile.location("within", index=3).index == 3
+    assert profile.location("within", index=-1).index == 4
+
+
+def test_half_space_equal_to_layer_above_gets_its_depth():
+    soil = site.SoilType("S", 18.0, None, 0.02)
+    profile = site.Profile([site.Layer(soil, 5.0, 200.0), site.Layer(soil, 0, 200.0)])
+    assert [layer.depth for layer in profile] == [0, 5]
+
+
+def test_iter_soil_types_is_unique():
+    profile = _identical_layers(4)
+    assert [st.name for st in profile.iter_soil_types()] == ["S", "R"]
+
+
+class _Curves:
+    strains = np.array([1e-4, 1e-3, 1e-2])
+    mod_reduc = np.array([1.0, 0.8, 0.4])
+    damping = np.array([0.02, 0.05, 0.1])
+    damping_min = 0.02
+    name = "curves"
+
+
+def test_from_curves_requires_unit_weight():
+    with pytest.raises(ValueError, match="unit weight is required"):
+        site.SoilType.from_curves(_Curves())
+
+
+def test_from_curves_unit_weight_from_either_source():
+    from_arg = site.SoilType.from_curves(_Curves(), unit_wt=18.0)
+    assert from_arg.unit_wt == 18.0
+
+    curves = _Curves()
+    curves.unit_wt = 19.0
+    assert site.SoilType.from_curves(curves).unit_wt == 19.0
+
+
+def test_from_curves_warns_when_damping_min_disagrees():
+    curves = _Curves()
+    curves.damping_min = 0.05
+    with pytest.warns(UserWarning, match="minimum damping"):
+        site.SoilType.from_curves(curves, unit_wt=18.0)
+
+
+def test_hashes_are_stable_and_consistent_with_equality():
+    """Equal objects have the same hash, and it does not change between calls.
+
+    The hash was taken of a temporary view of the attributes, so it depended on the
+    address that the view happened to get and an unchanged soil type could be lost from
+    a set.
+    """
+    soil = site.SoilType("S", 18.0, None, 0.02)
+    twin = site.SoilType("S", 18.0, None, 0.02)
+    layer = site.Layer(soil, 5.0, 200.0)
+
+    first = (hash(soil), hash(layer))
+    squatter = [soil.__dict__.values(), layer.__dict__.values()]  # take freed slots
+    assert (hash(soil), hash(layer)) == first
+    del squatter
+
+    members = {soil}
+    held = [soil.__dict__.values() for _ in range(5)]
+    assert soil in members
+    del held
+
+    assert soil == twin
+    assert hash(soil) == hash(twin)
+    assert hash(layer) == hash(site.Layer(twin, 5.0, 200.0))
+
+
+def test_misspelled_simplified_rayleigh_vel_is_deprecated():
+    p = site.Profile(
+        [
+            site.Layer(site.SoilType(unit_wt=20.0), 10.0, 200.0),
+            site.Layer(site.SoilType(unit_wt=22.0), 0.0, 500.0),
+        ]
+    )
+    with pytest.warns(DeprecationWarning, match="simplified_rayleigh_vel"):
+        old = p.simplified_rayliegh_vel()
+    assert old == p.simplified_rayleigh_vel()
+
+
+def _profile_for_discretize():
+    soil = site.SoilType("soil", 18.0, None, 0.02)
+    rock = site.SoilType("rock", 22.0, None, 0.01)
+    return site.Profile(
+        [
+            site.Layer(soil, 10.0, 200.0),
+            site.Layer(soil, 20.0, 400.0),
+            site.Layer(rock, 0.0, 1000.0),
+        ]
+    )
+
+
+def test_auto_discretize_scalar():
+    """A scalar maximum frequency applies to every layer."""
+    prof = _profile_for_discretize().auto_discretize(
+        max_freq=20.0, wave_frac=0.5, nonlinear_only=False
+    )
+    # Half of the wavelength at 20 Hz is 5 m in the first layer and 10 m in the second
+    assert [layer.thickness for layer in prof[:-1]] == pytest.approx(
+        [5.0, 5.0, 10.0, 10.0]
+    )
+
+
+def test_auto_discretize_per_layer():
+    """The maximum frequency and wave fraction can differ between the layers."""
+    base = _profile_for_discretize()
+    prof = base.auto_discretize(
+        max_freq=[20.0, 0.1], wave_frac=[0.5, 0.5], nonlinear_only=False
+    )
+    # The first layer needs 5 m sublayers, and the second is left whole
+    assert [layer.thickness for layer in prof[:-1]] == pytest.approx([5.0, 5.0, 20.0])
+    assert prof.thickness.sum() == pytest.approx(base.thickness.sum())
+
+    # An array equal to the scalar gives the scalar result
+    same = base.auto_discretize(max_freq=[10.0, 10.0], nonlinear_only=False)
+    assert len(same) == len(base.auto_discretize(max_freq=10.0, nonlinear_only=False))
+
+
+def test_auto_discretize_wrong_length():
+    """An array without a value for each layer is an error."""
+    with pytest.raises(ValueError, match="value for each of the 2 layers"):
+        _profile_for_discretize().auto_discretize(max_freq=[10.0, 10.0, 10.0])

@@ -1,12 +1,12 @@
 References
 ==========
 
-This page contains the complete bibliography of scientific literature referenced in PyStrata documentation and implementation.
+This page contains the complete bibliography of scientific literature referenced in pyStrata documentation and implementation.
 
 Core References
 ---------------
 
-The theoretical foundation of PyStrata is based on these seminal works in geotechnical earthquake engineering and computational seismology.
+The theoretical foundation of pyStrata is based on these seminal works in geotechnical earthquake engineering and computational seismology.
 
 **Fundamental Texts**
 
@@ -47,7 +47,7 @@ Validation of site response methods relies on high-quality experimental data. :c
 
 **Computational Tools**
 
-PyStrata results have been compared against established codes including :cite:p:`Hashash2016` (DEEPSOIL), :cite:p:`McKenna2000` (OpenSees), and :cite:p:`Kottke2013` (STRATA) to ensure consistency and accuracy.
+pyStrata results have been compared against established codes including :cite:p:`Hashash2016` (DEEPSOIL), :cite:p:`McKenna2000` (OpenSees), and :cite:p:`Kottke2013` (STRATA) to ensure consistency and accuracy.
 
 Random Vibration Theory
 -----------------------
@@ -63,15 +63,15 @@ Complete Bibliography
    :style: plain
    :all:
 
-How to Cite PyStrata
+How to Cite pyStrata
 --------------------
 
-If you use PyStrata in your research or professional work, please cite it as:
+If you use pyStrata in your research or professional work, please cite it as:
 
 .. code-block:: bibtex
 
    @misc{pystrata,
-     title={PyStrata: A Python library for seismic site response analysis},
+     title={pyStrata: A Python library for seismic site response analysis},
      author={Kottke, Albert R},
      year={2024},
      publisher={GitHub},
@@ -89,10 +89,10 @@ Additionally, please cite the relevant methodological papers for the specific me
 Contributing References
 -----------------------
 
-If you notice missing or incorrect references, or would like to add citations for new methods implemented in PyStrata:
+If you notice missing or incorrect references, or would like to add citations for new methods implemented in pyStrata:
 
 1. Add the reference to ``docs/refs.bib`` in BibTeX format
 2. Update the relevant documentation with ``:cite:p:`key``` citations
 3. Submit a pull request with your changes
 
-For formatting guidelines, see our :doc:`developer/contributing` guide.
+For formatting guidelines, see our :doc:`developer-guide/contributing` guide.

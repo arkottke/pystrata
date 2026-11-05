@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Development scripts for pyRVT using uv
+# Development scripts for pyStrata using uv
 # Compatible with bash, zsh, and other POSIX shells
 
 set -e

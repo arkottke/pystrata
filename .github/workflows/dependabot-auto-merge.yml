@@ -1,0 +1,70 @@
+# Merges Dependabot's grouped development-dependency updates once every check
+# on the pull request has passed. Production dependencies and major bumps are
+# left for manual review, so nothing that ships to users merges unreviewed.
+#
+# The CI gate is implemented here rather than through branch protection with
+# required status checks, because that would also refuse direct pushes to the
+# branch until checks pass.
+
+name: Dependabot auto-merge
+
+# Both workflows run on a pull request. Triggering on either means whichever
+# finishes last sees a fully green commit; the earlier one finds the other
+# still running and does nothing.
+on:
+    workflow_run:
+        workflows: ["Python application", "Lint with Ruff"]
+        types: [completed]
+
+permissions:
+    contents: write
+    pull-requests: write
+
+jobs:
+    auto-merge:
+        runs-on: ubuntu-latest
+        if: >
+            github.event.workflow_run.conclusion == 'success' &&
+            github.event.workflow_run.event == 'pull_request' &&
+            github.event.workflow_run.actor.login == 'dependabot[bot]'
+
+        steps:
+            - name: Merge when every check has passed
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  REPO: ${{ github.repository }}
+                  SHA: ${{ github.event.workflow_run.head_sha }}
+                  BRANCH: ${{ github.event.workflow_run.head_branch }}
+              run: |
+                  set -euo pipefail
+
+                  # Only the grouped development updates merge on their own. The
+                  # group name is defined in .github/dependabot.yml and appears
+                  # in the branch Dependabot creates.
+                  case "$BRANCH" in
+                      dependabot/*/development-*) ;;
+                      *)
+                          echo "Branch $BRANCH is not the development group; leaving for review."
+                          exit 0
+                          ;;
+                  esac
+
+                  pr=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '.[0].number // empty')
+                  if [ -z "$pr" ]; then
+                      echo "No pull request found for $SHA."
+                      exit 0
+                  fi
+
+                  # One workflow finishing does not mean the commit is green.
+                  unfinished=$(gh api "repos/$REPO/commits/$SHA/check-runs" --paginate \
+                      --jq '[.check_runs[]
+                             | select(.status != "completed"
+                                      or (.conclusion | IN("success", "skipped", "neutral") | not))]
+                            | length')
+                  if [ "$unfinished" -ne 0 ]; then
+                      echo "$unfinished check(s) still running or not successful; not merging."
+                      exit 0
+                  fi
+
+                  echo "All checks passed; merging #$pr."
+                  gh pr merge "$pr" --repo "$REPO" --squash --delete-branch

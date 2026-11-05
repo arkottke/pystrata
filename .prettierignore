@@ -1,0 +1,8 @@
+# Generated or vendored
+_build/
+_autosummary/
+htmlcov/
+.venv/
+node_modules/
+*.egg-info/
+uv.lock

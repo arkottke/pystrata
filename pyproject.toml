@@ -9,67 +9,92 @@ authors = [{ name = "Albert Kottke", email = "albert.kottke@gmail.com" }]
 description = "Site response analysis with Python."
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.10"
+requires-python = ">=3.13"
+# Lower bounds follow SPEC 0: the oldest minor released within the last
+# 24 months. See the SPEC 0 note below for the review schedule.
+# `tomli` is gone -- `tomllib` is stdlib from Python 3.11.
 dependencies = [
-    "matplotlib",
-    "numpy>=2.0",
-    "pykooh",
-    "pyrvt",
-    "scipy",
-    "setuptools",
-    "tomli",
-    "xarray",
+    "matplotlib>=3.10",
+    "numba>=0.61",
+    "numpy>=2.2",
+    "pandas>=2.2",
+    "pint>=0.25",
+    "pykooh>=0.5",
+    # NOTE: the code actually requires the *unreleased* pyrvt 0.9.0 --
+    # `motion.py` calls `calc_pgv`/`calc_pga`/`calc_arias_intensity`/`calc_cav`
+    # on `pyrvt.motions.RvtMotion`, which 0.8.0 does not define. The bound
+    # stays at 0.8 only because `uv lock` cannot resolve a version that is not
+    # yet on PyPI. Raise this to >=0.9 as soon as pyrvt 0.9.0 is published;
+    # until then pystrata's CI cannot pass against a PyPI pyrvt.
+    "pyrvt>=0.8",
+    "scipy>=1.15",
+    "xarray>=2024.11",
 ]
+
+# ---------------------------------------------------------------------------
+# SPEC 0 -- Minimum Supported Dependencies
+# https://scientific-python.org/specs/spec-0000/
+#
+# Python:        support minors released in the last 36 months.
+# Core packages: support minors released in the last 24 months.
+#
+# Reviewed 2026-11-03. Next scheduled changes:
+#   2026-11-22  xarray >=2025.1   (2024.11 released 2024-11-22)
+#   2026-12-08  numpy >=2.3       (2.2 released 2024-12-08)
+#   2026-12-14  matplotlib >=3.11 (3.10 released 2024-12-14)
+#   2027-01-03  scipy >=1.16      (1.15 released 2025-01-03)
+#   2027-01-20  numba >=0.62      (0.61 released 2025-01-20)
+#   2027-05-24  pykooh >=0.6      (0.5 released 2025-05-24)
+#   2027-08-15  pint >=0.26       (0.25 released 2025-08-15)
+#   2027-10-07  drop Python 3.13  -> requires-python >=3.14
+#
+# pyrvt >=0.9 is required by the code today; see the note on the dependency
+# itself. It is an API requirement, not a SPEC 0 schedule item.
+# ---------------------------------------------------------------------------
 
 [project.urls]
 Homepage = "https://github.com/arkottke/pystrata"
 Documentation = "https://pystrata.readthedocs.io"
 
 [project.optional-dependencies]
-numba = ["numba"]
+dispersion = ["disba"]
 test = [
-    "numpy>=2.0",
+    "numpy>=2.2",
     "coverage[toml]",
     "nbformat",
     "nbconvert",
+    # Likewise needs the unreleased pygmm 0.9.0 for `pygmm.fourier_spectrum`.
+    "pygmm",
     "pytest",
     "pytest-cov",
-    "pytest-runner",
     "openpyxl",
     "matplotlib",
     "pykooh",
-    "tomli",
-    "pandas",
     "pyexcel",
 ]
 style = [
-    "black[colorama,jupyter]",
     "ruff",
 ]
 docs = [
     "docutils<0.22",
     "sphinx>=8.0",
-    "sphinx-design",
-    "sphinx-rtd-theme>=3.0.2",
-    "sphinx-autobuild>=2024.9.3",
+    "furo",
+    "myst-parser",
     "nbsphinx>=0.9.7",
     "nbsphinx-link",
     "sphinxcontrib-bibtex>=2.6.5",
-    "furo",
+    "sphinx-design",
+    "sphinx-autobuild>=2024.9.3",
+    "ipykernel",
     "matplotlib",
 ]
 
-[tool.black]
-line-length = 88
-target-version = ['py310']
-
 [tool.ruff]
 exclude = ["docs"]
-# Same as Black.
 line-length = 88
 indent-width = 4
 
-target-version = "py310"
+target-version = "py313"
 
 extend-include = ["*.ipynb"]
 
@@ -77,8 +102,21 @@ extend-include = ["*.ipynb"]
 quote-style = "double"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "Q", "I"]
-ignore = ["E203", "E501"]
+select = ["E", "F", "W", "Q", "I", "UP", "D"]
+ignore = ["E203", "D105", "D107", "D401"]
+
+# Docstrings follow the NumPy convention. Magic methods (D105) and __init__
+# (D107) need none, since the class docstring documents the parameters, and
+# D401 (imperative mood) is a matter of taste.
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+# The package is documented; tests, benchmarks, examples and setup.py need not be
+"tests/**" = ["D"]
+"bench/**" = ["D"]
+"examples/**" = ["D", "E501"]
+"setup.py" = ["D"]
 
 # Coverage configuration
 [tool.coverage.run]
@@ -116,20 +154,14 @@ dev = [
     "coverage[toml]",
     "nbformat",
     "nbconvert",
+    "pygmm",
     # Code quality
-    "black[colorama,jupyter]",
     "ruff",
+    # Run by the linter workflow via `uv run pre-commit run --all-files`
+    "pre-commit",
     # Additional dependencies for development
     "openpyxl",
     "pandas",
     "pyexcel",
 ]
-docs = [
-    "nbsphinx>=0.9.7",
-    "nbsphinx-link",
-    "furo",
-    "ipykernel",
-    "sphinx-rtd-theme>=3.0.2",
-    "sphinxcontrib-bibtex>=2.6.5",
-    "sphinx-design",
-]
+docs = ["pyStrata[docs]"]

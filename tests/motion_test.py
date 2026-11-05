@@ -16,6 +16,7 @@
 import numpy as np
 import pytest
 from numpy.testing import assert_allclose, assert_equal
+
 from pystrata import motion
 
 from . import FPATH_DATA
@@ -33,6 +34,70 @@ def test_ts_load_at2_file(tsm):
     assert_allclose(tsm.time_step, 0.01)
     assert_allclose(tsm.accels[0], 0.233833e-06)
     assert_allclose(tsm.accels[-1], 0.496963e-04)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        # Values preceding their labels
+        "  4096    0.0100    NPTS, DT",
+        "  0.0100    4096    DT, NPTS",
+        "  4096    0.0100    NPTS DT",
+        # Values following their labels
+        "NPTS=   4096, DT=   .0100 SEC,",
+        "DT=   .0100 SEC, NPTS=   4096,",
+        "NPTS=   4096 DT=   .0100 SEC",
+        "NPTS   4096   DT   .0100",
+        # Unlabeled
+        "  4096    0.0100",
+    ],
+)
+def test_parse_at2_header(line):
+    """Test parsing of the NPTS and DT header line variations."""
+    npts, time_step = motion._parse_at2_header(line)
+    assert_equal(npts, 4096)
+    assert_allclose(time_step, 0.01)
+
+
+def test_parse_at2_header_invalid():
+    """Test that an unparsable header line is reported."""
+    with pytest.raises(ValueError):
+        motion._parse_at2_header("NPTS, DT")
+
+
+def _write_at2(path, header, accels):
+    path.write_text(
+        "PEER NGA STRONG MOTION DATABASE RECORD\n"
+        "Imperial Valley-02, 5/19/1940, El Centro Array #9, 270\n"
+        "ACCELERATION TIME SERIES IN UNITS OF G\n"
+        f"{header}\n" + "  ".join(f"{a:.6E}" for a in accels) + "\n"
+    )
+
+
+@pytest.mark.parametrize(
+    "header",
+    ["  8    0.0100    NPTS, DT", "NPTS=      8, DT=   .0100 SEC,"],
+)
+def test_ts_load_at2_file_headers(tmp_path, header):
+    """Test loading of an AT2 file using each header layout."""
+    accels = [0.1, -0.2, 0.3, -0.4, 0.5, -0.6, 0.7, -0.8]
+    fpath = tmp_path / "test.AT2"
+    _write_at2(fpath, header, accels)
+
+    tsm = motion.TimeSeriesMotion.load_at2_file(fpath)
+    assert_equal(
+        tsm.description, "Imperial Valley-02, 5/19/1940, El Centro Array #9, 270"
+    )
+    assert_allclose(tsm.time_step, 0.01)
+    assert_allclose(tsm.accels, accels)
+
+
+def test_ts_load_at2_file_npts_mismatch(tmp_path):
+    """Test that a point count that disagrees with the data is reported."""
+    fpath = tmp_path / "test.AT2"
+    _write_at2(fpath, "NPTS=      9, DT=   .0100 SEC,", [0.1, -0.2, 0.3])
+    with pytest.warns(UserWarning, match="NPTS=9"):
+        motion.TimeSeriesMotion.load_at2_file(fpath)
 
 
 def test_ts_times(tsm):
@@ -91,4 +156,45 @@ def test_ts_load_smc_file(fname):
         [tsm.accels[0], tsm.accels[1], tsm.accels[-1]],
         [2.3489e-2, -1.6646e-2, 3.4990e-3],
         rtol=1e-4,
+    )
+
+
+@pytest.mark.parametrize(
+    "header,time_step",
+    [
+        ("NPTS=  6000, DT= .0100 SEC", 0.01),
+        ("NPTS=  16396, DT= 0.005 SEC", 0.005),
+        ("NPTS=6000, DT=0.0100 SEC", 0.01),
+        ("   4096   0.0100   NPTS, DT", 0.01),
+    ],
+)
+@pytest.mark.filterwarnings("ignore:AT2 file")
+def test_load_at2_file_header_formats(tmp_path, header, time_step):
+    fpath = tmp_path / "test.AT2"
+    fpath.write_text(
+        "PEER NGA\nEVENT\nACCELERATION TIME SERIES IN UNITS OF G\n"
+        f"{header}\n 0.1 0.2 0.3\n"
+    )
+    ts = motion.TimeSeriesMotion.load_at2_file(fpath)
+    assert_allclose(ts.time_step, time_step)
+    assert_allclose(ts.accels, [0.1, 0.2, 0.3])
+
+
+def test_rvt_from_fas_returns_the_pystrata_class():
+    class Fas:
+        freqs = np.logspace(-1, 2, 50)
+        fourier_amps = 0.01 / (1 + (freqs / 5) ** 2)
+        duration = 10.0
+
+    rvt = motion.RvtMotion.from_fas(Fas())
+    assert type(rvt) is motion.RvtMotion
+    assert isinstance(rvt, motion.Motion)
+
+
+def test_sdof_tf_is_the_pyrvt_one(tsm):
+    import pyrvt
+
+    assert_allclose(
+        tsm._calc_sdof_tf(2.0, 0.03),
+        pyrvt.motions.calc_sdof_tf(tsm.freqs, 2.0, 0.03),
     )

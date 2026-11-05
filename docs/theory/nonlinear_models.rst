@@ -1,7 +1,7 @@
 Nonlinear Soil Models
 =====================
 
-Soil exhibits nonlinear stress-strain behavior under dynamic loading, with stiffness decreasing and damping increasing as shear strain increases. PyStrata implements several empirical models for capturing this behavior.
+Soil exhibits nonlinear stress-strain behavior under dynamic loading, with stiffness decreasing and damping increasing as shear strain increases. pyStrata implements several empirical models for capturing this behavior.
 
 Equivalent Linear Approach
 ---------------------------
@@ -143,24 +143,31 @@ Parameters depend on:
 
 **User-Defined Curves**
 
-PyStrata allows specification of custom modulus reduction and damping curves from laboratory data.
+pyStrata allows specification of custom modulus reduction and damping curves from laboratory data.
 
-Implementation in PyStrata
+Implementation in pyStrata
 ---------------------------
 
 Nonlinear soil properties are handled through the `SoilType` class with `NonlinearCurve` objects that define the strain-dependent curves.
 
 .. code-block:: python
 
+   import pygmm
+   import pystrata
+
+   # The empirical models are in pygmm; each produces strain-dependent curves
+   # that are turned into a soil type with `SoilType.from_curves`.
+
    # Darendeli model for clay
-   soil_type = pystrata.site.DarendeliSoilType(
+   model = pygmm.DarendeliSoilType(
        plas_index=30,
        stress_mean=100,  # kPa
        unit_wt=18.0,
    )
+   soil_type = pystrata.site.SoilType.from_curves(model.curves())
 
    # Menq model for gravel
-   soil_type = pystrata.site.MenqSoilType(
+   model = pygmm.MenqSoilType(
        unit_wt=20.0,
        coef_unif=10,
        diam_mean=5,  # mm
@@ -168,7 +175,7 @@ Nonlinear soil properties are handled through the `SoilType` class with `Nonline
    )
 
    # Wang and Stokoe model for clean sand
-   soil_type = pystrata.site.WangSoilType(
+   model = pygmm.WangSoilType(
        soil_group="clean_sand_and_gravel",
        unit_wt=19.0,
        stress_mean=100,  # kPa
@@ -176,7 +183,7 @@ Nonlinear soil properties are handled through the `SoilType` class with `Nonline
    )
 
    # Alemu et al. model for transitional silt
-   soil_type = pystrata.site.AlemuEtAlSoilType(
+   model = pygmm.AlemuEtAlSoilType(
        unit_wt=18.0,
        plas_index=15,
        ocr=1.5,
