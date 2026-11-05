@@ -5,6 +5,7 @@
 - Fixed: restore `.readthedocs.yaml`, which was removed in June 2026, so that Read the
   Docs can build the documentation. It uses Python 3.13, the floor of
   `requires-python`, and installs pandoc for the example notebooks.
+- Added: example 25 shows the effect of the canyon length on the response of a dam.
 - Added: canyon (3D) effects for dams. `Dam(..., canyon=RectangularCanyon(length))`
   confines the dam between rigid abutments that move with the outcrop motion. The
   calculators give the response at a position `x` along the canyon (`canyon_x`, or the

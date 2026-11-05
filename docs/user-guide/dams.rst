@@ -72,3 +72,4 @@ Examples
 - :doc:`../examples/example-21`: the sliding-mass transfer function compared with
   the model of Hale and Abrahamson in pyGMM.
 - :doc:`../examples/example-22`: the truncated and apex wedges compared.
+- :doc:`../examples/example-25`: the effect of the length of the canyon.
