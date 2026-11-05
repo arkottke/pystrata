@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.6.0 (unreleased)
+## 0.6.0 (2026-11-05)
 
 - Fixed: restore `.readthedocs.yaml`, which was removed in June 2026, so that Read the
   Docs can build the documentation. It uses Python 3.13, the floor of
