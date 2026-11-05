@@ -1,5 +1,8 @@
 r"""Canyon (three-dimensional) effects on a shear-wedge dam.
 
+A narrow canyon stiffens a dam and shortens its fundamental period
+(:cite:t:`dakoulas1987vibration`; see also :cite:t:`gazetas1987seismic`).
+
 The dam of :mod:`pystrata.dam.analytical` is infinitely long. In a canyon of
 finite length :math:`L` with rigid abutments that move with the input motion the
 displacement is :math:`u = u_b w(x, r)`, with :math:`w = 1` on the abutments.

@@ -40,7 +40,8 @@ Canyon Effects
 --------------
 
 A dam in a canyon of finite length is confined by the abutments, which raises its
-natural frequencies and makes the response vary along its axis. Give the
+natural frequencies and makes the response vary along its axis
+(:cite:t:`gazetas1987seismic`; :cite:t:`dakoulas1987vibration`). Give the
 :class:`Dam` a :class:`RectangularCanyon`, a canyon of constant length with rigid
 abutments that move with the outcrop motion of the half space.
 
