@@ -26,6 +26,7 @@ from __future__ import annotations
 import enum
 import logging
 import re
+import warnings
 
 import numpy as np
 import numpy.typing as npt
@@ -34,6 +35,77 @@ import pyrvt
 from .units import GRAVITY, convert_units
 
 logger = logging.getLogger(__name__)
+
+
+# Integers and floats, including values without a leading digit (e.g., ".0100")
+# and Fortran style exponents (e.g., "1.0D-2").
+_RE_NUMBER = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eEdD][+-]?\d+)?")
+
+
+def _to_float(text: str) -> float:
+    """Convert a string to a float, permitting a Fortran style exponent."""
+    return float(text.replace("D", "E").replace("d", "e"))
+
+
+def _parse_at2_header(line: str) -> tuple[int, float]:
+    """Parse the point count and time step from the header of an AT2 file.
+
+    Both of the PEER NGA layouts are supported::
+
+        4096    0.0100    NPTS, DT
+        NPTS=   5346, DT=   .0100 SEC,
+
+    as are variations that reverse the order of the two values, or that omit the
+    commas separating them.
+
+    Parameters
+    ----------
+    line : str
+        Fourth line of an AT2 file.
+
+    Returns
+    -------
+    npts : int
+        Number of points in the time series.
+    time_step : float
+        Time step of the time series [s].
+
+    Raises
+    ------
+    ValueError
+        If the point count and the time step cannot be found.
+    """
+    # Values that follow their label, e.g., "NPTS= 5346" or "DT .0100". Each value
+    # is located by its own label, so their order does not matter.
+    found = {}
+    for key in ("NPTS", "DT"):
+        match = re.search(
+            r"\b" + key + r"\b\s*[=:]?\s*(" + _RE_NUMBER.pattern + ")",
+            line,
+            re.IGNORECASE,
+        )
+        if match:
+            found[key] = _to_float(match.group(1))
+
+    if len(found) < 2:
+        # Values that precede their labels, e.g., "4096  0.0100  NPTS, DT"
+        values = [_to_float(v) for v in _RE_NUMBER.findall(line)]
+        if len(values) < 2:
+            raise ValueError(f"Unable to parse NPTS and DT from AT2 header: {line!r}")
+
+        values = values[:2]
+        upper = line.upper()
+        pos = {key: upper.find(key) for key in ("NPTS", "DT")}
+        if all(p >= 0 for p in pos.values()):
+            # Pair the values with the labels by order of appearance
+            keys = sorted(pos, key=lambda key: pos[key])
+        else:
+            # Unlabeled, so rely on the magnitude: the time step is the smaller
+            keys = ["DT", "NPTS"] if values[0] < values[1] else ["NPTS", "DT"]
+
+        found = dict(zip(keys, values, strict=True))
+
+    return int(found["NPTS"]), found["DT"]
 
 
 class WaveField(enum.Enum):
@@ -386,6 +458,10 @@ class TimeSeriesMotion(Motion):
     def load_at2_file(cls, filename: str, scale: float = 1.0) -> TimeSeriesMotion:
         """Read an AT2 formatted time series.
 
+        The fourth line of the file provides the number of points and the time
+        step; both of the PEER NGA layouts are read, and a warning is issued if
+        the number of points does not match the number of accelerations.
+
         Parameters
         ----------
         filename: str
@@ -397,15 +473,16 @@ class TimeSeriesMotion(Motion):
             next(fp)
             description = next(fp).strip()
             next(fp)
-            header = next(fp)
-            # NGA-West2: "NPTS= 6000, DT= .0100 SEC"; NGA-West1: "6000 0.0100 NPTS, DT"
-            match = re.search(r"DT\s*=\s*([0-9.eE+-]+)", header, re.IGNORECASE)
-            if match:
-                time_step = float(match.group(1))
-            else:
-                time_step = float(header.replace(",", " ").split()[1])
+            npts, time_step = _parse_at2_header(next(fp))
 
             accels = np.array([float(part) for line in fp for part in line.split()])
+
+        if accels.size != npts:
+            warnings.warn(
+                f"AT2 file '{filename}' specifies NPTS={npts}, but {accels.size} "
+                "accelerations were read.",
+                stacklevel=2,
+            )
 
         accels *= scale
         return cls(filename, description, time_step, accels)
