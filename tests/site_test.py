@@ -395,3 +395,47 @@ def test_misspelled_simplified_rayleigh_vel_is_deprecated():
     with pytest.warns(DeprecationWarning, match="simplified_rayleigh_vel"):
         old = p.simplified_rayliegh_vel()
     assert old == p.simplified_rayleigh_vel()
+
+
+def _profile_for_discretize():
+    soil = site.SoilType("soil", 18.0, None, 0.02)
+    rock = site.SoilType("rock", 22.0, None, 0.01)
+    return site.Profile(
+        [
+            site.Layer(soil, 10.0, 200.0),
+            site.Layer(soil, 20.0, 400.0),
+            site.Layer(rock, 0.0, 1000.0),
+        ]
+    )
+
+
+def test_auto_discretize_scalar():
+    """A scalar maximum frequency applies to every layer."""
+    prof = _profile_for_discretize().auto_discretize(
+        max_freq=20.0, wave_frac=0.5, nonlinear_only=False
+    )
+    # Half of the wavelength at 20 Hz is 5 m in the first layer and 10 m in the second
+    assert [layer.thickness for layer in prof[:-1]] == pytest.approx(
+        [5.0, 5.0, 10.0, 10.0]
+    )
+
+
+def test_auto_discretize_per_layer():
+    """The maximum frequency and wave fraction can differ between the layers."""
+    base = _profile_for_discretize()
+    prof = base.auto_discretize(
+        max_freq=[20.0, 0.1], wave_frac=[0.5, 0.5], nonlinear_only=False
+    )
+    # The first layer needs 5 m sublayers, and the second is left whole
+    assert [layer.thickness for layer in prof[:-1]] == pytest.approx([5.0, 5.0, 20.0])
+    assert prof.thickness.sum() == pytest.approx(base.thickness.sum())
+
+    # An array equal to the scalar gives the scalar result
+    same = base.auto_discretize(max_freq=[10.0, 10.0], nonlinear_only=False)
+    assert len(same) == len(base.auto_discretize(max_freq=10.0, nonlinear_only=False))
+
+
+def test_auto_discretize_wrong_length():
+    """An array without a value for each layer is an error."""
+    with pytest.raises(ValueError, match="value for each of the 2 layers"):
+        _profile_for_discretize().auto_discretize(max_freq=[10.0, 10.0, 10.0])

@@ -1098,32 +1098,56 @@ class Profile(collections.abc.Container):
 
     def auto_discretize(
         self,
-        max_freq: float = 50.0,
-        wave_frac: float = 0.2,
+        max_freq: npt.ArrayLike = 50.0,
+        wave_frac: npt.ArrayLike = 0.2,
         nonlinear_only: bool = True,
     ) -> Profile:
         """Subdivide the layers to capture strain variation.
 
+        A layer is subdivided so that its sublayers are at most ``wave_frac`` of a
+        wavelength at ``max_freq``, which can differ between the layers, for
+        example to leave the deep layers of a deep profile undivided.
+
         Parameters
         ----------
-        max_freq: float
-            Maximum frequency of interest [Hz].
-        wave_frac: float
-            Fraction of wavelength required. Typically 1/3 to 1/5.
-
-        max_thick: float *optional*
-            If provided, layers are limited to be at most that thick. This is applied to
-            all layers regardless of nonlinearity.
+        max_freq : array_like, default=50
+            Maximum frequency of interest [Hz]. A scalar applies to every layer;
+            an array has a value for each layer, excluding the half space.
+        wave_frac : array_like, default=0.2
+            Fraction of wavelength required. Typically 1/3 to 1/5. A scalar
+            applies to every layer; an array has a value for each layer,
+            excluding the half space.
+        nonlinear_only : bool, default=True
+            If only the layers with a nonlinear soil type are subdivided.
 
         Returns
         -------
-        profile: Profile
-            A new profile with modified layer thicknesses
+        profile : Profile
+            A new profile with modified layer thicknesses.
+
+        Raises
+        ------
+        ValueError
+            If an array of `max_freq` or `wave_frac` does not have a value for each
+            layer.
         """
+        n_layers = len(self) - 1
+        max_freq = np.asarray(max_freq, dtype=float)
+        wave_frac = np.asarray(wave_frac, dtype=float)
+        try:
+            max_freq = np.broadcast_to(max_freq, n_layers)
+            wave_frac = np.broadcast_to(wave_frac, n_layers)
+        except ValueError as err:
+            raise ValueError(
+                f"max_freq (shape {max_freq.shape}) and wave_frac "
+                f"(shape {wave_frac.shape}) must be scalars or have a value for "
+                f"each of the {n_layers} layers"
+            ) from err
+
         layers = []
-        for layer in self[:-1]:
+        for i, layer in enumerate(self[:-1]):
             if not nonlinear_only or layer.soil_type.is_nonlinear:
-                opt_thickness = layer.initial_shear_vel / max_freq * wave_frac
+                opt_thickness = layer.initial_shear_vel / max_freq[i] * wave_frac[i]
                 count = max(np.ceil(layer.thickness / opt_thickness).astype(int), 1)
                 thickness = layer.thickness / count
                 for _ in range(count):
@@ -1138,7 +1162,7 @@ class Profile(collections.abc.Container):
                     )
             else:
                 layers.append(layer)
-        # Add the halfspace
+        # Add the half space
         layers.append(self[-1])
 
         return Profile(layers, wt_depth=self.wt_depth)
