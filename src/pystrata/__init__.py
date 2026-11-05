@@ -27,6 +27,7 @@ from importlib.metadata import version
 
 from . import (
     dam,
+    factories,
     motion,
     output,
     propagation,
@@ -39,6 +40,7 @@ from .units import ureg
 
 __all__ = [
     "dam",
+    "factories",
     "motion",
     "output",
     "propagation",

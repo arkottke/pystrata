@@ -62,6 +62,10 @@ Profiles and soil properties
 **USGS National Crustal Model Profile** (:doc:`example-17`)
     Load a geophysical profile from the USGS NCM, apply Darendeli nonlinear curves, and adjust minimum damping to match a target site kappa (κ₀).
 
+**Generating Layers with LayerFactory** (:doc:`example-23`)
+    Build a stack of layers whose shear-wave velocity follows a power-law model of depth or
+    mean effective stress, partitioned into sub-layers of equal travel time.
+
 **Unit Conversion with Pint** (:doc:`example-18`)
     Define the same profile three ways — plain floats, metric pint Quantities, and Imperial units — demonstrating transparent unit handling.
 
@@ -118,6 +122,7 @@ Dams
    example-20
    example-21
    example-22
+   example-23
 
 Running the examples
 --------------------

@@ -165,3 +165,5 @@ Examples
 - :doc:`../examples/example-17`: a profile from the USGS National Crustal Model, with
   Darendeli curves and a target :math:`\kappa_0`.
 - :doc:`../examples/example-18`: units.
+- :doc:`../examples/example-23`: layers from a power-law velocity model with
+  ``LayerFactory``.
