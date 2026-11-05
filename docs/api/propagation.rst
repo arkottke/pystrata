@@ -15,6 +15,7 @@ Classes
    EquivalentLinearCalculator
    FrequencyDependentEqlCalculator
    QuarterWaveLenCalculator
+   KappaCorrectedCalculator
 
 Linear Methods
 --------------
@@ -38,5 +39,12 @@ Quarter-Wavelength Approximation
 ---------------------------------
 
 .. autoclass:: QuarterWaveLenCalculator
+   :members:
+   :show-inheritance:
+
+Site Attenuation Correction
+---------------------------
+
+.. autoclass:: KappaCorrectedCalculator
    :members:
    :show-inheritance:

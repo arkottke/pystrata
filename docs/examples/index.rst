@@ -41,6 +41,11 @@ Calculator settings
 **Incidence Angle and Inhomogeneity** (:doc:`example-19`)
     Effect of an obliquely incident or inhomogeneous SH wave, compared with the default vertically incident, homogeneous wave.
 
+**Correcting the Site Attenuation** (:doc:`example-24`)
+    Wrap a calculator in ``KappaCorrectedCalculator`` so that the motions at the
+    locations of the profile have a target site attenuation, with the Fourier spectrum,
+    the response spectrum and a time series.
+
 Motions and peak factors
 ------------------------
 
@@ -123,6 +128,7 @@ Dams
    example-21
    example-22
    example-23
+   example-24
 
 Running the examples
 --------------------

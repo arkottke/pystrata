@@ -150,7 +150,8 @@ Examples
      - :doc:`../examples/example-16`
    * - Calculator settings
      - :doc:`../examples/example-11`, :doc:`../examples/example-12`,
-       :doc:`../examples/example-13`, :doc:`../examples/example-19`
+       :doc:`../examples/example-13`, :doc:`../examples/example-19`,
+       :doc:`../examples/example-24`
    * - Dams
      - :doc:`../examples/example-20`, :doc:`../examples/example-21`,
        :doc:`../examples/example-22`

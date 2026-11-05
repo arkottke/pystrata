@@ -30,7 +30,7 @@ import numpy.typing as npt
 import pykooh
 from scipy.optimize import minimize
 
-from .motion import Motion, WaveField
+from .motion import Motion, WaveField, fit_attenuation
 from .site import Layer, Location, Profile
 from .units import GRAVITY
 
@@ -1402,3 +1402,179 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
             )
 
         return strains
+
+
+class KappaCorrectedCalculator:
+    r"""Calculator that corrects the site attenuation of the computed motions.
+
+    The calculator wraps another calculator. Before the calculation it reads the
+    site attenuation (:math:`\kappa`) of the input motion, the wrapped calculator
+    then runs unchanged, and the transfer functions that it provides are corrected
+    so that the motion at each location has a target :math:`\kappa`. The outputs
+    (response spectra, Fourier spectra, transfer functions, time series, and those
+    of the dam calculators) need not know of the correction, since they take their
+    transfer function from the calculator.
+
+    :math:`\kappa` is the slope of the log of the Fourier amplitudes against
+    frequency, :math:`a(f) \propto \exp(-\pi \kappa f)`, fit over a frequency
+    range. For a location, the transfer function from the input location is
+    multiplied by :math:`\exp(\pi (\kappa_{fit} - \kappa_{target}) f)`, where
+    :math:`\kappa_{fit}` is that of the motion at the location, which gives it the
+    target :math:`\kappa`. The input motion is not changed, and the transfer
+    function between two locations is the ratio of their corrected transfer
+    functions. The strain and stress transfer functions are not corrected, and
+    the iterations of an equivalent-linear calculator are not affected.
+
+    Parameters
+    ----------
+    calc : AbstractCalculator
+        Calculator that is wrapped, for example
+        :class:`EquivalentLinearCalculator` or a dam calculator.
+    kappa_target : float
+        Site attenuation [s] of the motions at the locations of the profile.
+    min_freq : float, default=10
+        Minimum frequency of the fit [Hz].
+    max_freq : float, default=30
+        Maximum frequency of the fit [Hz].
+    ko_bandwidth : float, optional
+        Konno-Ohmachi bandwidth with which the Fourier amplitudes are smoothed
+        before the fit. They are not smoothed if ``None``.
+
+    Notes
+    -----
+    This adjusts the computed motion. :func:`pystrata.tools.adjust_damping_values`
+    instead changes the minimum damping of the layers, so that the attenuation
+    of the propagation matches a target.
+
+    All of the other attributes, such as ``motion``, ``profile``, ``loc_input``
+    and the calculation methods, are those of the wrapped calculator.
+    """
+
+    def __init__(
+        self,
+        calc,
+        kappa_target: float,
+        min_freq: float = 10.0,
+        max_freq: float = 30.0,
+        ko_bandwidth: float | None = None,
+    ) -> None:
+        if not 0 <= min_freq < max_freq:
+            raise ValueError("The frequency range of the fit must be increasing.")
+        self._calc = calc
+        self._kappa_target = kappa_target
+        self._min_freq = min_freq
+        self._max_freq = max_freq
+        self._ko_bandwidth = ko_bandwidth
+        self._initial_kappa: float | None = None
+        self._corrections: dict = {}
+
+    def __getattr__(self, name):
+        # Only called for attributes that are not found. Underscored names are not
+        # delegated, so that copying the object does not recurse.
+        if name.startswith("_"):
+            raise AttributeError(name)
+        return getattr(self._calc, name)
+
+    @property
+    def calc(self):
+        """Calculator that is wrapped."""
+        return self._calc
+
+    @property
+    def kappa_target(self) -> float:
+        """Site attenuation [s] of the corrected motions."""
+        return self._kappa_target
+
+    @property
+    def min_freq(self) -> float:
+        """Minimum frequency [Hz] of the fit."""
+        return self._min_freq
+
+    @property
+    def max_freq(self) -> float:
+        """Maximum frequency [Hz] of the fit."""
+        return self._max_freq
+
+    @property
+    def ko_bandwidth(self) -> float | None:
+        """Konno-Ohmachi bandwidth of the smoothing before the fit."""
+        return self._ko_bandwidth
+
+    @property
+    def initial_kappa(self) -> float | None:
+        """Site attenuation [s] of the input motion; ``None`` before a calculation."""
+        return self._initial_kappa
+
+    def __call__(self, motion, profile, loc_input, **kwds):
+        """Read the attenuation of the motion, and run the wrapped calculation.
+
+        Parameters
+        ----------
+        motion : Motion
+            Input motion.
+        profile : Profile
+            Site profile.
+        loc_input : Location
+            Location at which the motion is defined.
+        **kwds
+            Keywords of the wrapped calculator.
+        """
+        self._corrections = {}
+        self._initial_kappa = self._fit_kappa(motion.freqs, motion.fourier_amps)
+        return self._calc(motion, profile, loc_input, **kwds)
+
+    def _fit_kappa(self, freqs, amps) -> float:
+        """Fit the site attenuation of Fourier amplitudes over the range."""
+        amps = np.abs(amps)
+        if self._ko_bandwidth is not None:
+            mask = (self._min_freq <= freqs) & (freqs <= self._max_freq)
+            amps = pykooh.smooth(freqs[mask], freqs, amps, self._ko_bandwidth)
+            freqs = freqs[mask]
+        return fit_attenuation(freqs, amps, self._min_freq, self._max_freq)[0]
+
+    def _is_input(self, loc: Location) -> bool:
+        """If the location is that of the input motion."""
+        loc_in = self._calc.loc_input
+        return (
+            loc.index == loc_in.index
+            and loc.wave_field == loc_in.wave_field
+            and np.isclose(loc.depth_within, loc_in.depth_within)
+        )
+
+    def calc_kappa(self, loc: Location) -> float:
+        """Site attenuation [s] of the motion at a location, before the correction.
+
+        The attenuation that the site adds to that of the input motion is this
+        minus :attr:`initial_kappa`.
+
+        Parameters
+        ----------
+        loc : Location
+            Location of the motion.
+        """
+        tf = self._calc.calc_accel_tf(self._calc.loc_input, loc)
+        motion = self._calc.motion
+        return self._fit_kappa(motion.freqs, tf * motion.fourier_amps)
+
+    def _correction(self, loc: Location) -> np.ndarray | float:
+        """Factor that gives the motion at a location the target attenuation."""
+        if self._is_input(loc):
+            return 1.0
+        key = (loc.index, loc.wave_field, float(loc.depth_within))
+        if key not in self._corrections:
+            delta = self.calc_kappa(loc) - self._kappa_target
+            self._corrections[key] = np.exp(np.pi * delta * self._calc.motion.freqs)
+        return self._corrections[key]
+
+    def calc_accel_tf(self, lin: Location, lout: Location) -> np.ndarray:
+        """Compute the corrected acceleration transfer function.
+
+        Parameters
+        ----------
+        lin : Location
+            Location of the input.
+        lout : Location
+            Location of the output.
+        """
+        tf = self._calc.calc_accel_tf(lin, lout)
+        return tf * self._correction(lout) / self._correction(lin)

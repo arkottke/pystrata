@@ -111,6 +111,39 @@ Comparison
      - Velocity and density only; no wave propagation
      - None
 
+Site attenuation
+----------------
+
+A calculator is wrapped in a :class:`~pystrata.propagation.KappaCorrectedCalculator`
+to correct the site attenuation, :math:`\kappa`, of the computed motions. The
+attenuation is the slope of the log of the Fourier amplitudes against frequency,
+:math:`a(f) \propto \exp(-\pi \kappa f)`, fit over a frequency range. The wrapper
+reads that of the input motion, runs the wrapped calculation, and then corrects the
+transfer function of each location so that its motion has the target.
+
+.. code-block:: python
+
+    inner = pystrata.propagation.EquivalentLinearCalculator()
+    calc = pystrata.propagation.KappaCorrectedCalculator(
+        inner, kappa_target=0.03, min_freq=10.0, max_freq=30.0
+    )
+
+    calc(motion, profile, profile.location("outcrop", index=-1))
+    calc.initial_kappa                      # of the input motion
+    calc.calc_kappa(location)               # of a location, before the correction
+    outputs(calc)                           # the corrected outputs
+
+The outputs take their transfer function from the calculator, so every output is
+corrected, including those of the dam calculators. The input motion is not changed,
+the transfer function between two locations is the ratio of their corrected transfer
+functions, and the strain and stress transfer functions are not corrected. A
+:class:`~pystrata.motion.TimeSeriesMotion` has the ``calc_attenuation`` method of the
+random vibration theory motions to compute the attenuation of its spectrum.
+
+This changes the computed motion. :func:`pystrata.tools.adjust_damping_values`
+changes the minimum damping of the layers instead, so that the attenuation of the
+propagation matches a target; see :doc:`../examples/example-17`.
+
 Examples
 --------
 
@@ -120,3 +153,4 @@ Examples
   calculator, its properties and the effect of the minimum damping.
 - :doc:`../examples/example-13`: the strain limit of the equivalent-linear calculator.
 - :doc:`../examples/example-19`: incidence angle and inhomogeneity.
+- :doc:`../examples/example-24`: the correction of the site attenuation.

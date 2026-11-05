@@ -145,6 +145,10 @@ Profile Utilities
     # Auto-discretize for adequate frequency resolution
     profile.auto_discretize(max_freq=25.0, wave_frac=0.2)
 
+    # The maximum frequency and wave fraction can differ between the layers, which
+    # are given by an array with a value for each layer (not the half space)
+    profile.auto_discretize(max_freq=[25.0, 25.0, 1.0], wave_frac=0.2)
+
     # Uniform depth grid for reporting profile-based outputs
     grid = profile.depth_grid(max_freq=25.0, wave_frac=0.2)
 

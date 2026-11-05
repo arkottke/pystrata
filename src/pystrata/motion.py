@@ -31,6 +31,7 @@ import warnings
 import numpy as np
 import numpy.typing as npt
 import pyrvt
+from scipy import stats
 
 from .units import GRAVITY, convert_units
 
@@ -106,6 +107,65 @@ def _parse_at2_header(line: str) -> tuple[int, float]:
         found = dict(zip(keys, values, strict=True))
 
     return int(found["NPTS"]), found["DT"]
+
+
+def fit_attenuation(
+    freqs: npt.ArrayLike,
+    amps: npt.ArrayLike,
+    min_freq: float,
+    max_freq: float | None = None,
+) -> tuple[float, float, np.ndarray, np.ndarray]:
+    r"""Compute the site attenuation (:math:`\kappa`) from a log-linear fit.
+
+    The Fourier amplitudes are fit with
+    :math:`a(f) = A_0 \exp(-\pi \kappa f)` for the frequencies in a range
+    (Anderson and Hough, 1984), which is what ``calc_attenuation`` of the motions
+    of pyRVT does. Amplitudes that are not finite and positive are not used.
+
+    Parameters
+    ----------
+    freqs : array_like
+        Frequencies [Hz].
+    amps : array_like
+        Fourier amplitudes at `freqs`. Complex amplitudes are reduced to their
+        magnitude.
+    min_freq : float
+        Minimum frequency of the fit [Hz].
+    max_freq : float, optional
+        Maximum frequency of the fit [Hz]. The maximum frequency is used if
+        ``None``.
+
+    Returns
+    -------
+    atten : float
+        Attenuation, :math:`\kappa` [s].
+    r_sqr : float
+        Squared correlation coefficient of the fit.
+    freqs : np.ndarray
+        Frequencies of the fit [Hz].
+    fitted : np.ndarray
+        Fitted amplitudes at `freqs`.
+
+    Raises
+    ------
+    ValueError
+        If fewer than two amplitudes are usable in the frequency range.
+    """
+    freqs = np.asarray(freqs, dtype=float)
+    amps = np.abs(np.asarray(amps))
+    max_freq = freqs[-1] if max_freq is None else max_freq
+    mask = (min_freq <= freqs) & (freqs <= max_freq) & np.isfinite(amps) & (amps > 0)
+    if mask.sum() < 2:
+        raise ValueError(
+            f"Fewer than two positive amplitudes between {min_freq} and {max_freq} Hz."
+        )
+    fit = stats.linregress(freqs[mask], np.log(amps[mask]))
+    return (
+        -fit.slope / np.pi,
+        fit.rvalue**2,
+        freqs[mask],
+        np.exp(fit.intercept + fit.slope * freqs[mask]),
+    )
 
 
 class WaveField(enum.Enum):
@@ -304,6 +364,36 @@ class TimeSeriesMotion(Motion):
 
         # Normalize the Fourier amplitude by the time step
         return self.time_step * self._fourier_amps
+
+    def calc_attenuation(
+        self, min_freq: float, max_freq: float | None = None
+    ) -> tuple[float, float, np.ndarray, np.ndarray]:
+        r"""Compute the site attenuation (:math:`\kappa`) of the Fourier spectrum.
+
+        This has the arguments and the results of ``calc_attenuation`` of the
+        random vibration theory motions, and is computed by
+        :func:`fit_attenuation`.
+
+        Parameters
+        ----------
+        min_freq : float
+            Minimum frequency of the fit [Hz].
+        max_freq : float, optional
+            Maximum frequency of the fit [Hz]. The maximum frequency of the
+            spectrum is used if ``None``.
+
+        Returns
+        -------
+        atten : float
+            Attenuation, :math:`\kappa` [s].
+        r_sqr : float
+            Squared correlation coefficient of the fit.
+        freqs : np.ndarray
+            Frequencies of the fit [Hz].
+        fitted : np.ndarray
+            Fitted amplitudes at `freqs`.
+        """
+        return fit_attenuation(self.freqs, self.fourier_amps, min_freq, max_freq)
 
     def calc_time_series(self, tf: npt.ArrayLike | None = None) -> np.ndarray:
         """Compute the acceleration time series [g] with a transfer function applied.

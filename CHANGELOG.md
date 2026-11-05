@@ -2,6 +2,19 @@
 
 ## 0.6.0 (unreleased)
 
+- Added: `KappaCorrectedCalculator` wraps a calculator and corrects the site
+  attenuation (kappa) of the computed motions to a target: it reads the kappa of the
+  input motion, runs the calculation and corrects the transfer function of each
+  location, so every output is corrected. `TimeSeriesMotion.calc_attenuation` and
+  `motion.fit_attenuation` compute kappa from a Fourier spectrum, with the arguments
+  and results of the random vibration theory motions. Example 24. From the work of
+  James Dea in pull request #68.
+- Added: `Profile.auto_discretize` accepts a maximum frequency and a wave fraction for
+  each layer. From James Dea, pull request #68.
+- Changed: `TimeSeriesMotion.load_at2_file` finds the number of points and the time
+  step in the header by their labels, which allows reversed order, missing commas and
+  Fortran exponents, and warns when the number of points does not match the data.
+  From James Dea, pull request #68.
 - Changed: the documentation is reorganized: the user guide starts with how the
   motion, profile, calculator and outputs fit together, has pages for variation and
   dams, and lists the examples of each topic; the example gallery is grouped by

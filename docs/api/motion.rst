@@ -22,6 +22,11 @@ Classes
    RvtMotion
    CompatibleRvtMotion
 
+Functions
+---------
+
+.. autofunction:: fit_attenuation
+
 Time Series Motions
 -------------------
 
