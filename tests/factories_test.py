@@ -14,7 +14,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
-import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 from scipy.integrate import quad
@@ -25,18 +24,21 @@ from pystrata.units import GRAVITY
 
 
 def _stress_mean_at(depth, unit_wt, wt_depth=0.0, k0=0.5):
-    """Reference implementation of mean effective stress at `depth` [m],
-    matching LayerFactory's internal calculation, used to independently
-    verify velocity/stress wiring without relying on soil_type internals."""
+    """Reference implementation of mean effective stress at `depth` [m], matching
+    LayerFactory's internal calculation, used to independently verify velocity/stress
+    wiring without relying on soil_type internals."""
     stress_vert_total = depth * unit_wt
     pore_pressure = GRAVITY * max(depth - wt_depth, 0.0)
     stress_vert_eff = stress_vert_total - pore_pressure
     return (1 + 2 * k0) / 3 * stress_vert_eff
 
 
-def _integral_travel_times(layers, coef, power, param, wt_depth=0.0, k0=0.5, depth0=0.0):
-    """Reference travel times computed by directly integrating 1/velocity(z)
-    over each layer's exact depth range, independent of the layer's assigned
+def _integral_travel_times(
+    layers, coef, power, param, wt_depth=0.0, k0=0.5, depth0=0.0
+):
+    """Reference travel times computed by directly integrating 1/velocity(z) over each
+    layer's exact depth range, independent of the layer's assigned.
+
     (midpoint) shear_vel. Used to verify the partition boundaries themselves
     -- rather than the constant-velocity-per-layer approximation -- give
     equal travel time.
@@ -50,7 +52,9 @@ def _integral_travel_times(layers, coef, power, param, wt_depth=0.0, k0=0.5, dep
     times = []
     for layer in layers:
         unit_wt = layer.unit_wt
-        t, _ = quad(lambda z: 1.0 / velocity(z, unit_wt), depth, depth + layer.thickness)
+        t, _ = quad(
+            lambda z: 1.0 / velocity(z, unit_wt), depth, depth + layer.thickness
+        )
         times.append(t)
         depth += layer.thickness
     return times
@@ -173,14 +177,10 @@ def test_join_two_factories_into_profile():
     factory_1.add(10.0, 18.0, 300, 0.25, "depth", 4, darendeli_soil_type)
 
     factory_2 = LayerFactory(initial_depth=10.0)
-    factory_2.add(
-        15.0, 20.0, 150, 0.3, "depth", 4, menq_soil_type, {"coef_unif": 6}
-    )
+    factory_2.add(15.0, 20.0, 150, 0.3, "depth", 4, menq_soil_type, {"coef_unif": 6})
 
     combined = factory_1.layers + factory_2.layers
     profile = Profile(combined)
 
     assert len(profile) == 8
-    assert_allclose(
-        sum(layer.thickness for layer in profile), 25.0
-    )
+    assert_allclose(sum(layer.thickness for layer in profile), 25.0)

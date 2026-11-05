@@ -19,12 +19,15 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-"""Factories for generating :class:`pystrata.site.Layer` stacks from simple
-velocity-power-law models."""
+"""Factories for generating layers from simple velocity power-law models.
+
+The factories build stacks of :class:`pystrata.site.Layer`.
+"""
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import numpy as np
 from scipy.integrate import quad
@@ -44,8 +47,9 @@ def _modified_hyperbolic_curves(
     damping_min: float,
     strains: np.ndarray | None = None,
 ) -> tuple[ModulusReductionCurve, DampingCurve]:
-    """Modified hyperbolic modulus-reduction/damping curves (Darendeli, 2001
-    formulation), ported from the modulus-reduction/damping model previously
+    """Modified hyperbolic modulus-reduction and damping curves.
+
+    The formulation is that of Darendeli (2001), ported from the model previously
     provided by ``pystrata.site.ModifiedHyperbolicSoilType``.
     """
     if strains is None:
@@ -133,12 +137,16 @@ def darendeli_soil_type(
     ) / 100
     masing_scaling = 0.6329 - 0.00566 * np.log(num_cycles)
     strain_ref = (
-        (0.0352 + 0.0010 * plas_index * ocr**0.3246) * (stress_mean * KPA_TO_ATM) ** 0.3483
+        (0.0352 + 0.0010 * plas_index * ocr**0.3246)
+        * (stress_mean * KPA_TO_ATM) ** 0.3483
     ) / 100
     curvature = 0.9190
 
     if not name:
-        name = f"Darendeli (PI={plas_index:.0f}, OCR={ocr:.1f}, σₘ'={stress_mean:.1f} kN/m²)"
+        name = (
+            f"Darendeli (PI={plas_index:.0f}, OCR={ocr:.1f}, "
+            f"σₘ'={stress_mean:.1f} kN/m²)"
+        )
 
     mod_reduc, damping = _modified_hyperbolic_curves(
         name, strain_ref, curvature, masing_scaling, damping_min, strains
@@ -183,9 +191,7 @@ def menq_soil_type(
     ) / 100
     masing_scaling = 0.6329 - 0.00566 * np.log(num_cycles)
     strain_ref = (
-        0.12
-        * coef_unif**-0.6
-        * (stress_mean * KPA_TO_ATM) ** (0.5 * coef_unif**-0.15)
+        0.12 * coef_unif**-0.6 * (stress_mean * KPA_TO_ATM) ** (0.5 * coef_unif**-0.15)
     ) / 100
     curvature = 0.86 + 0.1 * np.log10(stress_mean * KPA_TO_ATM)
 
@@ -202,8 +208,7 @@ def menq_soil_type(
 
 
 class LayerFactory:
-    """Builds a series of :class:`~pystrata.site.Layer` from a power-law
-    velocity model.
+    """Builds a series of :class:`~pystrata.site.Layer` from a power-law velocity model.
 
     For each *span* added with :meth:`add`, the shear-wave velocity is
     modeled as ``coef * x ** power`` where ``x`` is either the depth or the
@@ -267,14 +272,19 @@ class LayerFactory:
 
     @property
     def depth(self) -> float:
-        """Current (running) depth [m] -- the depth at which the *next*
-        call to :meth:`add` will start."""
+        """Current (running) depth [m].
+
+        This is the depth at which the *next* call to :meth:`add` will start.
+        """
         return self._depth
 
     @property
     def stress_mean(self) -> float:
-        """Current (running) mean effective stress [kN/m²] -- the value at
-        the depth at which the *next* call to :meth:`add` will start."""
+        """Current (running) mean effective stress [kN/m²].
+
+        This is the value at the depth at which the *next* call to :meth:`add`
+        will start.
+        """
         return self._vert_eff_to_stress_mean(self._stress_vert_eff)
 
     def _stress_mean_to_vert_eff(self, stress_mean: float) -> float:
@@ -288,22 +298,22 @@ class LayerFactory:
         return GRAVITY * max(depth - self.wt_depth, 0.0)
 
     def _stress_vert_eff_at(self, unit_wt: float, offset: float) -> float:
-        """Vertical effective stress [kN/m²] at `offset` [m] below the
-        start of the span currently being built."""
+        """Vertical effective stress [kN/m²] at `offset` [m] below the span start.
+
+        The span is the one that is currently being built.
+        """
         depth = self._depth + offset
         stress_vert_total = (
-            self._stress_vert_eff
-            + self._pore_pressure(self._depth)
-            + offset * unit_wt
+            self._stress_vert_eff + self._pore_pressure(self._depth) + offset * unit_wt
         )
         return stress_vert_total - self._pore_pressure(depth)
 
     def _mean_eff_stress_at(self, unit_wt: float, offset: float) -> float:
-        """Mean effective stress [kN/m²] at `offset` [m] below the start of
-        the span currently being built."""
-        return self._vert_eff_to_stress_mean(
-            self._stress_vert_eff_at(unit_wt, offset)
-        )
+        """Mean effective stress [kN/m²] at `offset` [m] below the span start.
+
+        The span is the one that is currently being built.
+        """
+        return self._vert_eff_to_stress_mean(self._stress_vert_eff_at(unit_wt, offset))
 
     def _param_at(self, param: str, unit_wt: float, offset: float) -> float:
         if param == "depth":
@@ -327,8 +337,9 @@ class LayerFactory:
         soil_type: Callable[..., SoilType],
         soil_type_kwds: dict[str, Any] | None = None,
     ) -> list[Layer]:
-        """Add a span of `count` layers spanning `thickness`, with shear-wave
-        velocity following ``coef * x ** power``.
+        """Add a span of `count` layers spanning `thickness`.
+
+        The shear-wave velocity follows ``coef * x ** power``.
 
         Parameters
         ----------
@@ -400,7 +411,9 @@ class LayerFactory:
             shear_vel = velocity(mid)
             stress_mean_mid = self._mean_eff_stress_at(unit_wt, mid)
 
-            st = soil_type(unit_wt=unit_wt, stress_mean=stress_mean_mid, **soil_type_kwds)
+            st = soil_type(
+                unit_wt=unit_wt, stress_mean=stress_mean_mid, **soil_type_kwds
+            )
             layer = Layer(st, sub_thickness, shear_vel)
             new_layers.append(layer)
 
