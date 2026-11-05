@@ -1054,6 +1054,18 @@ wheels = [
 ]
 
 [[package]]
+name = "markdown-it-py"
+version = "4.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "mdurl" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/06/ff/7841249c247aa650a76b9ee4bbaeae59370dc8bfd2f6c01f3630c35eb134/markdown_it_py-4.2.0.tar.gz", hash = "sha256:04a21681d6fbb623de53f6f364d352309d4094dd4194040a10fd51833e418d49", size = 82454, upload-time = "2026-05-07T12:08:28.36Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b3/81/4da04ced5a082363ecfa159c010d200ecbd959ae410c10c0264a38cac0f5/markdown_it_py-4.2.0-py3-none-any.whl", hash = "sha256:9f7ebbcd14fe59494226453aed97c1070d83f8d24b6fc3a3bcf9a38092641c4a", size = 91687, upload-time = "2026-05-07T12:08:27.182Z" },
+]
+
+[[package]]
 name = "markupsafe"
 version = "3.0.4"
 source = { registry = "https://pypi.org/simple" }
@@ -1218,12 +1230,50 @@ wheels = [
 ]
 
 [[package]]
+name = "mdit-py-plugins"
+version = "0.6.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "markdown-it-py" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/59/fc/f8d0863f8862f25602c0404d75568e89fb6b4109804645e5cdfb1be5cf56/mdit_py_plugins-0.6.1.tar.gz", hash = "sha256:a2bca0f039f39dbd35fb74ae1b5f998608c437463371f0ff7f49a19a17a114d0", size = 56114, upload-time = "2026-05-13T09:03:38.91Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a5/69/6da5581c6a7fede7dc261bf4e67d6adca4196f176b43288b55b3db395b6e/mdit_py_plugins-0.6.1-py3-none-any.whl", hash = "sha256:214c82fb2ac524472ab6a5bcab1de80f73b50443e187f401bfd77efbc7c6481d", size = 66663, upload-time = "2026-05-13T09:03:37.76Z" },
+]
+
+[[package]]
+name = "mdurl"
+version = "0.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba", size = 8729, upload-time = "2022-08-14T12:40:10.846Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8", size = 9979, upload-time = "2022-08-14T12:40:09.779Z" },
+]
+
+[[package]]
 name = "mistune"
 version = "3.4.0"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/96/eb/749a4e69bf7396e751ae37444abe997eff2254e695a8095b84d1c89c1181/mistune-3.4.0.tar.gz", hash = "sha256:2eaf7952af928ca8d33b779762effc1da517b62c6ad85ec8ca957e3b07b9782a", size = 136772, upload-time = "2026-10-19T10:44:28.172Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2c/f7/021d590d52c1ac28e3290311776854c6a1c927fa3fb4b25ce74caf937a3d/mistune-3.4.0-py3-none-any.whl", hash = "sha256:d03cec4c8620f21517a996d82d14f3b59c30d79bda2cc6c56bd32b839f18ce6b", size = 70398, upload-time = "2026-10-19T10:44:26.751Z" },
+]
+
+[[package]]
+name = "myst-parser"
+version = "5.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "docutils" },
+    { name = "jinja2" },
+    { name = "markdown-it-py" },
+    { name = "mdit-py-plugins" },
+    { name = "pyyaml" },
+    { name = "sphinx" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/21/dc/603751677fff302f34396e206b610f556a59d7fe58b9a2145f54e96b48e8/myst_parser-5.1.0.tar.gz", hash = "sha256:ab69322dc6719dcc7f296479dbb70181b66df6ed315064f92dbc85c0e1bf2f02", size = 101182, upload-time = "2026-05-13T09:38:19.361Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/09/dc/f3dfb7488b770f3f67e6545085bf2abea5172e88f57b8ad25ef860ca704c/myst_parser-5.1.0-py3-none-any.whl", hash = "sha256:9c91c52b3cdb4d94a6506e4fab4e2f296c7623a0da0dcbe6de1565c3dad67a8a", size = 85817, upload-time = "2026-05-13T09:38:17.904Z" },
 ]
 
 [[package]]
@@ -1756,19 +1806,6 @@ wheels = [
 ]
 
 [[package]]
-name = "pyexcel-xlsx"
-version = "0.6.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "openpyxl" },
-    { name = "pyexcel-io" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/b0/a2/f54dd1f3c57c8a7fc7ac40bf96688f5725fd33becf104f1468ef284ffb4c/pyexcel_xlsx-0.6.1.tar.gz", hash = "sha256:80b7985d394b73abf5c52212027bbbc0c7f6090192bcbc76403f8672d74c7960", size = 77429, upload-time = "2025-03-05T07:35:42.341Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/13/c6/d4f75ee10e7a9eee804c301bc369918bb33bbbeec17ddcd4d0225543ea83/pyexcel_xlsx-0.6.1-py2.py3-none-any.whl", hash = "sha256:c17d8c90ae6c2ae5672e469e6afe4336597e4ff479e5a93ba846ae46b7b80769", size = 9501, upload-time = "2025-03-05T07:35:39.919Z" },
-]
-
-[[package]]
 name = "pygments"
 version = "2.21.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1779,17 +1816,18 @@ wheels = [
 
 [[package]]
 name = "pygmm"
-version = "0.8.0"
+version = "0.9.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "matplotlib" },
     { name = "numpy" },
     { name = "pandas" },
+    { name = "pint" },
     { name = "scipy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/12/c1/05e59a0676b0caad91851243174e6819808d07db59ff1b624778b63f2fd8/pygmm-0.8.0.tar.gz", hash = "sha256:30443281c3e8c4c0af475dc4f2da5b2278315620c08cca8e8491bcba6e152ecc", size = 1250244, upload-time = "2025-07-25T16:42:41.504Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2a/fd/58fbe9102d91ff6ca840ae86b7f22ef8eca88e0998361f61f4e3ebdf017a/pygmm-0.9.0.tar.gz", hash = "sha256:90afe5b32f57ae4960c80554dd79f476b9657376c35a6cf8009967fae240776d", size = 4712574, upload-time = "2026-11-05T19:06:57.426Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c5/7b/3e529b98418287efece28f03e18f7872fa549bb27ef60305f21e78107a6f/pygmm-0.8.0-py3-none-any.whl", hash = "sha256:76e55e7bd7d4a33c98cf7254bdc4661aecdaf8332829b77fbde32e347c3ede90", size = 161169, upload-time = "2025-07-25T16:42:37.992Z" },
+    { url = "https://files.pythonhosted.org/packages/28/18/e426ac58c6e21fc90a6a595e101a2cf1ee81f7eb342d49bbedc48a96caa2/pygmm-0.9.0-py3-none-any.whl", hash = "sha256:0853a2bcd1e7ff2a2a6eb06a04a8a50b43229eeb40e391dfaa8c69aa2c8f03aa", size = 1916322, upload-time = "2026-11-05T19:06:54.94Z" },
 ]
 
 [[package]]
@@ -1816,19 +1854,16 @@ wheels = [
 
 [[package]]
 name = "pyrvt"
-version = "0.8.1"
+version = "0.9.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numba" },
     { name = "numpy" },
-    { name = "pyexcel" },
-    { name = "pyexcel-io" },
-    { name = "pyexcel-xlsx" },
     { name = "scipy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/08/18/b341b6063cbdbdd330a53e71e0c712e4592e586464d8c4ac85d99cb946ec/pyrvt-0.8.1.tar.gz", hash = "sha256:b0b02b153ad7a7dce7f0f7ec17904466de9a15257db4af7b05f220c9383aa2d4", size = 1204299, upload-time = "2025-07-25T17:46:01.914Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9f/2b/ef2509a8c84b20ae8ce1eba31ab952f21c708d79d51abf879efa4306e985/pyrvt-0.9.0.tar.gz", hash = "sha256:20a92f2015e93b16042ffcdd793f1464f4a24dc3a3bfd42d4137bb2abeb3368f", size = 1206051, upload-time = "2026-11-05T19:10:23.272Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/19/08/fc9cb3ac69f954ee64c041b680f45d707537d354d4eb5781d122a53b59df/pyrvt-0.8.1-py3-none-any.whl", hash = "sha256:0d4eec9ec18517ff14ecad8eaa79e1e9950455b0a8883552317ff58e3d540204", size = 51547, upload-time = "2025-07-25T17:46:00.256Z" },
+    { url = "https://files.pythonhosted.org/packages/40/2a/ee44835b085c550944891045b323c76af5c0770a209d48508b75d90a04ab/pyrvt-0.9.0-py3-none-any.whl", hash = "sha256:4a0d169342f7792b0c66e2cb6f491d7d30205b306f751520d82f581d29c52bd6", size = 46538, upload-time = "2026-11-05T19:10:21.844Z" },
 ]
 
 [[package]]
@@ -1853,13 +1888,14 @@ dispersion = [
 docs = [
     { name = "docutils" },
     { name = "furo" },
+    { name = "ipykernel" },
     { name = "matplotlib" },
+    { name = "myst-parser" },
     { name = "nbsphinx" },
     { name = "nbsphinx-link" },
     { name = "sphinx" },
     { name = "sphinx-autobuild" },
     { name = "sphinx-design" },
-    { name = "sphinx-rtd-theme" },
     { name = "sphinxcontrib-bibtex" },
 ]
 style = [
@@ -1896,13 +1932,7 @@ dev = [
     { name = "setuptools-scm" },
 ]
 docs = [
-    { name = "furo" },
-    { name = "ipykernel" },
-    { name = "nbsphinx" },
-    { name = "nbsphinx-link" },
-    { name = "sphinx-design" },
-    { name = "sphinx-rtd-theme" },
-    { name = "sphinxcontrib-bibtex" },
+    { name = "pystrata", extra = ["docs"] },
 ]
 
 [package.metadata]
@@ -1911,9 +1941,11 @@ requires-dist = [
     { name = "disba", marker = "extra == 'dispersion'" },
     { name = "docutils", marker = "extra == 'docs'", specifier = "<0.22" },
     { name = "furo", marker = "extra == 'docs'" },
+    { name = "ipykernel", marker = "extra == 'docs'" },
     { name = "matplotlib", specifier = ">=3.10" },
     { name = "matplotlib", marker = "extra == 'docs'" },
     { name = "matplotlib", marker = "extra == 'test'" },
+    { name = "myst-parser", marker = "extra == 'docs'" },
     { name = "nbconvert", marker = "extra == 'test'" },
     { name = "nbformat", marker = "extra == 'test'" },
     { name = "nbsphinx", marker = "extra == 'docs'", specifier = ">=0.9.7" },
@@ -1925,10 +1957,10 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.2" },
     { name = "pint", specifier = ">=0.25" },
     { name = "pyexcel", marker = "extra == 'test'" },
-    { name = "pygmm", marker = "extra == 'test'" },
+    { name = "pygmm", marker = "extra == 'test'", specifier = ">=0.9" },
     { name = "pykooh", specifier = ">=0.5" },
     { name = "pykooh", marker = "extra == 'test'" },
-    { name = "pyrvt", specifier = ">=0.8" },
+    { name = "pyrvt", specifier = ">=0.9" },
     { name = "pytest", marker = "extra == 'test'" },
     { name = "pytest-cov", marker = "extra == 'test'" },
     { name = "ruff", marker = "extra == 'style'" },
@@ -1936,7 +1968,6 @@ requires-dist = [
     { name = "sphinx", marker = "extra == 'docs'", specifier = ">=8.0" },
     { name = "sphinx-autobuild", marker = "extra == 'docs'", specifier = ">=2024.9.3" },
     { name = "sphinx-design", marker = "extra == 'docs'" },
-    { name = "sphinx-rtd-theme", marker = "extra == 'docs'", specifier = ">=3.0.2" },
     { name = "sphinxcontrib-bibtex", marker = "extra == 'docs'", specifier = ">=2.6.5" },
     { name = "xarray", specifier = ">=2024.11" },
 ]
@@ -1951,22 +1982,14 @@ dev = [
     { name = "pandas" },
     { name = "pre-commit" },
     { name = "pyexcel" },
-    { name = "pygmm" },
+    { name = "pygmm", specifier = ">=0.9" },
     { name = "pytest", specifier = ">=3.5" },
     { name = "pytest-cov" },
     { name = "pytest-runner" },
     { name = "ruff" },
     { name = "setuptools-scm", specifier = ">=8" },
 ]
-docs = [
-    { name = "furo" },
-    { name = "ipykernel" },
-    { name = "nbsphinx", specifier = ">=0.9.7" },
-    { name = "nbsphinx-link" },
-    { name = "sphinx-design" },
-    { name = "sphinx-rtd-theme", specifier = ">=3.0.2" },
-    { name = "sphinxcontrib-bibtex", specifier = ">=2.6.5" },
-]
+docs = [{ name = "pystrata", extras = ["docs"] }]
 
 [[package]]
 name = "pytest"
@@ -2430,20 +2453,6 @@ wheels = [
 ]
 
 [[package]]
-name = "sphinx-rtd-theme"
-version = "3.1.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "docutils" },
-    { name = "sphinx" },
-    { name = "sphinxcontrib-jquery" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/84/68/a1bfbf38c0f7bccc9b10bbf76b94606f64acb1552ae394f0b8285bfaea25/sphinx_rtd_theme-3.1.0.tar.gz", hash = "sha256:b44276f2c276e909239a4f6c955aa667aaafeb78597923b1c60babc76db78e4c", size = 7620915, upload-time = "2026-01-12T16:03:31.17Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/87/c7/b5c8015d823bfda1a346adb2c634a2101d50bb75d421eb6dcb31acd25ebc/sphinx_rtd_theme-3.1.0-py2.py3-none-any.whl", hash = "sha256:1785824ae8e6632060490f67cf3a72d404a85d2d9fc26bce3619944de5682b89", size = 7655617, upload-time = "2026-01-12T16:03:28.101Z" },
-]
-
-[[package]]
 name = "sphinxcontrib-applehelp"
 version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2483,18 +2492,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/43/93/983afd9aa001e5201eab16b5a444ed5b9b0a7a010541e0ddfbbfd0b2470c/sphinxcontrib_htmlhelp-2.1.0.tar.gz", hash = "sha256:c9e2916ace8aad64cc13a0d233ee22317f2b9025b9cf3295249fa985cc7082e9", size = 22617, upload-time = "2024-07-29T01:09:37.889Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/0a/7b/18a8c0bcec9182c05a0b3ec2a776bba4ead82750a55ff798e8d406dae604/sphinxcontrib_htmlhelp-2.1.0-py3-none-any.whl", hash = "sha256:166759820b47002d22914d64a075ce08f4c46818e17cfc9470a9786b759b19f8", size = 98705, upload-time = "2024-07-29T01:09:36.407Z" },
-]
-
-[[package]]
-name = "sphinxcontrib-jquery"
-version = "4.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "sphinx" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/de/f3/aa67467e051df70a6330fe7770894b3e4f09436dea6881ae0b4f3d87cad8/sphinxcontrib-jquery-4.1.tar.gz", hash = "sha256:1620739f04e36a2c779f1a131a2dfd49b2fd07351bf1968ced074365933abc7a", size = 122331, upload-time = "2023-03-14T15:01:01.944Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/76/85/749bd22d1a68db7291c89e2ebca53f4306c3f205853cf31e9de279034c3c/sphinxcontrib_jquery-4.1-py2.py3-none-any.whl", hash = "sha256:f936030d7d0147dd026a4f2b5a57343d233f1fc7b363f68b3d4f1cb0993878ae", size = 121104, upload-time = "2023-03-14T15:01:00.356Z" },
 ]
 
 [[package]]

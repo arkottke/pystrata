@@ -20,13 +20,7 @@ dependencies = [
     "pandas>=2.2",
     "pint>=0.25",
     "pykooh>=0.5",
-    # NOTE: the code actually requires the *unreleased* pyrvt 0.9.0 --
-    # `motion.py` calls `calc_pgv`/`calc_pga`/`calc_arias_intensity`/`calc_cav`
-    # on `pyrvt.motions.RvtMotion`, which 0.8.0 does not define. The bound
-    # stays at 0.8 only because `uv lock` cannot resolve a version that is not
-    # yet on PyPI. Raise this to >=0.9 as soon as pyrvt 0.9.0 is published;
-    # until then pystrata's CI cannot pass against a PyPI pyrvt.
-    "pyrvt>=0.8",
+    "pyrvt>=0.9",
     "scipy>=1.15",
     "xarray>=2024.11",
 ]
@@ -48,8 +42,8 @@ dependencies = [
 #   2027-08-15  pint >=0.26       (0.25 released 2025-08-15)
 #   2027-10-07  drop Python 3.13  -> requires-python >=3.14
 #
-# pyrvt >=0.9 is required by the code today; see the note on the dependency
-# itself. It is an API requirement, not a SPEC 0 schedule item.
+# pyrvt >=0.9 is an API requirement (`RvtMotion.calc_pgv`, `calc_pga`,
+# `calc_arias_intensity`, `calc_cav`), not a SPEC 0 schedule item.
 # ---------------------------------------------------------------------------
 
 [project.urls]
@@ -63,8 +57,8 @@ test = [
     "coverage[toml]",
     "nbformat",
     "nbconvert",
-    # Likewise needs the unreleased pygmm 0.9.0 for `pygmm.fourier_spectrum`.
-    "pygmm",
+    # pygmm >=0.9 provides `pygmm.fourier_spectrum`.
+    "pygmm>=0.9",
     "pytest",
     "pytest-cov",
     "openpyxl",
@@ -154,7 +148,7 @@ dev = [
     "coverage[toml]",
     "nbformat",
     "nbconvert",
-    "pygmm",
+    "pygmm>=0.9",
     # Code quality
     "ruff",
     # Run by the linter workflow via `uv run pre-commit run --all-files`
