@@ -4,6 +4,8 @@
 [![Python](https://img.shields.io/python/required-version-toml?tomlFilePath=https://raw.githubusercontent.com/arkottke/pystrata/main/pyproject.toml)](https://pypi.org/project/pystrata/)
 [![Documentation](https://readthedocs.org/projects/pystrata/badge/?version=latest)](https://pystrata.readthedocs.io/?badge=latest)
 [![Build Status](https://github.com/arkottke/pystrata/actions/workflows/python-app.yml/badge.svg)](https://github.com/arkottke/pystrata/actions/workflows/python-app.yml)
+[![Code Quality](https://api.codacy.com/project/badge/Grade/6dbbb3a4279744d697b9bfe08af19ded)](https://app.codacy.com/gh/arkottke/pystrata/dashboard)
+[![Test Coverage](https://api.codacy.com/project/badge/Coverage/6dbbb3a4279744d697b9bfe08af19ded)](https://app.codacy.com/gh/arkottke/pystrata/dashboard)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/arkottke/pystrata/blob/main/LICENSE)
 [![DOI](https://zenodo.org/badge/8959678.svg)](https://zenodo.org/badge/latestdoi/8959678)
 
