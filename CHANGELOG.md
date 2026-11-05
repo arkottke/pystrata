@@ -2,6 +2,14 @@
 
 ## 0.6.0 (unreleased)
 
+- Added: canyon (3D) effects for dams. `Dam(..., canyon=RectangularCanyon(length))`
+  confines the dam between rigid abutments that move with the outcrop motion. The
+  calculators give the response at a position `x` along the canyon (`canyon_x`, or the
+  `x` argument of `DamProfile.transfer_function`), the site is independent 1D columns
+  coupled by a Robin condition at the base, equivalent-linear strains include the
+  longitudinal strain, and the sliding mass transfer function is averaged over the
+  canyon. Closed forms for a dam on a rigid base: `canyon_rect_natural_freqs`,
+  `canyon_freq_ratio` and `canyon_rect_rigid_base_tf`.
 - Added: `KappaCorrectedCalculator` wraps a calculator and corrects the site
   attenuation (kappa) of the computed motions to a target: it reads the kappa of the
   input motion, runs the calculation and corrects the transfer function of each

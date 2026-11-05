@@ -34,13 +34,19 @@ class RectangularCanyon:
     ----------
     length : float
         Length of the canyon along the axis of the dam [m].
+    n_modes : int, default=25
+        Number of odd longitudinal modes in the series of the response. Use more
+        than :math:`2 f L / V_s` to resolve the response near the abutments.
     """
 
     length: float
+    n_modes: int = 25
 
     def __post_init__(self):
         if not self.length > 0:
             raise ValueError("The canyon length must be positive.")
+        if self.n_modes < 1:
+            raise ValueError("At least one mode is required.")
 
 
 def canyon_rect_natural_freqs(
