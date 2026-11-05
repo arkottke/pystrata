@@ -40,9 +40,6 @@ Install pyStrata with pip:
 
    $ python -m pip install pyStrata
 
-Table of Contents
------------------
-
 .. toctree::
    :maxdepth: 2
    :caption: Getting Started
