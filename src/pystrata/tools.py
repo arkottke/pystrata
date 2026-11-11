@@ -33,6 +33,10 @@ import pandas as pd
 from . import motion, propagation, site
 from .units import GRAVITY, convert_units
 
+# SHAKE91 English units: unit weight in kips/ft^3 (kcf), lengths in ft
+FT_TO_M = 0.3048
+KCF_TO_KN_M3 = 157.08746
+
 
 def to_str(s):
     """Parse a string and strip the extra characters."""
@@ -76,12 +80,14 @@ def _parse_curves(block, **kwargs):
     for _ in range(count):
         for param in ["mod_reduc", "damping"]:
             length, name = parse_fixed_width([(5, int), (65, to_str)], block)
-            strains = parse_fixed_width(length * [(10, float)], block)
-            values = parse_fixed_width(length * [(10, float)], block)
+            # SHAKE91 tabulates the strain and the damping in percent, and the
+            # modulus reduction as a ratio
+            strains = np.array(parse_fixed_width(length * [(10, float)], block)) / 100
+            values = np.array(parse_fixed_width(length * [(10, float)], block))
             if param == "mod_reduc":
                 curves.append(site.ModulusReductionCurve(name, strains, values))
             else:
-                curves.append(site.DampingCurve(name, strains, values))
+                curves.append(site.DampingCurve(name, strains, values / 100))
 
     length = int(block[0][:5])
     soil_types = parse_fixed_width((length + 1) * [(5, int)], block)[1:]
@@ -95,6 +101,12 @@ def _parse_soil_profile(block, units, curves, **kwargs):
     wt_layer, length, _, name = parse_fixed_width(
         3 * [(5, int)] + [(55, to_str)], block
     )
+
+    if units.strip().lower() == "english":
+        # Convert from English to metric before the layers are created
+        length_factor, unit_wt_factor = FT_TO_M, KCF_TO_KN_M3
+    else:
+        length_factor, unit_wt_factor = 1.0, 1.0
 
     layers = []
     soil_types = []
@@ -110,10 +122,12 @@ def _parse_soil_profile(block, units, curves, **kwargs):
         ) = parse_fixed_width(
             [(5, int), (5, int), (15, to_float)] + 4 * [(10, to_float)], block
         )
+        # The half-space may have a blank thickness
+        thickness = 0.0 if np.isnan(thickness) else thickness
 
         st = site.SoilType(
             soil_idx,
-            unit_wt,
+            unit_wt * unit_wt_factor,
             curves[(soil_idx, "mod_reduc")],
             curves[(soil_idx, "damping")],
         )
@@ -123,16 +137,9 @@ def _parse_soil_profile(block, units, curves, **kwargs):
         except ValueError:
             soil_types.append(st)
 
-        layers.append(site.Layer(st, thickness, shear_vel))
-
-    if units == "english":
-        # Convert from English to metric
-        for st in soil_types:
-            st.unit_wt *= 0.00015708746
-
-        for layer in layers:
-            layer.thickness *= 0.3048
-            layer.shear_vel *= 0.3048
+        layers.append(
+            site.Layer(st, thickness * length_factor, shear_vel * length_factor)
+        )
 
     p = site.Profile(layers)
     p.update_layers()
@@ -160,7 +167,9 @@ def _parse_motion(block, **kwargs):
         fname,
         delimiter=(count_per_line * [width]),
         skip_header=header_lines,
-    )
+    ).ravel()
+    # A short last line is padded with NaN
+    accels = accels[: np.flatnonzero(np.isfinite(accels))[-1] + 1]
 
     if np.isfinite(scale):
         pass
@@ -185,27 +194,30 @@ def _parse_input_loc(block, profile, **kwargs):
     )
 
 
-def _parse_run_control(block):
+def _parse_run_control(block, **kwargs):
     """Parse run control block."""
     _, max_iterations, strain_ratio, _, _ = parse_fixed_width(
         2 * [(5, int)] + [(10, float)] + 2 * [(5, int)], block
     )
 
-    return propagation.EquivalentLinearCalculation(
-        strain_ratio, max_iterations, tolerance=10.0
+    return propagation.EquivalentLinearCalculator(
+        strain_ratio=strain_ratio, max_iterations=max_iterations
     )
 
 
-def _parse_output_accel(block):
-    raise NotImplementedError
+def _parse_output_accel(block, **kwargs):
+    """Skip the acceleration output block, which is not supported."""
+    return None
 
 
-def _parse_output_stress(block):
-    raise NotImplementedError
+def _parse_output_stress(block, **kwargs):
+    """Skip the stress output block, which is not supported."""
+    return None
 
 
-def _parse_output_spectra(block):
-    raise NotImplementedError
+def _parse_output_spectra(block, **kwargs):
+    """Skip the spectra output block, which is not supported."""
+    return None
 
 
 def load_shake_inp(fname):
@@ -233,6 +245,10 @@ def load_shake_inp(fname):
                 option = int(m.group(1))
         else:
             block.append(line)
+
+    if option and block:
+        # Save the last block, which is not followed by another option
+        options.append((option, block))
 
     parsers = {
         1: ("curves", _parse_curves),

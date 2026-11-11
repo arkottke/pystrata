@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Fixed: `tools.load_shake_inp` could not load a complete SHAKE input file. It now
+  builds an `EquivalentLinearCalculator` (the class it referenced did not exist),
+  converts English units before creating the layers (unit weight in kcf, lengths in
+  ft), reads the strains and damping of the curves as percent, skips the unsupported
+  output options 6, 7 and 9 (`"output"` is `None`) instead of raising, keeps the last
+  option block, flattens the acceleration file, and treats a blank half-space
+  thickness as zero.
 - Fixed: `AriasIntensityTSOutput` was one sample shorter than the acceleration series and
   every value was labelled one time step early. It now starts at zero and has the same
   length and times as `AccelerationTSOutput`; the final value is unchanged.
