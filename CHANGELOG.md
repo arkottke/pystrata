@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Fixed: `QuarterWaveLenCalculator(method="ba23")` returned NaN amplification at
+  frequencies well below the fitted range, because the exponent raised a negative base
+  to a fractional power. The exponent is now clamped to zero there (an amplification
+  of 1). This extrapolation below the fitted range is a modeling choice to confirm;
+  values in and above the range are unchanged.
 - Fixed: `NonlinearCurve` swapped the values returned outside the tabulated range for
   curves whose strains are in decreasing order, and evaluated every column of a
   frequency-dependent curve at the first strain of a strain vector. Columns now use

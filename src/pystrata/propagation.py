@@ -542,7 +542,9 @@ class QuarterWaveLenCalculator(AbstractCalculator):
         ----------
         x : float or array_like
             Base 10 logarithm of the frequency over the lowest frequency of the
-            method.
+            method. Values below the lower end of the fitted range
+            (:math:`x < b`) are treated as at the lower end, where the
+            exponent is zero.
 
         Returns
         -------
@@ -559,7 +561,10 @@ class QuarterWaveLenCalculator(AbstractCalculator):
         p = 3.000
         q = 0.333
 
-        fact = (x - b) / s
+        # Below the lower end of the fitted range the base of the fractional power
+        # is negative and the exponent is NaN. Clamp so that eta = 0 there, which
+        # is the limit approached from above (an amplification of 1).
+        fact = np.maximum((x - b) / s, 0.0)
 
         eta = (a * fact**d) / ((1 - fact**e) ** g + h * fact**p) ** q
 

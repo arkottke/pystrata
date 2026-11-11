@@ -829,3 +829,86 @@ def test_fdm_locked_values(method):
     expected_strain, expected_pga = FDM_LOCKED[method]
     assert strain_max == pytest.approx(expected_strain, rel=1e-6)
     assert pga == pytest.approx(expected_pga, rel=1e-6)
+
+
+def _qwl_profile():
+    soil = pystrata.site.SoilType("s", 18.0, None, 0.02)
+    profile = pystrata.site.Profile(
+        [pystrata.site.Layer(soil, 30, 600), pystrata.site.Layer(soil, 0, 2000)]
+    )
+    profile.update_layers()
+    return profile
+
+
+def _qwl_ba23(freqs):
+    profile = _qwl_profile()
+    calc = pystrata.propagation.QuarterWaveLenCalculator(method="ba23")
+    calc(
+        pystrata.motion.Motion(freqs=freqs),
+        profile,
+        profile.location("outcrop", index=-1),
+    )
+    return calc
+
+
+def test_qwl_ba23_finite_below_fitted_range():
+    """The exponent is NaN below the fitted range unless it is clamped."""
+    freqs = np.array([0.001, 0.005, 0.01, 0.1, 1, 5, 10, 50])
+    amp = _qwl_ba23(freqs).crustal_amp
+    assert np.all(np.isfinite(amp))
+    np.testing.assert_allclose(amp[:3], 1.0, atol=1e-3)
+
+
+def test_qwl_ba23_locked_values():
+    # Values from the code at the commit that added this test; they are unchanged
+    # by the clamp, which only affects frequencies below the fitted range.
+    amp = _qwl_ba23(np.array([1.0, 5.0, 10.0, 50.0])).crustal_amp
+    np.testing.assert_allclose(
+        amp, [1.0028668, 1.71492655, 2.29535627, 2.00770762], rtol=1e-6
+    )
+
+
+def _qwl_fit_setup(site_atten=None):
+    profile = pystrata.site.Profile()
+    soil = pystrata.site.SoilType("s", 18.0, None, 0.02)
+    for vs, thick in [(300, 10), (500, 20), (800, 50)]:
+        profile.append(pystrata.site.Layer(soil, thick, vs))
+    # Nonzero half-space thickness: ``fit`` divides by the thickness when it adjusts it
+    profile.append(pystrata.site.Layer(pystrata.site.SoilType("r", 22.0), 100, 2500))
+    profile.update_layers()
+
+    freqs = np.logspace(-1, 1.5, 30)
+    calc = pystrata.propagation.QuarterWaveLenCalculator(site_atten=site_atten)
+    calc(
+        pystrata.motion.Motion(freqs=freqs),
+        profile,
+        profile.location("outcrop", index=-1),
+    )
+    return calc
+
+
+def _misfit(target, calc_values):
+    return np.mean(((target - calc_values) / target) ** 2)
+
+
+# Note: ``fit`` returns None although its docstring promises a profile; it updates
+# ``calc.profile`` and the calculated amplification in place.
+@pytest.mark.parametrize(
+    "target_type,site_atten,kwds",
+    [
+        ("crustal_amp", None, {"adjust_thickness": True}),
+        ("site_term", 0.03, {"adjust_site_atten": True}),
+        ("crustal_amp", None, {"adjust_source_vel": True}),
+    ],
+)
+def test_qwl_fit_options(target_type, site_atten, kwds):
+    calc = _qwl_fit_setup(site_atten)
+    target = 1.1 * getattr(calc, target_type)
+    before = _misfit(target, getattr(calc, target_type))
+    count = len(calc.profile)
+
+    assert calc.fit(target_type, target, **kwds) is None
+
+    after = _misfit(target, getattr(calc, target_type))
+    assert after <= before
+    assert len(calc.profile) == count
