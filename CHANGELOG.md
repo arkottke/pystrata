@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fixed: `FrequencyDependentEqlCalculator` ran the `zr15` method for any unknown
+  `method`, including the documented but unimplemented `tan_avg`. Unknown methods now
+  raise `ValueError`. The docstring no longer lists `tan_avg` and gives the real
+  `strain_ratio` default (0.65).
 - Fixed: `Profile.vs30()` ignored the travel time through the half-space when it
   starts above 30 m, overestimating Vs30 (600 instead of 428.6 m/s for 10 m at
   200 m/s over a 1000 m/s half-space). Profiles with soil to 30 m or deeper are

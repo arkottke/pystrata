@@ -1256,13 +1256,11 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
           spectrum.
         - ``zr15``: use the approach of :cite:t:`ZalachorisRathje2015` for the
           strain spectrum.
-        - ``tan_avg``: loop-averaged tangent strain. Requires the
-          `strain_reduc` parameter.
         - ``ko:##``: use Konno-Ohmachi smoothing with a bandwidth of ## to
           compute the smooth spectrum. The strain is then computed as a running
           maximum from high to low frequencies. A value of 20 or 30 is
           recommended based on limited studies.
-    strain_ratio: float, default=1.00
+    strain_ratio: float, default=0.65
         ratio between the maximum strain and effective strain used to compute
         strain compatible properties. There is not clear guidance the use of
         the effective strain ratio. For the `ka02` the recommended value is
@@ -1305,9 +1303,25 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
             inhomogeneity=inhomogeneity,
         )
 
+        self._validate_method(method)
         self._method = method
         self._smoother = None
         self._freq_shift = freq_shift
+
+    @staticmethod
+    def _validate_method(method: str) -> None:
+        """Raise a ValueError if the strain spectrum method is not supported."""
+        valid = f"'ka02', 'zr15', or 'ko:<bandwidth>' (got {method!r})"
+        if method in ("ka02", "zr15"):
+            return
+        if isinstance(method, str) and method.startswith("ko:"):
+            try:
+                bandwidth = float(method[3:])
+            except ValueError:
+                bandwidth = None
+            if bandwidth is not None and bandwidth > 0:
+                return
+        raise ValueError(f"Invalid method; must be {valid}")
 
     @property
     def name(self):
@@ -1386,8 +1400,10 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
             strains = strain_eff * strain_fas_sm / np.max(strain_fas_sm)
 
             strains[::-1] = np.maximum.accumulate(strains[::-1])
-        else:
+        elif self._method == "zr15":
             strains = strain_eff * strain_fas / np.max(strain_fas)
+        else:
+            raise NotImplementedError(self._method)
 
         # Evaluate the monotone-decreasing shape at f/η via interpolation.
         if self._freq_shift != 1:
