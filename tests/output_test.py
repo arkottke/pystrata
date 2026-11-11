@@ -636,3 +636,43 @@ def test_arias_intensity_ts_output():
         calc.calc_accel_tf(calc.loc_input, calc.profile.location("outcrop", index=0))
     )
     assert values[-1] == pytest.approx(expected, rel=1e-9)
+
+
+@pytest.fixture
+def agg_backend():
+    """Draw without a display and close the figures afterwards."""
+    import matplotlib.pyplot as plt
+
+    previous = plt.get_backend()
+    plt.switch_backend("Agg")
+    yield plt
+    plt.close("all")
+    plt.switch_backend(previous)
+
+
+@pytest.mark.parametrize("metric", ["accel_tf", "site_amp"])
+def test_plot_amplification_evolv(metric, calc, profile, agg_backend):
+    freqs = np.logspace(-1, 1, 20)
+    ax = output.plot_amplification_evolv(calc, metric=metric, freqs=freqs)
+
+    # Depth increases downward from the surface to the top of the half-space
+    assert ax.get_ylim() == (profile[-1].depth, 0)
+
+    # The oscillator damping is not passed on to pcolormesh
+    ax = output.plot_amplification_evolv(
+        calc, metric=metric, freqs=freqs, osc_damping=0.1
+    )
+    assert ax.get_ylim() == (profile[-1].depth, 0)
+
+
+def test_plot_amplification_evolv_osc_damping_changes_site_amp(calc, agg_backend):
+    freqs = np.logspace(-1, 1, 20)
+    depths = np.linspace(0, 20, 4)
+
+    def mesh(damping):
+        ax = output.plot_amplification_evolv(
+            calc, metric="site_amp", freqs=freqs, depths=depths, osc_damping=damping
+        )
+        return ax.collections[0].get_array()
+
+    assert not np.allclose(mesh(0.05), mesh(0.30))

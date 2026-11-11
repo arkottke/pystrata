@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fixed: `plot_amplification_evolv` set the depth limits to `(0, 0)` for the default
+  depths, which showed an empty plot, and passed `osc_damping` on to `pcolormesh`,
+  which rejected it.
 - Fixed: wrong unit labels. `FourierAmplitudeSpectrumOutput` is in g-s, not cm/s, and the
   `Layer`/`Profile` density, which is in Mg/m³ (g/cm³), was labelled kg/m³.
   `Profile.calc_dispersion` divided that density by 1000 a second time; phase and group

@@ -58,6 +58,9 @@ def plot_amplification_evolv(
     **kwds,
 ):
     """Plot the evolution of the amplification with depth, against frequency."""
+    # Not a plotting keyword, so remove it before it reaches pcolormesh
+    osc_damping = kwds.pop("osc_damping", 0.05)
+
     # Default plotting kwds. Combine both set of plot keywords and prefer the provided
     kwds = {
         "cmap": "RdBu" if diverging_cmap else "magma_r",
@@ -67,8 +70,6 @@ def plot_amplification_evolv(
 
     if freqs is None:
         freqs = np.logspace(-1, 2, num=301)
-
-    osc_damping = 0.05 if "osc_damping" not in kwds else kwds["osc_damping"]
 
     ln_freqs = np.log(freqs)
     ln_freqs_mot = np.log(calc.motion.freqs)
@@ -115,7 +116,7 @@ def plot_amplification_evolv(
         xscale="log",
         ylabel="Depth (m)",
         yscale="linear",
-        ylim=(depths[0], 0),
+        ylim=(np.max(depths), 0),
     )
 
     return ax
