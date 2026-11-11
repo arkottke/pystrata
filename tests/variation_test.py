@@ -143,6 +143,61 @@ def test_velocity_variation_realized_std(mode, expected_std):
         assert_allclose(np.abs(ln_vel - np.log(300.0)).max() / ln_std, limit)
 
 
+def _uniform_profile(count, thickness, vel=300.0):
+    soil = site.SoilType("S", 18.0, None, 0.02)
+    layers = [site.Layer(soil, thickness, vel) for _ in range(count)]
+    return site.Profile(layers + [site.Layer(soil, 0, 1000.0)])
+
+
+@pytest.mark.parametrize(
+    "model,count,thickness", [("USGS C", 20, 2.0), ("Geomatrix AB", 30, 1.0)]
+)
+def test_velocity_variation_multi_layer_correlation(model, count, thickness):
+    """Toro's model is first-order autoregressive: corr(i, j) = prod(rho)."""
+    profile = _uniform_profile(count, thickness)
+    var = variation.ToroVelocityVariation.generic_model(model, limit_mode="normal")
+
+    # The covariance must be a valid (positive semi-definite) matrix
+    covar = var._calc_covar_matrix(profile)
+    assert np.linalg.eigvalsh(covar).min() > -1e-10 * np.linalg.eigvalsh(covar).max()
+
+    rng = np.random.default_rng(1)
+    ln_vel = np.log(
+        [
+            [layer.initial_shear_vel for layer in var(profile, rng=rng)[:-1]]
+            for _ in range(4000)
+        ]
+    )
+
+    # Standard deviation of each soil layer
+    assert_allclose(ln_vel.std(axis=0), var.ln_std, rtol=0.05)
+
+    rho = var._calc_corr(profile)
+    corr = np.corrcoef(ln_vel.T)
+    lag1 = np.diagonal(corr, 1)
+    lag2 = np.diagonal(corr, 2)
+    # rho[i] links layer i to i+1; the last entry links the last soil layer to
+    # the half-space, which is not part of the realizations
+    assert_allclose(lag1.mean(), rho[:-1].mean(), atol=0.03)
+    assert_allclose(lag2.mean(), (rho[:-2] * rho[1:-1]).mean(), atol=0.04)
+
+
+def test_velocity_variation_covariance_uncorrelated():
+    """With zero adjacent correlation the covariance is diagonal."""
+
+    class Uncorrelated(variation.VelocityVariation):
+        def _calc_corr(self, profile):
+            return np.zeros(len(profile) - 1)
+
+        def _calc_ln_std(self, profile):
+            return 0.3 * np.ones(len(profile))
+
+    covar = Uncorrelated(limit_mode="normal")._calc_covar_matrix(
+        _uniform_profile(5, 2.0)
+    )
+    assert_allclose(covar, 0.09 * np.eye(6))
+
+
 def test_soil_type_variation_default_mode():
     assert variation.SoilTypeVariation(0.5).limit_mode == "clipped_inflated"
     assert variation.SpidVariation(0.5, limit_mode="normal").limit_mode == "normal"

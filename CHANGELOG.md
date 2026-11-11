@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Fixed: `VelocityVariation` (`ToroVelocityVariation`, `DepthDependToroVelVariation`)
+  built a tridiagonal covariance matrix, which is not positive semi-definite for high
+  correlations and gave only about half of the intended correlation between layers
+  and a standard deviation inflated by 8-18 %. The covariance is now the
+  first-order autoregressive one of Toro (1995), where the correlation of two layers
+  is the product of the adjacent-layer correlations between them. Seeded velocity
+  realizations of profiles with more than one soil layer change.
+
 ## 0.6.0 (2026-11-05)
 
 - Fixed: restore `.readthedocs.yaml`, which was removed in June 2026, so that Read the

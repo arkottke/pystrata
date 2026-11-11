@@ -28,7 +28,6 @@ from collections.abc import Callable, Generator
 import numpy as np
 import numpy.typing as npt
 from scipy import stats
-from scipy.sparse import diags
 
 from . import site
 from .units import convert_units
@@ -548,7 +547,7 @@ class VelocityVariation:
         covar = self._calc_covar_matrix(profile)
 
         ln_vel_rand = _as_generator(rng).multivariate_normal(
-            mean, covar, check_valid="ignore"
+            mean, covar, check_valid="warn"
         )
 
         # Limit the number of standard deviations
@@ -581,13 +580,23 @@ class VelocityVariation:
         # Increase the standard deviation, if the limit is applied by clipping
         std = std * self._norm.scale
 
-        var = std**2
-        covar = corr * std[:-1] * std[1:]
+        # Toro (1995) is a first-order autoregressive model: the correlation of
+        # layers i < j is the product of the adjacent-layer correlations between
+        # them. A matrix with only the adjacent entries is not positive
+        # semi-definite for larger correlations.
+        corr = np.asarray(corr, dtype=float)
+        size = len(corr) + 1
+        mat = np.eye(size)
+        for lag in range(1, size):
+            # Product of ``lag`` consecutive adjacent correlations
+            prod = np.ones(size - lag)
+            for k in range(lag):
+                prod = prod * corr[k : k + size - lag]
+            idx = np.arange(size - lag)
+            mat[idx, idx + lag] = prod
+            mat[idx + lag, idx] = prod
 
-        # Main diagonal is the variance
-        mat = diags([covar, var, covar], [-1, 0, 1]).toarray()
-
-        return mat
+        return mat * np.outer(std, std)
 
     @abstractmethod
     def _calc_corr(self, profile):
