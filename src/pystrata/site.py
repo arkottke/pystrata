@@ -1382,10 +1382,20 @@ class Profile(collections.abc.Container):
         return avg_shear_vel
 
     def vs30(self):
-        """Compute the Vs30 of the profile."""
+        """Compute the Vs30 of the profile.
+
+        Uses the initial (small-strain) shear-wave velocity. If the half-space starts
+        above 30 m, it is extended down to 30 m.
+        """
+        depths = self.depth
         tot_time = np.r_[0, np.cumsum(self.thickness / self.initial_shear_vel)[:-1]]
-        time = np.interp(30, self.depth, tot_time)
-        return 30 / time
+        if depths[-1] < 30:
+            depths = np.r_[depths, 30]
+            tot_time = np.r_[
+                tot_time,
+                tot_time[-1] + (30 - self[-1].depth) / self[-1].initial_shear_vel,
+            ]
+        return 30 / np.interp(30, depths, tot_time)
 
     def simplified_rayleigh_vel(self):
         """Simplified Rayleigh velocity of the site.

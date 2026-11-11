@@ -113,6 +113,34 @@ def test_time_average_vel(depth, expected):
     assert_allclose(p.time_average_vel(depth), expected, atol=0.001)
 
 
+VS30_CASES = [
+    # Half-space starts above 30 m
+    pytest.param([(10, 200), (0, 1000)], 30 / (10 / 200 + 20 / 1000), id="shallow"),
+    # Soil deeper than 30 m
+    pytest.param([(10, 200), (30, 400), (0, 1000)], 300.0, id="deep"),
+    # Half-space starts exactly at 30 m
+    pytest.param([(10, 200), (20, 400), (0, 1000)], 300.0, id="boundary"),
+]
+
+
+def _vs30_profile(layers):
+    st = site.SoilType(unit_wt=17)
+    return site.Profile([site.Layer(st, thick, vel) for thick, vel in layers])
+
+
+@pytest.mark.parametrize("layers,expected", VS30_CASES)
+def test_vs30(layers, expected):
+    """Test Vs30, including profiles shallower than 30 m."""
+    assert_allclose(_vs30_profile(layers).vs30(), expected, rtol=1e-6)
+
+
+@pytest.mark.parametrize("layers,expected", VS30_CASES)
+def test_vs30_matches_time_average_vel(layers, expected):
+    """Vs30 equals the 30 m time-average velocity of an unstrained profile."""
+    p = _vs30_profile(layers)
+    assert_allclose(p.vs30(), p.time_average_vel(30), rtol=1e-12)
+
+
 def test_simplified_rayleigh_vel():
     """Test simplified Rayleigh wave velocity."""
     # Example from Urzua et al. (2017). Table 1 in Appendix A

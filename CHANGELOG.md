@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fixed: `Profile.vs30()` ignored the travel time through the half-space when it
+  starts above 30 m, overestimating Vs30 (600 instead of 428.6 m/s for 10 m at
+  200 m/s over a 1000 m/s half-space). Profiles with soil to 30 m or deeper are
+  unchanged.
 - Fixed: `run_ensemble` without a `seed` drew every realization from the shared
   module-level generator, so workers started with `fork` produced repeated
   realizations. A base seed is now drawn once from OS entropy (logged at INFO) and
