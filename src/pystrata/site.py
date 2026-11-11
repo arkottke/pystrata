@@ -34,7 +34,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-from scipy.interpolate import interp1d
 
 from .motion import WaveField
 from .units import GRAVITY, convert_units
@@ -94,7 +93,10 @@ class NonlinearCurve(ABC):
         self._strains = np.asarray(strains).astype(float)
         self._values = np.asarray(values).astype(float)
 
-        self._interpolater = None
+        # Sorted ln(strain) and values, and the interpolation kind ('1d', '2d', None)
+        self._ln_strains = None
+        self._sorted_values = None
+        self._interp_kind = None
 
         if limits is None:
             limits = self._default_limits
@@ -169,13 +171,12 @@ class NonlinearCurve(ABC):
         """
         ln_strains = np.log(np.maximum(1e-9, strains))
 
-        if self.strains.shape == self.values.shape:
-            # 1D interpolate
-            values = self._interpolater(ln_strains)
-        else:
+        if self._interp_kind == "1d":
+            values = np.interp(ln_strains, self._ln_strains, self._sorted_values)
+        elif self._interp_kind == "2d":
             # One column per frequency
             ln_strains = np.atleast_1d(ln_strains)
-            count = len(self._interpolater)
+            count = self._sorted_values.shape[1]
             if ln_strains.size == 1:
                 # The same strain for all columns
                 ln_strains = np.full(count, ln_strains[0])
@@ -185,10 +186,19 @@ class NonlinearCurve(ABC):
                     f"match the number of columns of the values ({count})."
                 )
             values = np.array(
-                [i(ln_strain) for i, ln_strain in zip(self._interpolater, ln_strains)]
+                [
+                    np.interp(ln_strain, self._ln_strains, self._sorted_values[:, i])
+                    for i, ln_strain in enumerate(ln_strains)
+                ]
             )
+        else:
+            raise ValueError("The strains and values do not define a curve.")
 
-        return np.clip(values, *self._limits)
+        lower, upper = self._limits
+        if np.ndim(values) == 0:
+            # np.clip has a large overhead for a scalar
+            return np.float64(min(max(values, lower), upper))
+        return np.clip(values, lower, upper)
 
     @property
     def strains(self):
@@ -212,39 +222,34 @@ class NonlinearCurve(ABC):
 
     def _update(self):
         """Initialize the interpolation."""
+        self._ln_strains = None
+        self._sorted_values = None
+        self._interp_kind = None
+
         if not self.strains.size:
-            self._interpolater = None
             return
 
-        # interp1d sorts x but not the fill values, so sort once here
-        x = np.log(self.strains)
-        y = self.values
+        # np.interp needs increasing x, so sort once here. The values at the
+        # ends of the sorted range are used outside of it.
         if (
             self.strains.ndim == 1
             and self.values.ndim >= 1
             and self.strains.shape[0] == self.values.shape[0]
         ):
             order = np.argsort(self.strains)
-            x, y = x[order], y[order]
+            x, y = np.log(self.strains[order]), self.values[order]
+        else:
+            x, y = np.log(self.strains), self.values
 
         if self.strains.shape == self.values.shape:
-            # 1D interpolate
-            self._interpolater = interp1d(
-                x, y, "linear", bounds_error=False, fill_value=(y[0], y[-1])
-            )
+            self._interp_kind = "1d"
         elif self.values.ndim == 2 and self.strains.shape[0] == self.values.shape[0]:
-            self._interpolater = [
-                interp1d(
-                    x,
-                    y[:, i],
-                    "linear",
-                    bounds_error=False,
-                    fill_value=(y[0, i], y[-1, i]),
-                )
-                for i in range(y.shape[1])
-            ]
+            self._interp_kind = "2d"
         else:
-            self._interpolater = None
+            return
+
+        self._ln_strains = x
+        self._sorted_values = y
 
 
 class ModulusReductionCurve(NonlinearCurve):

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Performance: `NonlinearCurve` interpolates with `np.interp` instead of `scipy`'s
+  `interp1d` and skips `np.clip` for a scalar strain, which makes a scalar lookup about 3x
+  faster. Results are unchanged; a scalar lookup now returns `np.float64`.
 - Changed: `Profile.lookup_depth` (and so `Profile.location`) raises `ValueError` for a
   negative or non-finite depth; a negative depth used to return the half-space.
 - Removed: `pystrata.generic` (`aaa21_profile`, `fetch_ncm_profile`, `load_ncm_profile`) and
