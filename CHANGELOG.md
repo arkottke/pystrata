@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fixed: wrong unit labels. `FourierAmplitudeSpectrumOutput` is in g-s, not cm/s, and the
+  `Layer`/`Profile` density, which is in Mg/m³ (g/cm³), was labelled kg/m³.
+  `Profile.calc_dispersion` divided that density by 1000 a second time; phase and group
+  velocities are unchanged because they do not depend on a uniform density scale.
 - Fixed: `SoilTypeVariation.vary_profile` (`DarendeliVariation`, `SpidVariation`) raised
   `KeyError` for a profile whose layers hold separately constructed, equal soil
   types. Equal soil types now share one realization.

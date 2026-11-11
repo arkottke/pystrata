@@ -828,11 +828,11 @@ class StressTSOutput(TimeSeriesOutput):
 
 
 class FourierAmplitudeSpectrumOutput(LocationBasedOutput):
-    """Fourier amplitude spectrum [cm/s] of the acceleration at a location."""
+    """Fourier amplitude spectrum [g-s] of the acceleration at a location."""
 
     _const_ref = True
     xlabel = "Frequency (Hz)"
-    ylabel = "Fourier Ampl. (cm/s)"
+    ylabel = "Fourier Ampl. (g-s)"
 
     ref_name = "freq"
 

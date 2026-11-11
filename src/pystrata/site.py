@@ -431,7 +431,7 @@ class SoilType:
 
     @property
     def density(self) -> float:
-        """Density of the soil in gm/cm³."""
+        """Density of the soil in [Mg/m³] (equal to g/cm³)."""
         return self.unit_wt / GRAVITY
 
     @property
@@ -659,7 +659,7 @@ class Layer:
 
     @property
     def density(self) -> float:
-        """Density of soil in [kg/m³]."""
+        """Density of soil in [Mg/m³] (equal to g/cm³)."""
         return self.soil_type.density
 
     @property
@@ -1513,11 +1513,12 @@ class Profile(collections.abc.Container):
         sort_idx = np.argsort(periods)
         periods_sorted = periods[sort_idx]
 
-        # Build velocity model: (thickness [km], Vp [km/s], Vs [km/s], density [g/cm³])
+        # Build velocity model: (thickness [km], Vp [km/s], Vs [km/s],
+        # density [g/cm³]). The density is already in Mg/m³, which equals g/cm³.
         thickness = self.thickness / 1e3
         comp_vel = self.comp_vel / 1e3
         shear_vel = self.initial_shear_vel / 1e3
-        density = self.density / 1e3
+        density = self.density
 
         if dc_type == "phase":
             dc = PhaseDispersion(thickness, comp_vel, shear_vel, density)
@@ -1555,7 +1556,7 @@ class Profile(collections.abc.Container):
         # Defaults
         xlabels = {
             "damping": "Damping (dec)",
-            "density": "Density (kg/m³)",
+            "density": "Density (Mg/m³)",
             "initial_shear_vel": "Initial $V_s$ (m/s)",
             "max_error": "Max. Error (%)",
             "shear_vel": "$V_s$ (m/s)",
@@ -1589,7 +1590,7 @@ class Profile(collections.abc.Container):
 
     @property
     def density(self):
-        """Density [kg/m³] of each layer."""
+        """Density [Mg/m³] of each layer (equal to g/cm³)."""
         return self._get_values("density")
 
     @property
