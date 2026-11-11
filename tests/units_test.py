@@ -5,7 +5,7 @@ import pint
 import pytest
 from numpy.testing import assert_allclose
 
-from pystrata import motion, output, site, tools, ureg, variation
+from pystrata import motion, output, site, tools, units, ureg, variation
 
 
 class TestConvertUnitsDecorator:
@@ -155,3 +155,33 @@ class TestCalcPoissonsRatioUnits:
         r2 = (400.0 / 200.0) ** 2
         expected = (r2 - 2) / (2 * (r2 - 1))
         assert_allclose(result, expected)
+
+
+class TestConvertKwdsUnits:
+    """Test the @convert_kwds_units decorator."""
+
+    @staticmethod
+    def _func():
+        @units.convert_kwds_units(stress_mean="kilopascal")
+        def func(**kwds):
+            return kwds
+
+        return func
+
+    def test_quantity_in_kwds_is_converted(self):
+        out = self._func()(stress_mean=1 * ureg.megapascal, other=3)
+        assert out["stress_mean"] == pytest.approx(1000.0)
+        assert out["other"] == 3
+
+    def test_plain_number_passes_through(self):
+        assert self._func()(stress_mean=5.0) == {"stress_mean": 5.0}
+
+    def test_quantity_in_named_argument(self):
+        @units.convert_kwds_units(stress_mean="kilopascal")
+        def func(stress_mean, **kwds):
+            return stress_mean
+
+        assert func(2 * ureg.megapascal) == pytest.approx(2000.0)
+
+    def test_no_matching_keys(self):
+        assert self._func()(a=1 * ureg.meter)["a"] == 1 * ureg.meter

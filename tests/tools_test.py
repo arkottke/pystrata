@@ -248,3 +248,93 @@ def test_load_shake_inp_skips_outputs_and_keeps_the_last_block(tmp_path):
     # The last block is kept without a terminating option 0
     no_end = pystrata.tools.load_shake_inp(_write_shake(tmp_path, end=False))
     assert no_end["run_control"].max_iterations == 10
+
+
+def test_nrattle_ctl_bundled_file():
+    ctl = pystrata.tools.read_nrattle_ctl(FPATH_DATA / "nrattle.ctl")
+    assert ctl["freq_count"] == 400
+    assert len(ctl["profile"]) == 400
+
+    profile = pystrata.tools.profile_from_nrattle_ctl(ctl)
+    # 400 layers plus the half-space
+    assert len(profile) == 401
+    # km -> m
+    assert profile[0].thickness == pytest.approx(5.025)
+    assert profile[0].initial_shear_vel == pytest.approx(1005.0)
+    assert profile[-1].initial_shear_vel == pytest.approx(3500.0)
+    for layer, density in zip(profile, list(ctl["profile"].density) + [2.72]):
+        assert layer.unit_wt == pytest.approx(9.80665 * density)
+
+
+NRATTLE_TEMPLATE = """! comment
+   09/09/11
+! stem
+  test
+! nfreq, fhigh
+   10    50.00
+! depth
+    0.00
+! layers
+    1  1.0000E-02  1.0000E+00  2.0000E+00  {inv_qual_1}
+    2  1.0000E-02  1.0000E+00  2.0000E+00  {inv_qual_2}
+! halfspace
+    3.50  2.72
+! halfspace layer, angle
+   3  0.00
+"""
+
+
+@pytest.mark.parametrize(
+    "inv_qual",
+    [
+        pytest.param("2.0000E-02", id="1/Q"),
+        pytest.param("5.0000E+01", id="Q"),
+    ],
+)
+def test_nrattle_ctl_damping_encodings(tmp_path, inv_qual):
+    # Both encodings describe Q = 50, so damping = 1 / (2 Q) = 0.01
+    fpath = tmp_path / "test.ctl"
+    fpath.write_text(NRATTLE_TEMPLATE.format(inv_qual_1=inv_qual, inv_qual_2=inv_qual))
+    ctl = pystrata.tools.read_nrattle_ctl(fpath)
+    profile = pystrata.tools.profile_from_nrattle_ctl(ctl)
+    assert len(profile) == 3
+    assert [layer.damping_min for layer in profile] == pytest.approx([0.01, 0.01, 0])
+
+
+def test_calc_mean_eff_stress():
+    # Midpoints are at 1, 3.5 and 5 m (the last layer is the half-space).
+    # Total stress: 18 * 1, 36 + 19 * 1.5, 36 + 57 + 20 * 0 ... as computed by the
+    # function: cumsum(unit_wt * thick) - unit_wt * thick / 2.
+    # Pore pressure below the 1 m water table: 9.81 * (mid - 1).
+    # Mean effective = effective vertical * (1 + 2 * k0) / 3
+    expected = np.array(
+        [
+            18 * 1 - 0,
+            36 + 28.5 - 9.81 * 2.5,
+            36 + 57 - 9.81 * 4,
+        ]
+    ) * (2 / 3)
+    stress = pystrata.tools.calc_mean_eff_stress(
+        depths=[0, 2, 5], unit_wt=[18, 19, 20], water_table_depth=1, k0=0.5
+    )
+    np.testing.assert_allclose(stress, expected, rtol=1e-9)
+
+
+def test_calc_mean_eff_stress_warns_on_wrong_units():
+    with pytest.warns(UserWarning, match="unit_wt"):
+        pystrata.tools.calc_mean_eff_stress(
+            depths=[0, 2, 5], unit_wt=1800, water_table_depth=1
+        )
+
+
+def test_calc_poissons_ratio():
+    assert pystrata.tools.calc_poissons_ratio(1, 2) == pytest.approx(1 / 3)
+    assert pystrata.tools.calc_poissons_ratio(1, np.sqrt(3)) == pytest.approx(0.25)
+
+
+def test_calc_poissons_ratio_with_units():
+    ratio = pystrata.tools.calc_poissons_ratio(
+        1 * pystrata.ureg.foot / pystrata.ureg.second,
+        2 * pystrata.ureg.foot / pystrata.ureg.second,
+    )
+    assert ratio == pytest.approx(1 / 3)
