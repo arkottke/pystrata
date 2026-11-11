@@ -37,6 +37,8 @@ import copy
 import logging
 from collections.abc import Sequence
 
+import numpy as np
+
 from . import variation
 from .motion import Motion
 from .output import OutputCollection, OutputLocation
@@ -204,8 +206,9 @@ def run_ensemble(
     var_depth, var_thickness, var_velocity, var_soiltypes
         Variation models, applied in that order.
     seed : int, optional
-        Base seed. Required for reproducible results; without it each
-        realization draws from the module-level generator.
+        Base seed. Required for reproducible results; when omitted, a fresh base
+        seed is drawn from OS entropy (and logged at INFO level), so realizations
+        remain independent but are not repeatable.
     discretize : dict, optional
         Keyword arguments for :meth:`~pystrata.site.Profile.auto_discretize`,
         applied to each realization. Pass ``{}`` to use its defaults.
@@ -270,11 +273,17 @@ def run_ensemble(
         for j in range(len(motions))
     ]
 
-    if seed is None and n_jobs != 1:
-        logger.warning(
-            "Running in parallel without a seed. Results will be correct but "
-            "not reproducible; pass seed= to make the ensemble repeatable."
-        )
+    if seed is None and profiles is None:
+        # A worker forked from this process inherits the module-level generator,
+        # so every worker would draw the same realizations. Draw a base seed here
+        # so each realization gets its own stream, exactly as when a seed is given.
+        seed = int(np.random.SeedSequence().entropy)
+        if n_jobs != 1:
+            logger.warning(
+                "Running in parallel without a seed; results are not reproducible. "
+                "Pass seed= to make the ensemble repeatable."
+            )
+        logger.info("Drawn base seed for the ensemble: %d", seed)
 
     state = {
         "profile": profile,

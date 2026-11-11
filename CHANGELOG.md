@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fixed: `run_ensemble` without a `seed` drew every realization from the shared
+  module-level generator, so workers started with `fork` produced repeated
+  realizations. A base seed is now drawn once from OS entropy (logged at INFO) and
+  each realization uses its own stream, for serial and parallel runs alike.
 - Fixed: `VelocityVariation` (`ToroVelocityVariation`, `DepthDependToroVelVariation`)
   built a tridiagonal covariance matrix, which is not positive semi-definite for high
   correlations and gave only about half of the intended correlation between layers

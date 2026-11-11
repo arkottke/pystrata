@@ -229,6 +229,34 @@ def test_seed_makes_the_ensemble_repeatable(profile, rvt_motion, calc):
     assert_allclose(first[0].values, again[0].values)
 
 
+def test_unseeded_parallel_realizations_are_distinct(rvt_motion):
+    """Forked workers inherit the global generator, so they must not use it."""
+    if "fork" not in multiprocessing.get_all_start_methods():
+        pytest.skip("fork is not available on this platform")
+
+    soil = site.SoilType("Soil", 18.0, None, 0.02)
+    rock = site.SoilType("Rock", 24.0, None, 0.01)
+    prof = site.Profile(
+        [site.Layer(soil, 5, 300) for _ in range(5)] + [site.Layer(rock, 0, 1200)]
+    )
+
+    results = runner.run_ensemble(
+        prof,
+        rvt_motion,
+        propagation.LinearElasticCalculator(),
+        output.OutputCollection([output.InitialVelProfile()]),
+        count=16,
+        var_velocity=variation.ToroVelocityVariation.generic_model("USGS C"),
+        seed=None,
+        n_jobs=2,
+        mp_context="fork",
+    )
+
+    values = results[0].values
+    assert values.shape[1] == 16
+    assert len({tuple(np.round(c, 9)) for c in values.T}) == 16
+
+
 def test_invalid_count(profile, rvt_motion, calc):
     with pytest.raises(ValueError, match="count must be at least 1"):
         runner.run_ensemble(profile, rvt_motion, calc, _outputs(), count=0)
