@@ -1247,6 +1247,29 @@ class EquivalentLinearCalculator(LinearElasticCalculator):
         return motion.calc_peak(self.calc_strain_tf(loc_input, loc_layer))
 
 
+# Konno-Ohmachi smoothers are expensive to build (a dense frequency-by-frequency
+# weight matrix) and depend only on the frequencies and bandwidth, so share them
+# between calculators. Each entry is large, so only a couple are kept.
+_SMOOTHER_CACHE: dict = {}
+_SMOOTHER_CACHE_SIZE = 2
+
+
+def _get_smoother(freqs: npt.ArrayLike, bandwidth: float) -> pykooh.CachedSmoother:
+    """Return a (cached) Konno-Ohmachi smoother for the frequencies."""
+    freqs = np.ascontiguousarray(freqs, dtype=float)
+    key = (bandwidth, freqs.size, hash(freqs.tobytes()))
+    smoother = _SMOOTHER_CACHE.get(key)
+    if smoother is None:
+        smoother = pykooh.CachedSmoother(
+            freqs, freqs, bandwidth=bandwidth, normalize=True
+        )
+        while len(_SMOOTHER_CACHE) >= _SMOOTHER_CACHE_SIZE:
+            # Drop the oldest entry
+            _SMOOTHER_CACHE.pop(next(iter(_SMOOTHER_CACHE)))
+        _SMOOTHER_CACHE[key] = smoother
+    return smoother
+
+
 class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
     r"""Equivalent-linear site response with frequency-dependent properties.
 
@@ -1312,6 +1335,15 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
         self._method = method
         self._smoother = None
         self._freq_shift = freq_shift
+
+    def __getstate__(self):
+        """Leave the (large) smoother out of copies and pickles.
+
+        It is rebuilt, or fetched from the shared cache, when needed.
+        """
+        state = self.__dict__.copy()
+        state["_smoother"] = None
+        return state
 
     @staticmethod
     def _validate_method(method: str) -> None:
@@ -1395,10 +1427,7 @@ class FrequencyDependentEqlCalculator(EquivalentLinearCalculator):
             strains = strain_eff * shape
         elif self._method.startswith("ko:"):
             if self._smoother is None or not self._smoother.freqs_match(motion.freqs):
-                bandwidth = float(self._method[3:])
-                self._smoother = pykooh.CachedSmoother(
-                    motion.freqs, motion.freqs, bandwidth=bandwidth, normalize=True
-                )
+                self._smoother = _get_smoother(motion.freqs, float(self._method[3:]))
 
             # Konno-Omachi smoothing
             strain_fas_sm = self._smoother(strain_fas)

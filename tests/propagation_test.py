@@ -912,3 +912,76 @@ def test_qwl_fit_options(target_type, site_atten, kwds):
     after = _misfit(target, getattr(calc, target_type))
     assert after <= before
     assert len(calc.profile) == count
+
+
+@pytest.fixture
+def smoother_builds(monkeypatch):
+    """Count the smoothers that are built, starting from an empty cache."""
+    pystrata.propagation._SMOOTHER_CACHE.clear()
+    builds = []
+
+    class CountingSmoother(pystrata.propagation.pykooh.CachedSmoother):
+        def __init__(self, *args, **kwds):
+            builds.append(1)
+            super().__init__(*args, **kwds)
+
+    monkeypatch.setattr(pystrata.propagation.pykooh, "CachedSmoother", CountingSmoother)
+    yield builds
+    pystrata.propagation._SMOOTHER_CACHE.clear()
+
+
+def test_fdm_ensemble_builds_the_smoother_once(smoother_builds):
+    import pystrata.output
+    import pystrata.runner
+
+    curve = pystrata.site.known_published_curves()[0]
+    soil = pystrata.site.SoilType.from_published("soil", 18.0, curve)
+    rock = pystrata.site.SoilType("rock", 22.0, None, 0.01)
+    profile = pystrata.site.Profile(
+        [pystrata.site.Layer(soil, 10, vs) for vs in (200, 400)]
+        + [pystrata.site.Layer(rock, 0, 1200)]
+    )
+    motion = pystrata.motion.TimeSeriesMotion.load_at2_file(FPATH_DATA / "NIS090.AT2")
+    calc = pystrata.propagation.FrequencyDependentEqlCalculator(method="ko:20")
+    outputs = pystrata.output.OutputCollection(
+        [
+            pystrata.output.ResponseSpectrumOutput(
+                np.logspace(-1, 1, 10),
+                pystrata.output.OutputLocation("outcrop", index=0),
+                0.05,
+            )
+        ]
+    )
+    pystrata.runner.run_ensemble(
+        profile,
+        motion,
+        calc,
+        outputs,
+        count=4,
+        n_jobs=1,
+        seed=1,
+        loc_input=pystrata.output.OutputLocation("outcrop", index=-1),
+    )
+    assert len(smoother_builds) == 1
+
+
+def test_fdm_smoother_cache_is_keyed_and_bounded(smoother_builds):
+    freqs = np.linspace(0.1, 10, 20)
+    get = pystrata.propagation._get_smoother
+    assert get(freqs, 20.0) is get(freqs.copy(), 20.0)
+    assert get(freqs, 40.0) is not get(freqs, 20.0)
+    assert get(freqs[:10], 20.0) is not get(freqs, 20.0)
+    assert len(pystrata.propagation._SMOOTHER_CACHE) <= 2
+
+
+def test_fdm_copy_and_pickle_leave_out_the_smoother(smoother_builds):
+    import copy
+    import pickle
+
+    calc = pystrata.propagation.FrequencyDependentEqlCalculator(method="ko:20")
+    calc._smoother = pystrata.propagation._get_smoother(np.linspace(0.1, 10, 20), 20.0)
+    assert calc._smoother is not None
+    assert copy.deepcopy(calc)._smoother is None
+    assert pickle.loads(pickle.dumps(calc))._smoother is None
+    # The original keeps its smoother
+    assert calc._smoother is not None

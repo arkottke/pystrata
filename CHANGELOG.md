@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Performance: `FrequencyDependentEqlCalculator` with a `ko:<bandwidth>` method shares its
+  Konno-Ohmachi smoother between calculators (a small cache keyed by the frequencies and
+  bandwidth), so `run_ensemble` builds it once rather than once per realization. Copies and
+  pickles of the calculator no longer carry the smoother.
 - Performance: `NonlinearCurve` interpolates with `np.interp` instead of `scipy`'s
   `interp1d` and skips `np.clip` for a scalar strain, which makes a scalar lookup about 3x
   faster. Results are unchanged; a scalar lookup now returns `np.float64`.
