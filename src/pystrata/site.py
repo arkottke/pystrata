@@ -173,8 +173,20 @@ class NonlinearCurve(ABC):
             # 1D interpolate
             values = self._interpolater(ln_strains)
         else:
+            # One column per frequency
             ln_strains = np.atleast_1d(ln_strains)
-            values = np.array([i(ln_strains[0]) for i in self._interpolater])
+            count = len(self._interpolater)
+            if ln_strains.size == 1:
+                # The same strain for all columns
+                ln_strains = np.full(count, ln_strains[0])
+            elif ln_strains.shape != (count,):
+                raise ValueError(
+                    f"The size of the strains ({ln_strains.size}) must be 1 or "
+                    f"match the number of columns of the values ({count})."
+                )
+            values = np.array(
+                [i(ln_strain) for i, ln_strain in zip(self._interpolater, ln_strains)]
+            )
 
         return np.clip(values, *self._limits)
 
@@ -204,8 +216,16 @@ class NonlinearCurve(ABC):
             self._interpolater = None
             return
 
+        # interp1d sorts x but not the fill values, so sort once here
         x = np.log(self.strains)
         y = self.values
+        if (
+            self.strains.ndim == 1
+            and self.values.ndim >= 1
+            and self.strains.shape[0] == self.values.shape[0]
+        ):
+            order = np.argsort(self.strains)
+            x, y = x[order], y[order]
 
         if self.strains.shape == self.values.shape:
             # 1D interpolate

@@ -64,6 +64,75 @@ def test_nlp_update(nlp, strains):
     assert_allclose(nlp.strains, strains)
 
 
+STRAINS_TEST = [1e-7, 1e-6, 3e-4, 1e-1, 1.0]
+
+
+@pytest.mark.parametrize(
+    "cls,values,limits",
+    [
+        (site.ModulusReductionCurve, [1.0, 0.5, 0.1], None),
+        (site.DampingCurve, [0.01, 0.1, 0.3], None),
+    ],
+)
+def test_nonlinear_curve_decreasing_strains(cls, values, limits):
+    """Curves entered from high to low strain match the increasing ones."""
+    strains = [1e-4, 1e-3, 1e-2]
+    increasing = cls("", strains, values, limits=limits)
+    decreasing = cls("", strains[::-1], values[::-1], limits=limits)
+    assert_allclose(decreasing(STRAINS_TEST), increasing(STRAINS_TEST), rtol=1e-12)
+    # Values outside of the range are the end values, not swapped
+    assert decreasing(1e-6) == pytest.approx(increasing(1e-6))
+    assert decreasing(1e-6) == pytest.approx(np.clip(values[0], *increasing._limits))
+
+
+@pytest.fixture
+def curve_2d():
+    """Curve with a column of values per frequency."""
+    values = np.c_[[1.0, 0.5, 0.1], [0.95, 0.7, 0.2]]
+    return site.ModulusReductionCurve("", [1e-4, 1e-3, 1e-2], values, limits=(0, 1))
+
+
+def test_nonlinear_curve_2d_strain_vector(curve_2d):
+    """Each column is evaluated at its own strain."""
+    assert_allclose(curve_2d(np.array([1e-3, 1e-4])), [0.5, 0.95], rtol=1e-12)
+
+
+def test_nonlinear_curve_2d_scalar_strain(curve_2d):
+    """A scalar strain is used for every column."""
+    assert_allclose(curve_2d(1e-3), [0.5, 0.7], rtol=1e-12)
+    assert_allclose(curve_2d(np.array([1e-3])), [0.5, 0.7], rtol=1e-12)
+
+
+def test_nonlinear_curve_2d_wrong_size(curve_2d):
+    with pytest.raises(ValueError, match=r"\(3\).*\(2\)|3.*2"):
+        curve_2d(np.array([1e-3, 1e-4, 1e-5]))
+
+
+def _published_cases():
+    cases = []
+    for name in site.known_published_curves():
+        for param in site.NonlinearCurve.PARAMS:
+            try:
+                site.NonlinearCurve.from_published(name, param)
+            except KeyError:
+                continue
+            cases.append((name, param))
+    return cases
+
+
+@pytest.mark.parametrize("name,param", _published_cases())
+def test_published_curve_interpolation_rule(name, param):
+    """Locks the rule: linear in ln(strain), end values held, then clipped."""
+    curve = site.NonlinearCurve.from_published(name, param)
+    order = np.argsort(curve.strains)
+    ln_strains = np.log(curve.strains[order])
+    values = curve.values[order]
+
+    strains = np.logspace(-7, 0, 50)
+    expected = np.clip(np.interp(np.log(strains), ln_strains, values), *curve._limits)
+    assert_allclose(curve(strains), expected, rtol=1e-12)
+
+
 def test_iterative_value():
     """Test the iterative value and relative error."""
     iv = site.IterativeValue(11)

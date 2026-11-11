@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fixed: `NonlinearCurve` swapped the values returned outside the tabulated range for
+  curves whose strains are in decreasing order, and evaluated every column of a
+  frequency-dependent curve at the first strain of a strain vector. Columns now use
+  their own strain, and a strain vector of the wrong length raises `ValueError`.
 - Fixed: `FrequencyDependentEqlCalculator` ran the `zr15` method for any unknown
   `method`, including the documented but unimplemented `tan_avg`. Unknown methods now
   raise `ValueError`. The docstring no longer lists `tan_avg` and gives the real
