@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fixed: `AriasIntensityTSOutput` was one sample shorter than the acceleration series and
+  every value was labelled one time step early. It now starts at zero and has the same
+  length and times as `AccelerationTSOutput`; the final value is unchanged.
 - Fixed: `TimeSeriesMotion` built one more frequency than Fourier amplitude for an odd
   `fa_length`, and silently truncated the record when `fa_length` was shorter than
   it. An odd or too-short `fa_length` now raises `ValueError`. The default (next

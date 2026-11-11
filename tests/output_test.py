@@ -28,6 +28,8 @@ import pystrata
 from pystrata import motion, output, propagation, site, variation
 from pystrata.output import stack_columns
 
+from . import FPATH_DATA
+
 # All concrete ProfileBasedOutput subclasses. Used to check that the
 # ref/value bookkeeping stays consistent across the family.
 PROFILE_OUTPUTS = [
@@ -603,3 +605,34 @@ def test_add_refs_diff():
     assert len(output.refs) == len(b)
     assert_allclose(output.refs[:, 0], a + 2 * [np.nan])
     assert_allclose(output.refs[:, 1], b)
+
+
+def test_arias_intensity_ts_output():
+    """The series has the length and times of the acceleration series."""
+    ts_motion = motion.TimeSeriesMotion.load_at2_file(FPATH_DATA / "NIS090.AT2")
+    prof = site.Profile(
+        [
+            site.Layer(site.SoilType("Soil", 18.0, None, 0.02), 30, 300),
+            site.Layer(site.SoilType("Rock", 24.0, None, 0.01), 0, 1200),
+        ]
+    )
+    prof.update_layers()
+    calc = propagation.LinearElasticCalculator()
+    calc(ts_motion, prof, prof.location("outcrop", index=-1))
+
+    loc = output.OutputLocation("outcrop", index=0)
+    accel = output.AccelerationTSOutput(loc)
+    arias = output.AriasIntensityTSOutput(loc)
+    for out in (accel, arias):
+        out(calc)
+
+    values = np.asarray(arias.values)
+    assert len(values) == len(np.asarray(accel.values))
+    assert values[0] == 0
+    assert arias.refs[1] == ts_motion.time_step
+    assert np.all(np.diff(values) >= 0)
+
+    expected = ts_motion.calc_arias_intensity(
+        calc.calc_accel_tf(calc.loc_input, calc.profile.location("outcrop", index=0))
+    )
+    assert values[-1] == pytest.approx(expected, rel=1e-9)
