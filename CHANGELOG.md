@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Changed: `Profile.lookup_depth` (and so `Profile.location`) raises `ValueError` for a
+  negative or non-finite depth; a negative depth used to return the half-space.
 - Removed: `pystrata.generic` (`aaa21_profile`, `fetch_ncm_profile`, `load_ncm_profile`) and
   its data files. The functions now live in pygmm and return a `VelocityProfile`: use
   `pygmm.aaa21_profile`, `pygmm.fetch_ncm_profile`, `pygmm.load_ncm_profile` and

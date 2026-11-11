@@ -1323,6 +1323,9 @@ class Profile(collections.abc.Container):
         depth_within: float
             Depth from the top of the layer to achieve the specific depth.
         """
+        if not np.isfinite(depth) or depth < 0:
+            raise ValueError(f"depth must be finite and >= 0 (got {depth!r})")
+
         # Make sure all of the depths to updated
         self.update_layers()
 

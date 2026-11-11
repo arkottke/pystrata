@@ -536,3 +536,20 @@ def test_auto_discretize_wrong_length():
     """An array without a value for each layer is an error."""
     with pytest.raises(ValueError, match="value for each of the 2 layers"):
         _profile_for_discretize().auto_discretize(max_freq=[10.0, 10.0, 10.0])
+
+
+@pytest.fixture
+def ten_meter_profile():
+    soil = site.SoilType("soil", 18.0, None, 0.02)
+    return site.Profile([site.Layer(soil, 10, 200), site.Layer(soil, 0, 1000)])
+
+
+@pytest.mark.parametrize("depth", [-1, np.nan, np.inf, -np.inf])
+def test_lookup_depth_rejects_invalid_depth(ten_meter_profile, depth):
+    with pytest.raises(ValueError, match="depth"):
+        ten_meter_profile.lookup_depth(depth)
+
+
+def test_lookup_depth_surface_and_base(ten_meter_profile):
+    assert ten_meter_profile.lookup_depth(0) == (0, 0)
+    assert ten_meter_profile.lookup_depth(10) == (1, 0)
