@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fixed: `SoilTypeVariation.vary_profile` (`DarendeliVariation`, `SpidVariation`) raised
+  `KeyError` for a profile whose layers hold separately constructed, equal soil
+  types. Equal soil types now share one realization.
 - Fixed: `tools.load_shake_inp` could not load a complete SHAKE input file. It now
   builds an `EquivalentLinearCalculator` (the class it referenced did not exist),
   converts English units before creating the layers (unit weight in kcf, lengths in

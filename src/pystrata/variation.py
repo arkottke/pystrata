@@ -1162,9 +1162,10 @@ class SoilTypeVariation:
             generator.
         """
         _check_resamplable(profile, type(self).__name__)
-        # Map of varied soil types
+        # Map of varied soil types. Equal soil types, which iter_soil_types
+        # yields once, share a realization.
         varied = {
-            str(st): self(st, sample_index=sample_index, rng=rng)
+            st: self(st, sample_index=sample_index, rng=rng)
             for st in profile.iter_soil_types()
         }
 
@@ -1172,7 +1173,7 @@ class SoilTypeVariation:
         end = None if self.vary_bedrock else -1
         layers = [
             site.Layer(
-                varied[str(layer.soil_type)],
+                varied[layer.soil_type],
                 layer.thickness,
                 layer.initial_shear_vel,
                 layer.damping_min,

@@ -765,3 +765,28 @@ def test_varied_profiles_do_not_share_layers_with_the_original():
     assert profile[-1]._profile is profile
     # The half-space keeps its own minimum damping
     assert varied[-1].damping_min == 0.03
+
+
+@pytest.mark.parametrize(
+    "variation_cls", [variation.DarendeliVariation, variation.SpidVariation]
+)
+def test_vary_profile_equal_but_distinct_soil_types(variation_cls):
+    """Soil types that are equal share one realization, whichever instance."""
+    mod_reduc = site.ModulusReductionCurve("", [1e-4, 1e-3, 1e-2], [1.0, 0.8, 0.3])
+    damping = site.DampingCurve("", [1e-4, 1e-3, 1e-2], [0.01, 0.03, 0.10])
+    # Separately constructed, equal soil types
+    soil_types = [site.SoilType("x", 18.0, mod_reduc, damping) for _ in range(2)]
+    assert soil_types[0] == soil_types[1]
+    assert soil_types[0] is not soil_types[1]
+
+    profile = site.Profile(
+        [site.Layer(st, 5, 200) for st in soil_types]
+        + [site.Layer(site.SoilType("rock", 22.0, None, 0.01), 0, 1000)]
+    )
+    profile.update_layers()
+
+    varied = variation_cls(-0.5).vary_profile(profile, rng=1)
+
+    assert varied[0].soil_type is varied[1].soil_type
+    # The curves were varied
+    assert not np.allclose(varied[0].soil_type.mod_reduc.values, mod_reduc.values)
