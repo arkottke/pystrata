@@ -198,3 +198,34 @@ def test_sdof_tf_is_the_pyrvt_one(tsm):
         tsm._calc_sdof_tf(2.0, 0.03),
         pyrvt.motions.calc_sdof_tf(tsm.freqs, 2.0, 0.03),
     )
+
+
+def _synthetic_motion(count=1000, dt=0.01, **kwds):
+    accels = np.sin(2 * np.pi * 2.0 * dt * np.arange(count)) * np.hanning(count)
+    return motion.TimeSeriesMotion("", "", dt, accels, **kwds)
+
+
+def test_fa_length_longer_than_record():
+    default = _synthetic_motion()
+    padded = _synthetic_motion(fa_length=2048)
+
+    assert len(padded.freqs) == len(padded.fourier_amps) == 1025
+    assert padded.freqs[1] == 1 / (2048 * 0.01)
+    assert padded.pga == pytest.approx(default.pga, rel=1e-9)
+    assert len(padded.calc_time_series()) == 2048
+
+
+@pytest.mark.parametrize("fa_length", [512, 999, 1025])
+def test_fa_length_invalid(fa_length):
+    """Too short would truncate the record; odd breaks the inverse transform."""
+    with pytest.raises(ValueError, match="fa_length"):
+        _synthetic_motion(fa_length=fa_length)
+
+
+@pytest.mark.parametrize("count", [1000, 1024])
+def test_default_freqs_match_the_closed_form(count):
+    dt = 0.01
+    ts = _synthetic_motion(count, dt)
+    n = 1024
+    expected = (1.0 / (2 * dt * (n / 2))) * np.arange(1 + n / 2)
+    assert np.array_equal(ts.freqs, expected)

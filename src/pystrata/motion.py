@@ -305,7 +305,8 @@ class TimeSeriesMotion(Motion):
             Accelerations in units of *g*
         fa_length: optional int
             Length to use for the Fourier amplitude spectrum. If not provided, will be
-            automatically computed to the next power of 2.
+            automatically computed to the next power of 2. Must be even and at
+            least the number of samples; otherwise a ``ValueError`` is raised.
         """
         Motion.__init__(self)
 
@@ -517,12 +518,18 @@ class TimeSeriesMotion(Motion):
             while n < self.accels.size:
                 n <<= 1
         else:
-            n = fa_length
+            n = int(fa_length)
+            if n < self._accels.size:
+                raise ValueError(
+                    f"fa_length ({n}) must be at least the number of samples "
+                    f"in the record ({self._accels.size}); a shorter length "
+                    "would truncate the record."
+                )
+            if n % 2:
+                raise ValueError(f"fa_length ({n}) must be even.")
 
         self._fourier_amps = np.fft.rfft(self._accels, n)
-
-        freq_step = 1.0 / (2 * self._time_step * (n / 2))
-        self._freqs = freq_step * np.arange(1 + n / 2)
+        self._freqs = np.fft.rfftfreq(n, d=self._time_step)
 
     def _calc_sdof_tf(self, osc_freq: float, damping: float = 0.05) -> np.ndarray:
         """Compute the transfer function for a single-degree-of-freedom oscillator.

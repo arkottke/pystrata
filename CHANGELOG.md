@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fixed: `TimeSeriesMotion` built one more frequency than Fourier amplitude for an odd
+  `fa_length`, and silently truncated the record when `fa_length` was shorter than
+  it. An odd or too-short `fa_length` now raises `ValueError`. The default (next
+  power of two) is unchanged.
 - Fixed: `QuarterWaveLenCalculator(method="ba23")` returned NaN amplification at
   frequencies well below the fitted range, because the exponent raised a negative base
   to a fractional power. The exponent is now clamped to zero there (an amplification
