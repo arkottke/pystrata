@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Removed: `pystrata.generic` (`aaa21_profile`, `fetch_ncm_profile`, `load_ncm_profile`) and
+  its data files. The functions now live in pygmm and return a `VelocityProfile`: use
+  `pygmm.aaa21_profile`, `pygmm.fetch_ncm_profile`, `pygmm.load_ncm_profile` and
+  `pygmm.simplify_velocity_profile`, then `Profile.from_velocity_profile`. Example 17 shows
+  how to build the table of layers from an NCM profile.
 - Fixed: `plot_amplification_evolv` set the depth limits to `(0, 0)` for the default
   depths, which showed an empty plot, and passed `osc_damping` on to `pcolormesh`,
   which rejected it.

@@ -49,7 +49,7 @@ pyStrata computes seismic site response — specifically, wave propagation throu
 
 ### Supporting modules
 
-- `generic.py` — built-in generic velocity profiles: `aaa21_profile()` loads Al Atik & Abrahamson (2021) Vs30-indexed profiles; `fetch_ncm_profile()` and `load_ncm_profile()` get National Crustal Model profiles.
+- Generic velocity profiles (Al Atik & Abrahamson 2021, USGS National Crustal Model) live in pygmm (`pygmm.aaa21_profile`, `pygmm.load_ncm_profile`); use `Profile.from_velocity_profile` or build layers from them.
 - `tools.py` — utilities including `load_shake_inp()` (SHAKE format), `read_nrattle_ctl()`, `calc_atten_scatter()`, `adjust_damping_values()`.
 - `units.py` — `pint`-based unit registry (`ureg`), `convert_units()`, and `convert_kwds_units()`.
 - `_contracts.py` — private dataclasses (`NonlinearSoilCurves`, `VelocityProfile`) mirroring `pygmm.contracts` so pygmm is not a runtime dependency; `SoilType` and `Profile` accept duck-typed inputs matching these contracts.

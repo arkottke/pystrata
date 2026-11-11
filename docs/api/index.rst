@@ -14,7 +14,6 @@ This section provides detailed documentation for all public classes and function
    variation
    logic_tree
    dam
-   generic
    tools
    units
 
@@ -43,9 +42,6 @@ pyStrata's API is organized into the following modules:
 
 **Logic Tree** (:doc:`logic_tree`)
     Weighted branching for epistemic uncertainty quantification
-
-**Generic Profiles** (:doc:`generic`)
-    Generic shear-wave velocity profiles from published datasets
 
 **Dam** (:doc:`dam`)
     Seismic response of dams modeled as shear wedges

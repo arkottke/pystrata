@@ -92,6 +92,28 @@ def test_from_velocity_profile_kea16():
         assert layer.initial_shear_vel == pytest.approx(vp.vs_median[i], rel=1e-6)
 
 
+def test_from_velocity_profile_aaa21():
+    """Pygmm's AA21 reference profile builds a pystrata Profile with its Vs30."""
+    vp = pygmm.aaa21_profile("ASK14", 760)
+
+    bedrock = pystrata.site.SoilType(name="rock", unit_wt=22.0, damping=0.02)
+    profile = pystrata.site.Profile.from_velocity_profile(vp, soil_types=bedrock)
+
+    assert len(profile) == len(vp.depth)
+    assert profile.time_average_vel(30) == pytest.approx(760, rel=0.03)
+
+
+def test_from_velocity_profile_ncm_profile(tmp_path):
+    """An NcmProfile is accepted by Profile.from_velocity_profile."""
+    ncm = pygmm.load_ncm_profile("examples/data/ncm_example.json.gz")
+
+    bedrock = pystrata.site.SoilType(name="rock", unit_wt=22.0, damping=0.02)
+    profile = pystrata.site.Profile.from_velocity_profile(ncm, soil_types=bedrock)
+
+    assert len(profile) == len(ncm.depth)
+    assert profile[0].initial_shear_vel == pytest.approx(ncm.vs_median[0])
+
+
 def test_from_velocity_profile_stub():
     """Profile.from_velocity_profile accepts a SimpleNamespace stub."""
     depth = np.array([0.0, 5.0, 10.0, 20.0])
