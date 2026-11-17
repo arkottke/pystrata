@@ -70,7 +70,7 @@ style = [
     "ruff",
 ]
 docs = [
-    "docutils<0.22",
+    "docutils<0.24",
     "sphinx>=8.0",
     "furo",
     "myst-parser",
