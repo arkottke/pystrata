@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.1 (2026-11-17)
 
 - Fixed: `SoilTypeVariation.vary_profile` (`DarendeliVariation`, `SpidVariation`) raised
   `KeyError` for a profile whose layers hold separately constructed, equal soil
