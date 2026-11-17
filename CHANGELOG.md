@@ -69,6 +69,12 @@
   is the product of the adjacent-layer correlations between them. Seeded velocity
   realizations of profiles with more than one soil layer change.
 
+## 0.6.1 (2026-11-17)
+
+- Fixed: `SoilTypeVariation.vary_profile` (`DarendeliVariation`, `SpidVariation`) raised
+  `KeyError` for a profile whose layers hold separately constructed, equal soil
+  types. Equal soil types now share one realization.
+
 ## 0.6.0 (2026-11-05)
 
 - Fixed: restore `.readthedocs.yaml`, which was removed in June 2026, so that Read the
