@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Added: `ShiAsimakiThicknessVariation` and `ShiAsimakiVelocityVariation` randomize the
+  sediment velocity model of Shi and Asimaki (2018): gamma-distributed layer thicknesses
+  (eqs. 7 and 8) and a velocity standard deviation that depends on depth and Vs30 (eq. 9),
+  with the Toro (1995) correlation of the USGS site class of Vs30 by default. The median
+  profile is `pygmm.sa18_profile`.
+- Added: `ThicknessVariation`, the base class of `ToroThicknessVariation` and
+  `ShiAsimakiThicknessVariation`; `var_thickness` accepts any of them.
 - Performance: `FrequencyDependentEqlCalculator` with a `ko:<bandwidth>` method shares its
   Konno-Ohmachi smoother between calculators (a small cache keyed by the frequencies and
   bandwidth), so `run_ensemble` builds it once rather than once per realization. Copies and

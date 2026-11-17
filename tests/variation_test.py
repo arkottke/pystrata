@@ -790,3 +790,113 @@ def test_vary_profile_equal_but_distinct_soil_types(variation_cls):
     assert varied[0].soil_type is varied[1].soil_type
     # The curves were varied
     assert not np.allclose(varied[0].soil_type.mod_reduc.values, mod_reduc.values)
+
+
+# ---------------------------------------------------------------------------
+# Shi and Asimaki (2018)
+# ---------------------------------------------------------------------------
+
+
+def _sa18_seed(vs30=300.0, depth=60.0):
+    """Finely layered seed profile with a half-space."""
+    soil = site.SoilType("soil", 18.0, None, 0.02)
+    thick = np.full(int(depth / 0.5), 0.5)
+    mid = np.cumsum(thick) - thick / 2
+    # Any smooth increasing velocity works for the layering tests
+    vel = 150 + 10 * mid**0.6 + 0.2 * vs30
+    layers = [site.Layer(soil, t, v) for t, v in zip(thick, vel)]
+    layers.append(site.Layer(soil, 0, 1000.0))
+    return site.Profile(layers)
+
+
+@pytest.mark.parametrize("depth_top", [0.0, 2.5, 50.0, 150.0])
+def test_sa18_mean_thickness_is_fixed_point(depth_top):
+    model = variation.ShiAsimakiThicknessVariation()
+    thick = model.mean_thickness(depth_top)
+    assert_allclose(thick, model.a * (depth_top + thick / 2) ** model.b, rtol=1e-8)
+
+
+def test_sa18_thickness_first_layer_moments():
+    model = variation.ShiAsimakiThicknessVariation()
+    rng = np.random.default_rng(1)
+    first = np.array(
+        [next(model.iter_thickness(100.0, rng=rng))[0] for _ in range(20000)]
+    )
+
+    mean = model.mean_thickness(0.0)
+    std = model.c * (mean / 2) ** model.d
+    assert_allclose(first.mean(), mean, rtol=0.03)
+    assert_allclose(first.std(), std, rtol=0.05)
+
+
+def test_sa18_thickness_realizations():
+    model = variation.ShiAsimakiThicknessVariation()
+    seed = _sa18_seed()
+
+    thick, mid = [], []
+    for i in range(300):
+        varied = model(seed, rng=np.random.default_rng([5, i]))
+        assert_allclose(varied[-2].depth_base, seed[-2].depth_base)
+        thick.extend(layer.thickness for layer in varied[:-1])
+        mid.extend(layer.depth_mid for layer in varied[:-1])
+    thick, mid = np.array(thick), np.array(mid)
+
+    # Binned mean thickness follows eq. 7 (the truncated last layers are few)
+    for lo, hi in [(0, 10), (10, 30), (30, 55)]:
+        mask = (mid >= lo) & (mid < hi)
+        expected = np.mean(model.a * mid[mask] ** model.b)
+        assert_allclose(thick[mask].mean(), expected, rtol=0.15)
+
+    # Reproducible for a given generator
+    a = model(seed, rng=np.random.default_rng(3))
+    b = model(seed, rng=np.random.default_rng(3))
+    assert_allclose([x.thickness for x in a], [x.thickness for x in b])
+
+
+def test_sa18_velocity_default_correlation_by_site_class():
+    model = variation.ShiAsimakiVelocityVariation(300.0)
+    expected = variation.ToroVelocityVariation.PARAMS["USGS C"]
+    for name in ["rho_0", "delta", "rho_200", "h_0", "b"]:
+        assert getattr(model, name) == expected[name]
+
+    model = variation.ShiAsimakiVelocityVariation(300.0, rho_0=0.5, site_class="USGS B")
+    assert model.rho_0 == 0.5
+    assert model.delta == variation.ToroVelocityVariation.PARAMS["USGS B"]["delta"]
+
+    with pytest.raises(TypeError):
+        variation.ShiAsimakiVelocityVariation(300.0, ln_std=0.3)
+
+
+@pytest.mark.parametrize("vs30", [100.0, 1100.0])
+def test_sa18_velocity_warns_outside_range(vs30):
+    with pytest.warns(UserWarning, match="calibrated"):
+        variation.ShiAsimakiVelocityVariation(vs30)
+
+
+def test_sa18_velocity_ln_std_matches_eq9():
+    vs30 = 300.0
+    model = variation.ShiAsimakiVelocityVariation(vs30)
+    seed = _sa18_seed(vs30)
+
+    ln_std = model._calc_ln_std(seed)
+    median = np.array(seed.initial_shear_vel)
+    sd = np.maximum(-89.7085 + 1.6434 * np.array(seed.depth_mid) + 0.5204 * vs30, 0)
+    # Lognormal with the given median: SD of Vs is the eq. 9 value
+    mean = median * np.exp(ln_std**2 / 2)
+    sd_check = mean * np.sqrt(np.exp(ln_std**2) - 1)
+    assert_allclose(sd_check, sd, rtol=1e-10)
+
+
+def test_sa18_velocity_monte_carlo_moments():
+    vs30 = 300.0
+    soil = site.SoilType("soil", 18.0, None, 0.02)
+    seed = site.Profile([site.Layer(soil, 10.0, 300.0), site.Layer(soil, 0, 800.0)])
+    model = variation.ShiAsimakiVelocityVariation(vs30, limit_mode="normal")
+
+    rng = np.random.default_rng(11)
+    vel = np.array([model(seed, rng=rng)[0].initial_shear_vel for _ in range(20000)])
+
+    sd = -89.7085 + 1.6434 * 5.0 + 0.5204 * vs30
+    sigma2 = model._calc_ln_std(seed)[0] ** 2
+    assert_allclose(vel.mean(), 300.0 * np.exp(sigma2 / 2), rtol=0.01)
+    assert_allclose(vel.std(), sd, rtol=0.03)

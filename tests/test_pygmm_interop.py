@@ -127,3 +127,42 @@ def test_from_velocity_profile_stub():
     assert len(profile) == 4
     assert profile[0].initial_shear_vel == pytest.approx(200.0)
     assert profile[-1].initial_shear_vel == pytest.approx(600.0)
+
+
+def test_sa18_variation_tracks_mean_profile():
+    """Varied SA18 profiles average to the arithmetic-mean SVM profile."""
+    vs30 = 400.0
+    soil = pystrata.site.SoilType(name="soil", unit_wt=18.0, damping=0.02)
+    vp = pygmm.sa18_profile(np.arange(0, 80.5, 0.5), vs30)
+    seed = pystrata.site.Profile.from_velocity_profile(vp, soil_types=soil)
+
+    var_velocity = pystrata.variation.ShiAsimakiVelocityVariation(
+        vs30, limit_mode="normal"
+    )
+    depths = np.array([5.0, 15.0, 30.0, 60.0])
+    vel = []
+    for i in range(1500):
+        rng = np.random.default_rng([7, i])
+        varied = var_velocity(seed, rng=rng)
+        vel.append([varied[seed.lookup_depth(d)[0]].initial_shear_vel for d in depths])
+
+    assert_allclose(np.mean(vel, axis=0), pygmm.sa18_mean_vs(depths, vs30), rtol=0.05)
+
+
+def test_sa18_thickness_and_velocity_compose():
+    vs30 = 400.0
+    soil = pystrata.site.SoilType(name="soil", unit_wt=18.0, damping=0.02)
+    vp = pygmm.sa18_profile(np.arange(0, 80.5, 0.5), vs30)
+    seed = pystrata.site.Profile.from_velocity_profile(vp, soil_types=soil)
+
+    varied = list(
+        pystrata.variation.iter_varied_profiles(
+            seed,
+            3,
+            var_thickness=pystrata.variation.ShiAsimakiThicknessVariation(),
+            var_velocity=pystrata.variation.ShiAsimakiVelocityVariation(vs30),
+            seed=1,
+        )
+    )
+    assert len(varied) == 3
+    assert_allclose(varied[0][-2].depth_base, seed[-2].depth_base)

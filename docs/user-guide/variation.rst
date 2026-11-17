@@ -24,12 +24,17 @@ Models
      - Varies
    * - :class:`~pystrata.variation.ToroThicknessVariation`
      - Layer thicknesses (Toro, 1995)
+   * - :class:`~pystrata.variation.ShiAsimakiThicknessVariation`
+     - Layer thicknesses of basin sediments in California (Shi and Asimaki, 2018)
    * - :class:`~pystrata.variation.HalfSpaceDepthVariation`
      - The depth to the half space, from a ``scipy.stats`` distribution
    * - :class:`~pystrata.variation.ToroVelocityVariation`
      - Shear-wave velocity, with correlation between layers
    * - :class:`~pystrata.variation.DepthDependToroVelVariation`
      - Shear-wave velocity with a standard deviation that depends on depth
+   * - :class:`~pystrata.variation.ShiAsimakiVelocityVariation`
+     - Shear-wave velocity with a standard deviation that depends on depth and
+       :math:`V_{S30}` (Shi and Asimaki, 2018)
    * - :class:`~pystrata.variation.DarendeliVariation`
      - Modulus reduction and damping curves of a soil type (Darendeli, 2001)
    * - :class:`~pystrata.variation.SpidVariation`
@@ -39,6 +44,41 @@ Models
 ``"USGS A"``, ``"USGS B"``, ``"USGS C"``, ``"USGS D"``, ``"Geomatrix AB"`` or
 ``"Geomatrix CD"``, and has the parameters of the velocity model of Toro (1995)
 for it.
+
+Shi and Asimaki (2018) sediment velocity model
+-----------------------------------------------
+
+The median profile of the sediment velocity model comes from pygmm. It is a
+function of :math:`V_{S30}` and is valid for 173.1 to 1000 m/s, and the authors
+recommend using it down to a velocity of about 1000 m/s, which is the depth that
+:func:`pygmm.sa18_depth_to_vs` returns. The thickness and velocity models then
+randomize a finely layered version of it:
+
+.. code-block:: python
+
+   import numpy as np
+   import pygmm
+   import pystrata
+
+   vs30 = 300.0
+   soil = pystrata.site.SoilType("soil", 18.0, None, 0.02)
+
+   vp = pygmm.sa18_profile(np.arange(0, 100.5, 0.5), vs30)
+   profile = pystrata.site.Profile.from_velocity_profile(vp, soil_types=soil)
+
+   realizations = pystrata.variation.iter_varied_profiles(
+       profile,
+       100,
+       var_thickness=pystrata.variation.ShiAsimakiThicknessVariation(),
+       var_velocity=pystrata.variation.ShiAsimakiVelocityVariation(vs30),
+       seed=1,
+   )
+
+``sa18_profile`` returns the lognormal median of the velocity, which is what the
+velocity variation expects. The paper provides no correlation between the layers, so
+:class:`~pystrata.variation.ShiAsimakiVelocityVariation` uses the model of Toro
+(1995), with the parameters of the USGS site class of :math:`V_{S30}` unless
+others are given.
 
 Random numbers
 --------------

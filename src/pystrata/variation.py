@@ -22,6 +22,7 @@
 """Randomization of profiles, velocities, thicknesses and nonlinear curves."""
 
 import copy
+import warnings
 from abc import abstractmethod
 from collections.abc import Callable, Generator
 
@@ -251,7 +252,87 @@ TruncatedNorm = LimitedNorm
 randnorm = LimitedNorm(2)
 
 
-class ToroThicknessVariation:
+class ThicknessVariation:
+    """Abstract model for varying the layer thicknesses.
+
+    Subclasses implement :meth:`iter_thickness`, which generates the layering.
+    The velocity and soil type of each new layer are taken from the layer of
+    the seed profile that contains the midpoint of the new layer.
+    """
+
+    @abstractmethod
+    def iter_thickness(self, depth_total, rng=None):
+        """Iterate over the varied thicknesses.
+
+        Parameters
+        ----------
+        depth_total : float
+            Total depth generated. Last thickness is truncated to achieve this
+            depth.
+        rng : None, int, or numpy.random.Generator, optional
+            Generator used to draw the layering.
+
+        Yields
+        ------
+        thickness : float
+            Varied thickness.
+        depth_mid : float
+            Depth to the middle of the layer.
+        """
+        raise NotImplementedError
+
+    def __call__(self, profile, rng=None):
+        """Calculated a varied thickness profile.
+
+        Parameters
+        ----------
+        profile : site.Profile
+            Profile to be varied. Not modified in place.
+        rng : None, int, or numpy.random.Generator, optional
+            Generator used to draw the layering. Defaults to the module-level
+            generator.
+
+        Returns
+        -------
+        site.Profile
+            Varied site profile.
+        """
+        _check_resamplable(profile, type(self).__name__)
+        layers = []
+        for thick, depth_mid in self.iter_thickness(profile[-2].depth_base, rng=rng):
+            # Locate the proper layer and add it to the model
+            for layer in profile:
+                if layer.depth < depth_mid <= layer.depth_base:
+                    layers.append(
+                        site.Layer(
+                            layer.soil_type,
+                            thick,
+                            layer.initial_shear_vel,
+                            layer.damping_min,
+                            layer.poissons_ratio,
+                        )
+                    )
+                    break
+            else:
+                raise LookupError
+
+        # Add the half-space
+        hsl = profile[-1]
+        layers.append(
+            site.Layer(
+                hsl.soil_type,
+                0,
+                hsl.initial_shear_vel,
+                hsl.damping_min,
+                hsl.poissons_ratio,
+            )
+        )
+
+        varied = site.Profile(layers, profile.wt_depth)
+        return varied
+
+
+class ToroThicknessVariation(ThicknessVariation):
     """:cite:t:`Toro1995` thickness variation model.
 
     The recommended values are provided as defaults to this model.
@@ -342,55 +423,117 @@ class ToroThicknessVariation:
 
             depth_prev = depth
 
-    def __call__(self, profile, rng=None):
-        """Calculated a varied thickness profile.
+
+class ShiAsimakiThicknessVariation(ThicknessVariation):
+    r""":cite:t:`ShiAsimaki2018` thickness variation model.
+
+    The layering is generated from the surface downward. The mean thickness of
+    a layer with a midpoint depth :math:`z_{mid}` is
+
+    .. math:: \bar{h} = a \, z_{mid}^{b}
+
+    and its standard deviation is :math:`c \, z_{mid}^{d}` (eqs. 7 and 8 of the
+    paper). Each thickness is drawn from a gamma distribution with this mean and
+    standard deviation. The defaults are the values of the paper, calibrated to
+    914 measured profiles in California.
+
+    The seed profile should be finely discretized (for example layers of 0.5 to
+    1 m from :meth:`.Profile.from_velocity_profile`), as the velocity of each new
+    layer is taken from the seed layer that contains its midpoint.
+
+    Parameters
+    ----------
+    a, b : float, optional
+        Parameters of the mean thickness [m].
+    c, d : float, optional
+        Parameters of the standard deviation of the thickness [m].
+    """
+
+    def __init__(self, a=1.125, b=0.620, c=0.951, d=0.628):
+        self._a = a
+        self._b = b
+        self._c = c
+        self._d = d
+
+    @property
+    def a(self):
+        """Coefficient of the mean thickness."""
+        return self._a
+
+    @property
+    def b(self):
+        """Exponent of the mean thickness."""
+        return self._b
+
+    @property
+    def c(self):
+        """Coefficient of the standard deviation of the thickness."""
+        return self._c
+
+    @property
+    def d(self):
+        """Exponent of the standard deviation of the thickness."""
+        return self._d
+
+    def mean_thickness(self, depth_top):
+        """Mean thickness of a layer with its top at *depth_top*.
+
+        The midpoint depth of the layer depends on its thickness, so
+        :math:`h = a (z_{top} + h / 2)^b` is solved by fixed-point iteration,
+        which converges for :math:`b < 1`.
 
         Parameters
         ----------
-        profile : site.Profile
-            Profile to be varied. Not modified in place.
-        rng : None, int, or numpy.random.Generator, optional
-            Generator used to draw the layering. Defaults to the module-level
-            generator.
+        depth_top : float
+            Depth to the top of the layer [m].
 
         Returns
         -------
-        site.Profile
-            Varied site profile.
+        float
+            Mean thickness [m].
         """
-        _check_resamplable(profile, type(self).__name__)
-        layers = []
-        for thick, depth_mid in self.iter_thickness(profile[-2].depth_base, rng=rng):
-            # Locate the proper layer and add it to the model
-            for layer in profile:
-                if layer.depth < depth_mid <= layer.depth_base:
-                    layers.append(
-                        site.Layer(
-                            layer.soil_type,
-                            thick,
-                            layer.initial_shear_vel,
-                            layer.damping_min,
-                            layer.poissons_ratio,
-                        )
-                    )
-                    break
-            else:
-                raise LookupError
+        thick = self._a * (depth_top + 0.5) ** self._b
+        for _ in range(100):
+            updated = self._a * (depth_top + thick / 2) ** self._b
+            if abs(updated - thick) < 1e-10:
+                break
+            thick = updated
+        return thick
 
-        # Add the half-space
-        hsl = profile[-1]
-        layers.append(
-            site.Layer(
-                hsl.soil_type,
-                0,
-                hsl.initial_shear_vel,
-                hsl.damping_min,
-                hsl.poissons_ratio,
-            )
-        )
+    def iter_thickness(self, depth_total, rng=None):
+        """Iterate over the varied thicknesses.
 
-        varied = site.Profile(layers, profile.wt_depth)
-        return varied
+        Parameters
+        ----------
+        depth_total : float
+            Total depth generated. Last thickness is truncated to achieve this
+            depth.
+        rng : None, int, or numpy.random.Generator, optional
+            Generator used to draw the thicknesses. Defaults to the
+            module-level generator.
+
+        Yields
+        ------
+        thickness : float
+            Varied thickness.
+        depth_mid : float
+            Depth to the middle of the layer.
+        """
+        generator = _as_generator(rng)
+        depth_prev = 0.0
+
+        while depth_prev < depth_total:
+            mean = self.mean_thickness(depth_prev)
+            std = self._c * (depth_prev + mean / 2) ** self._d
+            thickness = generator.gamma((mean / std) ** 2, std**2 / mean)
+
+            depth = depth_prev + thickness
+            if depth > depth_total:
+                depth = depth_total
+                thickness = depth - depth_prev
+
+            yield thickness, (depth_prev + depth) / 2
+            depth_prev = depth
 
 
 class HalfSpaceDepthVariation:
@@ -1013,6 +1156,91 @@ class DepthDependToroVelVariation(ToroVelocityVariation):
         return cls(**p)
 
 
+class ShiAsimakiVelocityVariation(ToroVelocityVariation):
+    r""":cite:t:`ShiAsimaki2018` velocity variation model.
+
+    The standard deviation of the shear-wave velocity is a function of the depth
+    and :math:`V_{S30}` (eq. 9 of the paper),
+
+    .. math:: SD_{V_S} = -89.7085 + 1.6434 \, z_{mid} + 0.5204 \, V_{S30}
+
+    in m/s, and is converted to the log-space standard deviation of each layer
+    from its velocity, which is the median. The paper does not provide a
+    correlation model, so the correlation of :class:`ToroVelocityVariation` is
+    used. By default its parameters are those of the USGS site class of
+    :math:`V_{S30}`.
+
+    The model is calibrated for :math:`V_{S30}` between 173.1 and 1000 m/s.
+
+    Parameters
+    ----------
+    vs30 : float
+        Time-averaged shear-wave velocity of the upper 30 m [m/s].
+    site_class : str, optional
+        Site class (a key of :attr:`ToroVelocityVariation.PARAMS`) selecting the
+        correlation parameters. Default is the USGS class of *vs30*.
+    vary_bedrock : bool, optional
+        If the velocity of the bedrock (half-space) should be varied.
+    limit_mode : {"normal", "clipped", "clipped_inflated"}, optional
+        How the variation is limited to 2 standard deviations, see
+        :class:`LimitedNorm`.
+    **corr_kwds
+        Override of the correlation parameters ``rho_0``, ``delta``,
+        ``rho_200``, ``h_0`` and ``b``.
+    """
+
+    VS30_RANGE = (173.1, 1000.0)
+    _SD_COEFFS = (-89.7085, 1.6434, 0.5204)
+
+    def __init__(
+        self,
+        vs30: float,
+        *,
+        site_class: str | None = None,
+        vary_bedrock: bool = False,
+        limit_mode: str = "clipped_inflated",
+        **corr_kwds,
+    ):
+        """Initialize the model."""
+        if not self.VS30_RANGE[0] <= vs30 <= self.VS30_RANGE[1]:
+            warnings.warn(
+                "ShiAsimakiVelocityVariation is calibrated for Vs30 between "
+                f"{self.VS30_RANGE[0]} and {self.VS30_RANGE[1]} m/s.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        params = dict(self.PARAMS[site_class or self.usgs_site_class(vs30)])
+        params.pop("ln_std")
+        unknown = set(corr_kwds) - set(params)
+        if unknown:
+            raise TypeError(f"Unknown correlation parameters: {sorted(unknown)}")
+        params.update(corr_kwds)
+
+        super().__init__(
+            ln_std=np.nan,
+            vary_bedrock=vary_bedrock,
+            limit_mode=limit_mode,
+            **params,
+        )
+        self._vs30 = vs30
+
+    @property
+    def vs30(self):
+        """Time-averaged shear-wave velocity of the upper 30 m [m/s]."""
+        return self._vs30
+
+    def _calc_ln_std(self, profile):
+        c_0, c_1, c_2 = self._SD_COEFFS
+        std = np.maximum(
+            c_0 + c_1 * np.asarray(profile.depth_mid) + c_2 * self._vs30, 0.0
+        )
+        # For a lognormal distribution with median v: std^2 / mean^2 = x - 1 with
+        # x = exp(sigma^2), and mean = v sqrt(x), so x (x - 1) = (std / v)^2.
+        cov2 = (std / np.asarray(profile.initial_shear_vel)) ** 2
+        return np.sqrt(np.log((1 + np.sqrt(1 + 4 * cov2)) / 2))
+
+
 class SoilTypeVariation:
     """Base class for soil-type (modulus-reduction and damping) variation.
 
@@ -1427,7 +1655,7 @@ def varied_profile(
     index: int,
     seed: int | None = None,
     var_depth: HalfSpaceDepthVariation | None = None,
-    var_thickness: ToroThicknessVariation | None = None,
+    var_thickness: ThicknessVariation | None = None,
     var_velocity: VelocityVariation | None = None,
     var_soiltypes: SoilTypeVariation | None = None,
 ) -> site.Profile:
@@ -1503,7 +1731,7 @@ def _vary(
 def iter_varied_profiles(
     profile: site.Profile,
     count: int,
-    var_thickness: ToroThicknessVariation | None = None,
+    var_thickness: ThicknessVariation | None = None,
     var_velocity: VelocityVariation | None = None,
     var_soiltypes: SoilTypeVariation | None = None,
     check: None | Callable = None,
@@ -1519,7 +1747,7 @@ def iter_varied_profiles(
         seed profile
     count : int
         number of interations
-    var_thickness : ToroThicknessVariation | None
+    var_thickness : ThicknessVariation | None
         model for the thickness variation
     var_velocity : VelocityVariation | None
         model for the velocity variation

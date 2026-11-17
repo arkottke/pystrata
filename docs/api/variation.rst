@@ -11,10 +11,13 @@ Classes
 .. autosummary::
    :nosignatures:
 
+   ThicknessVariation
    ToroThicknessVariation
+   ShiAsimakiThicknessVariation
    HalfSpaceDepthVariation
    ToroVelocityVariation
    DepthDependToroVelVariation
+   ShiAsimakiVelocityVariation
    SoilTypeVariation
    DarendeliVariation
    SpidVariation
@@ -25,7 +28,15 @@ Classes
 Thickness and Depth Variations
 ------------------------------
 
+.. autoclass:: ThicknessVariation
+   :members:
+   :show-inheritance:
+
 .. autoclass:: ToroThicknessVariation
+   :members:
+   :show-inheritance:
+
+.. autoclass:: ShiAsimakiThicknessVariation
    :members:
    :show-inheritance:
 
@@ -41,6 +52,10 @@ Velocity Variations
    :show-inheritance:
 
 .. autoclass:: DepthDependToroVelVariation
+   :members:
+   :show-inheritance:
+
+.. autoclass:: ShiAsimakiVelocityVariation
    :members:
    :show-inheritance:
 
