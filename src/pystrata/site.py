@@ -151,13 +151,13 @@ class NonlinearCurve(ABC):
         """Return the nonlinear property at a specific strain.
 
         If the strain is within the range of the provided strains, then the
-        value is interpolated in log-space is calculate the value at the
-        requested strain.  If the strain falls outside the provided range
-        then the value corresponding to the smallest or largest value is
-        returned.
+        value is linearly interpolated in log-strain to calculate the value at
+        the requested strain.  If the strain falls outside the provided range
+        then the value at the smallest or largest provided strain is
+        returned (the curve is held constant, not extrapolated).  Strains
+        below 1e-9 are treated as 1e-9.
 
-        The interpolation is performed using either a cubic-spline, if enough
-        points are provided, or using linear interpolation.
+        The result is clipped to the *limits* of the curve.
 
         Parameters
         ----------
